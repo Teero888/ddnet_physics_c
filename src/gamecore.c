@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void init_tunings(STuningParams *pTunings) {
+static void init_tuning_params(STuningParams *pTunings) {
 #define MACRO_TUNING_PARAM(Name, ScriptName, Value, Description)               \
   pTunings->m_##Name.m_Value = Value * 100.f;
 #include "tuning.h"
@@ -112,18 +112,18 @@ void cc_reset(SCharacterCore *pCore) {
 
 void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   cc_reset(pCore);
-  pCore->m_Base.m_pWorld = pWorld;
-  pCore->m_Base.m_pCollision = pWorld->m_pCollision;
+  pCore->m_pWorld = pWorld;
+  pCore->m_pCollision = pWorld->m_pCollision;
 
   // The world assigns ids to the core
-  pCore->m_Base.m_Id = -1;
-  init_tunings(&pCore->m_Tuning);
+  pCore->m_Id = -1;
+  init_tuning_params(&pCore->m_Tuning);
 }
 
 void cc_set_worldcore(SCharacterCore *pCore, SWorldCore *pWorld,
                       SCollision *pCollision) {
-  pCore->m_Base.m_pWorld = pWorld;
-  pCore->m_Base.m_pCollision = pCollision;
+  pCore->m_pWorld = pWorld;
+  pCore->m_pCollision = pCollision;
 }
 
 void cc_unfreeze(SCharacterCore *pCore) {
@@ -136,8 +136,8 @@ void cc_unfreeze(SCharacterCore *pCore) {
 }
 bool is_switch_active_cb(int Number, void *pUser) {
   SCharacterCore *pThis = (SCharacterCore *)pUser;
-  return pThis->m_Base.m_pWorld->m_vSwitches &&
-         pThis->m_Base.m_pWorld->m_vSwitches[Number].m_Status;
+  return pThis->m_pWorld->m_vSwitches &&
+         pThis->m_pWorld->m_vSwitches[Number].m_Status;
 }
 
 void cc_tick_deferred(SCharacterCore *pCore) {}
@@ -160,30 +160,26 @@ void cc_ddracetick(SCharacterCore *pCore) {
 
   int TuneZoneOld = pCore->m_TuneZone;
   // TODO: implement these functions xd
-  int CurrentIndex =
-      get_map_index(pCore->m_Base.m_pCollision, pCore->m_Base.m_Pos);
-  pCore->m_TuneZone = is_tune(pCore->m_Base.m_pCollision, CurrentIndex);
+  int CurrentIndex = get_map_index(pCore->m_pCollision, pCore->m_Pos);
+  pCore->m_TuneZone = is_tune(pCore->m_pCollision, CurrentIndex);
   if (TuneZoneOld != pCore->m_TuneZone)
     pCore->m_Tuning =
-        pCore->m_Base.m_pWorld
+        pCore->m_pWorld
             ->m_pTuningList[pCore->m_TuneZone]; // throw tunings from specific
 }
 
 void cc_pretick(SCharacterCore *pCore) {
   cc_ddracetick(pCore);
 
-  pCore->m_MoveRestrictions =
-      get_move_restrictions(pCore->m_Base.m_pCollision, is_switch_active_cb,
-                            pCore, pCore->m_Base.m_Pos);
+  pCore->m_MoveRestrictions = get_move_restrictions(
+      pCore->m_pCollision, is_switch_active_cb, pCore, pCore->m_Pos);
 
   // get ground state
   const bool Grounded =
-      check_point(pCore->m_Base.m_pCollision,
-                  pCore->m_Base.m_Pos.x + PHYSICALSIZE / 2,
-                  pCore->m_Base.m_Pos.y + PHYSICALSIZE / 2 + 5) ||
-      check_point(pCore->m_Base.m_pCollision,
-                  pCore->m_Base.m_Pos.x - PHYSICALSIZE / 2,
-                  pCore->m_Base.m_Pos.y + PHYSICALSIZE / 2 + 5);
+      check_point(pCore->m_pCollision, pCore->m_Pos.x + PHYSICALSIZE / 2,
+                  pCore->m_Pos.y + PHYSICALSIZE / 2 + 5) ||
+      check_point(pCore->m_pCollision, pCore->m_Pos.x - PHYSICALSIZE / 2,
+                  pCore->m_Pos.y + PHYSICALSIZE / 2 + 5);
 
   vec2 TargetDirection =
       vnormalize((vec2){pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY});
@@ -232,8 +228,8 @@ void cc_pretick(SCharacterCore *pCore) {
   if (pCore->m_Input.m_Hook) {
     if (pCore->m_HookState == HOOK_IDLE) {
       pCore->m_HookState = HOOK_FLYING;
-      pCore->m_HookPos = vvadd(pCore->m_Base.m_Pos,
-                               vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
+      pCore->m_HookPos =
+          vvadd(pCore->m_Pos, vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
       pCore->m_HookDir = TargetDirection;
       pCore->m_HookedPlayer = -1;
       pCore->m_HookTick = (float)SERVER_TICK_SPEED *
@@ -242,7 +238,7 @@ void cc_pretick(SCharacterCore *pCore) {
   } else {
     pCore->m_HookedPlayer = -1;
     pCore->m_HookState = HOOK_IDLE;
-    pCore->m_HookPos = pCore->m_Base.m_Pos;
+    pCore->m_HookPos = pCore->m_Pos;
   }
 
   // handle jumping
@@ -265,14 +261,14 @@ void cc_pretick(SCharacterCore *pCore) {
   // do hook
   if (pCore->m_HookState == HOOK_IDLE) {
     pCore->m_HookedPlayer = -1;
-    pCore->m_HookPos = pCore->m_Base.m_Pos;
+    pCore->m_HookPos = pCore->m_Pos;
   } else if (pCore->m_HookState >= HOOK_RETRACT_START &&
              pCore->m_HookState < HOOK_RETRACT_END) {
     pCore->m_HookState++;
   } else if (pCore->m_HookState == HOOK_RETRACT_END) {
     pCore->m_HookState = HOOK_RETRACTED;
   } else if (pCore->m_HookState == HOOK_FLYING) {
-    vec2 HookBase = pCore->m_Base.m_Pos;
+    vec2 HookBase = pCore->m_Pos;
     if (pCore->m_NewHook) {
       HookBase = pCore->m_HookTeleBase;
     }
@@ -291,9 +287,8 @@ void cc_pretick(SCharacterCore *pCore) {
     bool GoingToRetract = false;
     bool GoingThroughTele = false;
     int teleNr = 0;
-    int Hit =
-        intersect_line_tele_hook(pCore->m_Base.m_pCollision, pCore->m_HookPos,
-                                 NewPos, &NewPos, NULL, &teleNr);
+    int Hit = intersect_line_tele_hook(pCore->m_pCollision, pCore->m_HookPos,
+                                       NewPos, &NewPos, NULL, &teleNr);
 
     if (Hit) {
       if (Hit == TILE_NOHOOK)
@@ -306,32 +301,28 @@ void cc_pretick(SCharacterCore *pCore) {
     }
 
     // Check against other players first
-    if (!pCore->m_HookHitDisabled && pCore->m_Base.m_pWorld &&
+    if (!pCore->m_HookHitDisabled && pCore->m_pWorld &&
         get_tune(pCore->m_Tuning.m_PlayerHooking) &&
         (pCore->m_HookState == HOOK_FLYING || !pCore->m_NewHook)) {
       float Distance = 0.0f;
 
-      SCharacterCore *pEntity =
-          (SCharacterCore *)
-              pCore->m_Base.m_pWorld->m_apFirstEntityTypes[ENTTYPE_CHARACTER];
-      while (pEntity) {
+      for (int i = 0; i < pCore->m_pWorld->m_NumCharacters; ++i) {
+        SCharacterCore *pEntity = &pCore->m_pWorld->m_pCharacters[i];
         if (pEntity == pCore || pEntity->m_Solo || pCore->m_Solo)
           continue;
 
         vec2 ClosestPoint;
-        if (closest_point_on_line(pCore->m_HookPos, NewPos,
-                                  pEntity->m_Base.m_Pos, &ClosestPoint)) {
-          if (vdistance(pEntity->m_Base.m_Pos, ClosestPoint) <
-              PHYSICALSIZE + 2.0f) {
+        if (closest_point_on_line(pCore->m_HookPos, NewPos, pEntity->m_Pos,
+                                  &ClosestPoint)) {
+          if (vdistance(pEntity->m_Pos, ClosestPoint) < PHYSICALSIZE + 2.0f) {
             if (pCore->m_HookedPlayer == -1 ||
-                vdistance(pCore->m_HookPos, pEntity->m_Base.m_Pos) < Distance) {
+                vdistance(pCore->m_HookPos, pEntity->m_Pos) < Distance) {
               pCore->m_HookState = HOOK_GRABBED;
               pCore->m_HookedPlayer = -1;
-              Distance = vdistance(pCore->m_HookPos, pEntity->m_Base.m_Pos);
+              Distance = vdistance(pCore->m_HookPos, pEntity->m_Pos);
             }
           }
         }
-        pEntity = (SCharacterCore *)pEntity->m_Base.m_pNextTypeEntity;
       }
     }
 
@@ -343,13 +334,12 @@ void cc_pretick(SCharacterCore *pCore) {
         pCore->m_HookState = HOOK_RETRACT_START;
       }
       int NumOuts;
-      vec2 *pTeleOuts =
-          tele_outs(pCore->m_Base.m_pCollision, teleNr - 1, &NumOuts);
+      vec2 *pTeleOuts = tele_outs(pCore->m_pCollision, teleNr - 1, &NumOuts);
       if (GoingThroughTele && NumOuts > 0) {
         pCore->m_HookedPlayer = -1;
 
         pCore->m_NewHook = true;
-        pCore->m_HookPos = vvadd(pTeleOuts[pCore->m_Base.m_pWorld->m_GameTick],
+        pCore->m_HookPos = vvadd(pTeleOuts[pCore->m_pWorld->m_GameTick],
                                  vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
         pCore->m_HookDir = TargetDirection;
         pCore->m_HookTeleBase = pCore->m_HookPos;
@@ -360,22 +350,24 @@ void cc_pretick(SCharacterCore *pCore) {
   }
 
   if (pCore->m_HookState == HOOK_GRABBED) {
-    if (pCore->m_HookedPlayer != -1 && pCore->m_Base.m_pWorld) {
-      CCharacterCore *pCharCore = m_pWorld->m_apCharacters[m_HookedPlayer];
+    if (pCore->m_HookedPlayer != -1 && pCore->m_pWorld) {
+      SCharacterCore *pCharCore =
+          &pCore->m_pWorld->m_pCharacters[pCore->m_HookedPlayer];
       if (pCharCore && pCore->m_Id != -1)
         pCore->m_HookPos = pCharCore->m_Pos;
       else {
         // release hook
         pCore->m_HookedPlayer = -1;
         pCore->m_HookState = HOOK_RETRACTED;
-        pCore->m_HookPos = m_Pos;
+        pCore->m_HookPos = pCore->m_Pos;
       }
     }
 
     // don't do this hook routine when we are already hooked to a player
-    if (pCore->m_HookedPlayer == -1 && distance(m_HookPos, m_Pos) > 46.0f) {
-      vec2 HookVel = vfmul(vnormalize(m_HookPos - m_Pos),
-                           get_tune(m_Tuning.m_HookDragAccel));
+    if (pCore->m_HookedPlayer == -1 &&
+        vdistance(pCore->m_HookPos, pCore->m_Pos) > 46.0f) {
+      vec2 HookVel = vfmul(vnormalize(vvsub(pCore->m_HookPos, pCore->m_Pos)),
+                           get_tune(pCore->m_Tuning.m_HookDragAccel));
       // the hook as more power to drag you up then down.
       // this makes it easier to get on top of an platform
       if (HookVel.y > 0)
@@ -383,18 +375,18 @@ void cc_pretick(SCharacterCore *pCore) {
 
       // the hook will boost it's power if the player wants to move
       // in that direction. otherwise it will dampen everything abit
-      if ((HookVel.x < 0 && m_Direction < 0) ||
-          (HookVel.x > 0 && m_Direction > 0))
+      if ((HookVel.x < 0 && pCore->m_Direction < 0) ||
+          (HookVel.x > 0 && pCore->m_Direction > 0))
         HookVel.x *= 0.95f;
       else
         HookVel.x *= 0.75f;
 
-      vec2 NewVel = vvadd(m_Vel, HookVel);
+      vec2 NewVel = vvadd(pCore->m_Vel, HookVel);
 
       // check if we are under the legal limit for the hook
       const float NewVelLength = vlength(NewVel);
-      if (NewVelLength < get_tune(m_Tuning.m_HookDragSpeed) ||
-          NewVelLength < vlength(m_Vel))
+      if (NewVelLength < get_tune(pCore->m_Tuning.m_HookDragSpeed) ||
+          NewVelLength < vlength(pCore->m_Vel))
         pCore->m_Vel = NewVel; // no problem. apply
     }
 
@@ -402,23 +394,23 @@ void cc_pretick(SCharacterCore *pCore) {
     pCore->m_HookTick++;
     if (pCore->m_HookedPlayer != -1 &&
         (pCore->m_HookTick > SERVER_TICK_SPEED + SERVER_TICK_SPEED / 5 ||
-         (m_pWorld && !m_pWorld->m_apCharacters[m_HookedPlayer]))) {
+         (pCore->m_HookedPlayer >= pCore->m_pWorld->m_NumCharacters))) {
       pCore->m_HookedPlayer = -1;
       pCore->m_HookState = HOOK_RETRACTED;
-      pCore->m_HookPos = m_Pos;
+      pCore->m_HookPos = pCore->m_Pos;
     }
   }
 
-  if (!pCore->m_Base.m_pWorld->m_NoWeakHookAndBounce)
-    TickDeferred();
+  if (!pCore->m_pWorld->m_NoWeakHookAndBounce)
+    cc_tick_deferred(pCore);
 }
 
 void cc_tick(SCharacterCore *pCore) {}
 void cc_move(SCharacterCore *pCore) {}
 
 void cc_quantize(SCharacterCore *pCore) {
-  pCore->m_Base.m_Pos.x = round_to_int(pCore->m_Base.m_Pos.x);
-  pCore->m_Base.m_Pos.y = round_to_int(pCore->m_Base.m_Pos.y);
+  pCore->m_Pos.x = round_to_int(pCore->m_Pos.x);
+  pCore->m_Pos.y = round_to_int(pCore->m_Pos.y);
   pCore->m_Vel.x = round_to_int(pCore->m_Vel.x * 256.0f) / 256.0f;
   pCore->m_Vel.y = round_to_int(pCore->m_Vel.y * 256.0f) / 256.0f;
   pCore->m_HookPos.x = round_to_int(pCore->m_HookPos.x);
@@ -455,9 +447,15 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision) {
   memset(pCore, 0, sizeof(SWorldCore));
   pCore->m_pCollision = pCollision;
 
-  // TODO: figure out highest switch number in collision later
+  // TODO: figure out highest switch number in collision
   init_switchers(pCore, 0);
-  init_tunings(&pCore->m_Tuning);
+
+  // TODO: figure out the amount of tune zones in collision
+  pCore->m_NumTuneZones = 1;
+  pCore->m_pTuningList = malloc(pCore->m_NumTuneZones * sizeof(STuningParams));
+  for (int i = 0; i < pCore->m_NumTuneZones; ++i)
+    init_tuning_params(&pCore->m_pTuningList[i]);
+
   // configs
   pCore->m_NoWeakHook = false;
   pCore->m_NoWeakHookAndBounce = false;
@@ -472,6 +470,7 @@ void wc_free(SWorldCore *pCore) {
       free(pFree);
     }
   }
+  free(pCore->m_pCharacters);
 }
 
 void wc_tick(SWorldCore *pCore) {
@@ -486,45 +485,33 @@ void wc_tick(SWorldCore *pCore) {
     }
     case ENTTYPE_PICKUP: {
     }
-    case ENTTYPE_FLAG: {
     }
-    case ENTTYPE_CHARACTER: {
-    }
-      if (pCore->m_NoWeakHook) {
-        SEntity *pEntity = pCore->m_apFirstEntityTypes[i];
-        while (pEntity) {
-          cc_pretick((SCharacterCore *)pEntity);
-          pEntity = pEntity->m_pNextTypeEntity;
-        }
-      }
-      SEntity *pEntity = pCore->m_apFirstEntityTypes[i];
-      while (pEntity) {
-        cc_tick((SCharacterCore *)pEntity);
-        pEntity = pEntity->m_pNextTypeEntity;
-      }
+    if (pCore->m_NoWeakHook) {
+      for (int i = 0; i < pCore->m_NumCharacters; ++i)
+        cc_pretick((SCharacterCore *)&pCore->m_pCharacters[i]);
     }
   }
+  for (int i = 0; i < pCore->m_NumCharacters; ++i)
+    cc_tick((SCharacterCore *)&pCore->m_pCharacters[i]);
 
   // Do tick deferred
   for (int i = 0; i < NUM_ENTTYPES; ++i) {
     switch (i) {
     case ENTTYPE_PROJECTILE: {
+      // SEntity *pEntity = pCore->m_apFirstEntityTypes[i];
+      // while (pEntity) {
+      //   pj_tick_deferred((SProjectile *)pEntity);
+      //   pEntity = pEntity->m_pNextTypeEntity;
+      // }
     }
     case ENTTYPE_LASER: {
     }
     case ENTTYPE_PICKUP: {
     }
-    case ENTTYPE_FLAG: {
-    }
-    case ENTTYPE_CHARACTER: {
-    }
-      SEntity *pEntity = pCore->m_apFirstEntityTypes[i];
-      while (pEntity) {
-        cc_tick_deferred((SCharacterCore *)pEntity);
-        pEntity = pEntity->m_pNextTypeEntity;
-      }
     }
   }
+  for (int i = 0; i < pCore->m_NumCharacters; ++i)
+    cc_tick_deferred((SCharacterCore *)&pCore->m_pCharacters[i]);
 }
 
 // }}}

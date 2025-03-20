@@ -40,14 +40,7 @@ struct PlayerInput {
 
 struct WorldCore typedef SWorldCore;
 
-enum {
-  ENTTYPE_PROJECTILE = 0,
-  ENTTYPE_LASER,
-  ENTTYPE_PICKUP,
-  ENTTYPE_FLAG,
-  ENTTYPE_CHARACTER,
-  NUM_ENTTYPES
-};
+enum { ENTTYPE_PROJECTILE = 0, ENTTYPE_LASER, ENTTYPE_PICKUP, NUM_ENTTYPES };
 
 // Entities {{{
 
@@ -64,7 +57,10 @@ struct Entity {
 } typedef SEntity;
 
 struct CharacterCore {
-  SEntity m_Base;
+  SWorldCore *m_pWorld;
+  SCollision *m_pCollision;
+  int m_Id;
+  vec2 m_Pos;
   vec2 m_Vel;
 
   vec2 m_HookPos;
@@ -147,13 +143,22 @@ struct Switch {
 
 struct WorldCore {
   SCollision *m_pCollision;
-  STuningParams *m_pTuningList;
 
   SEntity *m_pNextTraverseEntity;
   SEntity *m_apFirstEntityTypes[NUM_ENTTYPES];
 
+  // Store and tick characters seperately from other entities since
+  // the amount of players mostly only gets set once for simulations
+  // NOTE: i could do this on the stack and just set a max but keep
+  // the num characters var for a speedup probably
+  int m_NumCharacters;
+  SCharacterCore *m_pCharacters;
+
   int m_NumSwitches;
   SSwitch *m_vSwitches;
+
+  int m_NumTuneZones;
+  STuningParams *m_pTuningList;
 
   int m_GameTick;
 
