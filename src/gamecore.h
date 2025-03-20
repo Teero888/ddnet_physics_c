@@ -35,6 +35,7 @@ struct PlayerInput {
   int m_WantedWeapon;
 } typedef SPlayerInput;
 
+#define DEATH 9
 #define PHYSICALSIZE 28.f
 #define PHYSICALSIZEVEC ({vec2}(28.f, 28.f))
 
@@ -60,6 +61,7 @@ struct CharacterCore {
   SWorldCore *m_pWorld;
   SCollision *m_pCollision;
   int m_Id;
+  vec2 m_PrevPos;
   vec2 m_Pos;
   vec2 m_Vel;
 
@@ -99,10 +101,16 @@ struct CharacterCore {
   int m_NumInputs;
 
   // DDRace
-  bool m_Reset;
+  int m_StartTime;
 
   int m_Colliding;
   bool m_LeftWall;
+  int m_TeleCheckpoint;
+
+  // Last refers to the last tick
+  bool m_LastRefillJumps;
+  bool m_LastPenalty;
+  bool m_LastBonus;
 
   // DDNet Character
   bool m_Solo;

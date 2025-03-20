@@ -10,8 +10,8 @@ struct vec2 {
 inline vec2 vfmul(vec2 a, float b) { return (vec2){a.x * b, a.y * b}; }
 inline vec2 vfdiv(vec2 a, float b) { return (vec2){a.x / b, a.y / b}; }
 inline vec2 vfadd(vec2 a, float b) { return (vec2){a.x + b, a.y + b}; }
-inline vec2 vvadd(vec2 a, vec2 b) { return (vec2){a.x + b.x, a.y + b.x}; }
-inline vec2 vvsub(vec2 a, vec2 b) { return (vec2){a.x - b.x, a.y - b.x}; }
+inline vec2 vvadd(vec2 a, vec2 b) { return (vec2){a.x + b.x, a.y + b.y}; }
+inline vec2 vvsub(vec2 a, vec2 b) { return (vec2){a.x - b.x, a.y - b.y}; }
 inline float vdot(vec2 a, vec2 b) { return a.x * b.x + a.y * b.y; };
 inline float vlength(vec2 a) { return sqrt(a.x * a.x + a.y * a.y); }
 inline float vdistance(vec2 a, vec2 b) { return vlength(vvsub(a, b)); }
@@ -22,7 +22,7 @@ inline int round_to_int(float f) {
 }
 inline float fclamp(float n, float a, float b) {
   return n > b ? b : n < a ? a : n;
-};
+}
 
 inline bool closest_point_on_line(vec2 line_pointA, vec2 line_pointB,
                                   vec2 target_point, vec2 *out_pos) {
