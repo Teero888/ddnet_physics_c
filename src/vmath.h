@@ -7,6 +7,8 @@ struct vec2 {
   float x, y;
 } typedef vec2;
 
+#define VZERO ((vec2){0, 0})
+
 inline vec2 vfmul(vec2 a, float b) { return (vec2){a.x * b, a.y * b}; }
 inline vec2 vfdiv(vec2 a, float b) { return (vec2){a.x / b, a.y / b}; }
 inline vec2 vfadd(vec2 a, float b) { return (vec2){a.x + b, a.y + b}; }
@@ -22,6 +24,11 @@ inline int round_to_int(float f) {
 }
 inline float fclamp(float n, float a, float b) {
   return n > b ? b : n < a ? a : n;
+}
+inline int iclamp(int n, int a, int b) { return n > b ? b : n < a ? a : n; }
+
+inline vec2 vvfmix(vec2 a, vec2 b, float t) {
+  return vvadd(a, vfmul(vvsub(b, a), t));
 }
 
 inline bool closest_point_on_line(vec2 line_pointA, vec2 line_pointB,

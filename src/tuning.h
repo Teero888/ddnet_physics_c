@@ -6,6 +6,10 @@
 
 #define SERVER_TICK_SPEED 50
 
+#ifndef MACRO_TUNING_PARAM
+#define MACRO_TUNING_PARAM(Name, ScriptName, Value, Description) ;
+#endif
+
 // physics tuning
 MACRO_TUNING_PARAM(GroundControlSpeed, ground_control_speed, 10.0f,
                    "Max speed the tee can get on ground")

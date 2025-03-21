@@ -15,6 +15,12 @@ struct TuningParams {
 #undef MACRO_TUNING_PARAM
 } typedef STuningParams;
 
+struct Config {
+#define MACRO_CONFIG_INT(Name, Def) int m_##Name;
+#include "config.h"
+#undef MACRO_CONFIG_INT
+} typedef SConfig;
+
 enum {
   WEAPON_HAMMER = 0,
   WEAPON_GUN,
@@ -71,6 +77,8 @@ struct CharacterCore {
   int m_HookTick;
   int m_HookState;
 
+  int m_LastWeapon;
+  int m_QueuedWeapon;
   int m_ActiveWeapon;
   struct WeaponStat {
     int m_AmmoRegenStart;
@@ -135,6 +143,12 @@ struct CharacterCore {
 
   int m_MoveRestrictions;
   int m_HookedPlayer;
+
+  vec2 m_TeleGunPos;
+  bool m_TeleGunTeleport;
+  bool m_IsBlueTeleGunTeleport;
+
+  int m_ReloadTimer;
 } typedef SCharacterCore;
 // }}}
 
@@ -151,6 +165,9 @@ struct Switch {
 
 struct WorldCore {
   SCollision *m_pCollision;
+
+  // Expects a config from outside so you can reuse it as many times as needed
+  SConfig *m_pConfig;
 
   SEntity *m_pNextTraverseEntity;
   SEntity *m_apFirstEntityTypes[NUM_ENTTYPES];

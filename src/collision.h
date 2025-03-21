@@ -4,9 +4,7 @@
 #include "../libs/ddnet_maploader_c/map_loader.h"
 #include "vmath.h"
 
-struct Collision {
-} typedef SCollision;
-
+typedef SMapData SCollision;
 typedef bool (*CALLBACK_SWITCHACTIVE)(int Number, void *pUser);
 
 // NOTE: we can probably inline most of these
@@ -35,12 +33,18 @@ int get_switch_delay(SCollision *pCollision, int Index);
 
 int is_teleport(SCollision *pCollision, int Index);
 int is_evil_teleport(SCollision *pCollision, int Index);
+bool is_check_teleport(SCollision *pCollision, int Index);
+bool is_check_evil_teleport(SCollision *pCollision, int Index);
 
 // Checkpoint tiles for tele checkpoints
 int is_tele_checkpoint(SCollision *pCollision, int Index);
 
+const vec2 *spawn_points(SCollision *pCollision, int *pOutNum);
+
 const vec2 *tele_ins(SCollision *pCollision, int Number, int *pOutNum);
 const vec2 *tele_outs(SCollision *pCollision, int Number, int *pOutNum);
 const vec2 *tele_check_outs(SCollision *pCollision, int Number, int *pOutNum);
+
+bool tile_exists(SCollision *pCollision, int Index);
 
 #endif // LIB_COLLISION_H

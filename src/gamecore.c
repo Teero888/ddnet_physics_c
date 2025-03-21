@@ -10,6 +10,13 @@ static void init_tuning_params(STuningParams *pTunings) {
 #include "tuning.h"
 #undef MACRO_TUNING_PARAM
 }
+
+static void init_config(SConfig *pConfig) {
+#define MACRO_CONFIG_INT(Name, Def) pConfig->m_##Name = Def;
+#include "config.h"
+#undef MACRO_CONFIG_INT
+}
+
 inline static float tune_get(STuneParam Tune) { return Tune.m_Value / 100.f; }
 
 // Physics helper functions {{{
@@ -395,6 +402,9 @@ void cc_reset_pickups(SCharacterCore *pCore) {
   }
 }
 
+void wc_release_hooked(SWorldCore *pCore, int Id);
+bool wc_next_spawn(SWorldCore *pCore, vec2 *pOutPos);
+
 void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   int MapIndex = Index;
   int TileIndex = get_tile_index(pCore->m_pCollision, MapIndex);
@@ -544,6 +554,8 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
     int Delay = get_switch_delay(pCore->m_pCollision, MapIndex);
     int Tick = pCore->m_pWorld->m_GameTick;
 
+    SSwitch *pSwitch = &pSwitches[Number];
+
     // handle switch tiles
     if (Type == TILE_SWITCHOPEN && Number > 0) {
       pSwitches[Number].m_Status = true;
@@ -630,16 +642,17 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
 
   int z = is_teleport(pCore->m_pCollision, MapIndex);
   int Num;
+  SConfig *pConfig = pCore->m_pWorld->m_pConfig;
   if (z && tele_outs(pCore->m_pCollision, z - 1, &Num) && Num > 0 &&
-      !g_Config.m_SvOldTeleportHook && !g_Config.m_SvOldTeleportWeapons) {
+      !pConfig->m_SvOldTeleportHook && !pConfig->m_SvOldTeleportWeapons) {
 
     // TODO: make this be controlled by player input later
     pCore->m_Pos = tele_outs(pCore->m_pCollision, z - 1,
                              &Num)[pCore->m_pWorld->m_GameTick % Num];
-    if (!g_Config.m_SvTeleportHoldHook) {
+    if (!pConfig->m_SvTeleportHoldHook) {
       cc_reset_hook(pCore);
     }
-    if (g_Config.m_SvTeleportLoseWeapons)
+    if (pConfig->m_SvTeleportLoseWeapons)
       cc_reset_pickups(pCore);
     return;
   }
@@ -648,32 +661,31 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
     // TODO: make this be controlled by player input later
     pCore->m_Pos = tele_outs(pCore->m_pCollision, evilz - 1,
                              &Num)[pCore->m_pWorld->m_GameTick % Num];
-    if (!g_Config.m_SvOldTeleportHook && !g_Config.m_SvOldTeleportWeapons) {
+    if (!pConfig->m_SvOldTeleportHook && !pConfig->m_SvOldTeleportWeapons) {
       pCore->m_Vel = (vec2){0, 0};
 
-      if (!g_Config.m_SvTeleportHoldHook) {
+      if (!pConfig->m_SvTeleportHoldHook) {
         cc_reset_hook(pCore);
-        GameWorld()->ReleaseHooked(GetPlayer()->GetCid());
+        wc_release_hooked(pCore->m_pWorld, pCore->m_Id);
       }
-      if (g_Config.m_SvTeleportLoseWeapons) {
+      if (pConfig->m_SvTeleportLoseWeapons) {
         cc_reset_pickups(pCore);
       }
     }
     return;
   }
-  if (Collision()->IsCheckEvilTeleport(MapIndex)) {
+  if (is_check_evil_teleport(pCore->m_pCollision, MapIndex)) {
     // first check if there is a TeleCheckOut for the current recorded
     // checkpoint, if not check previous checkpoints
-    for (int k = m_TeleCheckpoint - 1; k >= 0; k--) {
-      if (!Collision()->TeleCheckOuts(k).empty()) {
-        int TeleOut =
-            GameWorld()->pCore->RandomOr0(Collision()->TeleCheckOuts(k).size());
-        pCore->m_Pos = Collision()->TeleCheckOuts(k)[TeleOut];
-        pCore->m_Vel = vec2(0, 0);
+    for (int k = pCore->m_TeleCheckpoint - 1; k >= 0; k--) {
+      if (tele_check_outs(pCore->m_pCollision, k, &Num)) {
+        pCore->m_Pos = tele_check_outs(pCore->m_pCollision, k,
+                                       &Num)[pCore->m_pWorld->m_GameTick % Num];
+        pCore->m_Vel = (vec2){0, 0};
 
-        if (!g_Config.m_SvTeleportHoldHook) {
-          ResetHook();
-          GameWorld()->ReleaseHooked(GetPlayer()->GetCid());
+        if (!pConfig->m_SvTeleportHoldHook) {
+          cc_reset_hook(pCore);
+          wc_release_hooked(pCore->m_pWorld, pCore->m_Id);
         }
 
         return;
@@ -682,30 +694,28 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
     // if no checkpointout have been found (or if there no recorded checkpoint),
     // teleport to start
     vec2 SpawnPos;
-    if (GameServer()->m_pController->CanSpawn(
-            m_pPlayer->GetTeam(), &SpawnPos,
-            GameServer()->GetDDRaceTeam(GetPlayer()->GetCid()))) {
+    if (wc_next_spawn(pCore->m_pWorld, &SpawnPos)) {
       pCore->m_Pos = SpawnPos;
-      pCore->m_Vel = vec2(0, 0);
+      pCore->m_Vel = (vec2){0, 0};
 
-      if (!g_Config.m_SvTeleportHoldHook) {
-        ResetHook();
-        GameWorld()->ReleaseHooked(GetPlayer()->GetCid());
+      if (!pConfig->m_SvTeleportHoldHook) {
+        cc_reset_hook(pCore);
+        wc_release_hooked(pCore->m_pWorld, pCore->m_Id);
       }
     }
     return;
   }
-  if (Collision()->IsCheckTeleport(MapIndex)) {
+
+  if (is_check_teleport(pCore->m_pCollision, MapIndex)) {
     // first check if there is a TeleCheckOut for the current recorded
     // checkpoint, if not check previous checkpoints
-    for (int k = m_TeleCheckpoint - 1; k >= 0; k--) {
-      if (!Collision()->TeleCheckOuts(k).empty()) {
-        int TeleOut =
-            GameWorld()->pCore->RandomOr0(Collision()->TeleCheckOuts(k).size());
-        pCore->m_Pos = Collision()->TeleCheckOuts(k)[TeleOut];
+    for (int k = pCore->m_TeleCheckpoint - 1; k >= 0; k--) {
+      if (tele_check_outs(pCore->m_pCollision, k, &Num)) {
+        pCore->m_Pos = tele_check_outs(pCore->m_pCollision, k,
+                                       &Num)[pCore->m_pWorld->m_GameTick % Num];
 
-        if (!g_Config.m_SvTeleportHoldHook) {
-          ResetHook();
+        if (!pConfig->m_SvTeleportHoldHook) {
+          cc_reset_hook(pCore);
         }
 
         return;
@@ -714,13 +724,11 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
     // if no checkpointout have been found (or if there no recorded checkpoint),
     // teleport to start
     vec2 SpawnPos;
-    if (GameServer()->m_pController->CanSpawn(
-            m_pPlayer->GetTeam(), &SpawnPos,
-            GameServer()->GetDDRaceTeam(GetPlayer()->GetCid()))) {
+    if (wc_next_spawn(pCore->m_pWorld, &SpawnPos)) {
       pCore->m_Pos = SpawnPos;
 
-      if (!g_Config.m_SvTeleportHoldHook) {
-        ResetHook();
+      if (!pConfig->m_SvTeleportHoldHook) {
+        cc_reset_hook(pCore);
       }
     }
     return;
@@ -762,25 +770,38 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
   int CurrentIndex = get_map_index(pCore->m_pCollision, pCore->m_Pos);
   cc_handle_skippable_tiles(pCore, CurrentIndex);
 
-  // handle Anti-Skip tiles
-  vector<int> vIndices = Collision()->GetMapIndices(m_PrevPos, m_Pos);
-  if (!vIndices.empty()) {
-    for (int &Index : vIndices) {
-      HandleTiles(Index);
-      if (!m_Alive)
-        return;
-    }
+  float d = vdistance(pCore->m_PrevPos, pCore->m_Pos);
+  int End = d + 1;
+  if (!d) {
+    int Nx =
+        iclamp((int)pCore->m_Pos.x / 32, 0, pCore->m_pCollision->m_Width - 1);
+    int Ny =
+        iclamp((int)pCore->m_Pos.y / 32, 0, pCore->m_pCollision->m_Height - 1);
+    int Index = Ny * pCore->m_pCollision->m_Width + Nx;
+
+    if (tile_exists(pCore->m_pCollision, Index))
+      cc_handle_tiles(pCore, Index);
+
   } else {
-    HandleTiles(CurrentIndex);
-    if (!m_Alive)
-      return;
+    int LastIndex = 0;
+    for (int i = 0; i < End; i++) {
+      float a = i / d;
+      vec2 Tmp = vvfmix(pCore->m_PrevPos, pCore->m_Pos, a);
+      int Nx = iclamp((int)Tmp.x / 32, 0, pCore->m_pCollision->m_Width - 1);
+      int Ny = iclamp((int)Tmp.y / 32, 0, pCore->m_pCollision->m_Height - 1);
+      int Index = Ny * pCore->m_pCollision->m_Width + Nx;
+      if (tile_exists(pCore->m_pCollision, Index) && LastIndex != Index) {
+        cc_handle_tiles(pCore, Index);
+        LastIndex = Index;
+      }
+    }
   }
 
   // teleport gun
   if (pCore->m_TeleGunTeleport) {
-    pCore->m_Pos = m_TeleGunPos;
+    pCore->m_Pos = pCore->m_TeleGunPos;
     if (!pCore->m_IsBlueTeleGunTeleport)
-      pCore->m_Vel = vec2(0, 0);
+      pCore->m_Vel = (vec2){0, 0};
     pCore->m_TeleGunTeleport = false;
     pCore->m_IsBlueTeleGunTeleport = false;
   }
@@ -897,7 +918,6 @@ void cc_pre_tick(SCharacterCore *pCore) {
       pCore->m_HookState = HOOK_RETRACT_START;
       NewPos = vvadd(HookBase, vfmul(vnormalize(vvsub(NewPos, HookBase)),
                                      tune_get(pCore->m_Tuning.m_HookLength)));
-      pCore->m_Reset = true;
     }
 
     // make sure that the hook doesn't go though the ground
@@ -915,7 +935,6 @@ void cc_pre_tick(SCharacterCore *pCore) {
         GoingThroughTele = true;
       else
         GoingToHitGround = true;
-      pCore->m_Reset = true;
     }
 
     // Check against other players first
@@ -952,7 +971,8 @@ void cc_pre_tick(SCharacterCore *pCore) {
         pCore->m_HookState = HOOK_RETRACT_START;
       }
       int NumOuts;
-      vec2 *pTeleOuts = tele_outs(pCore->m_pCollision, teleNr - 1, &NumOuts);
+      const vec2 *pTeleOuts =
+          tele_outs(pCore->m_pCollision, teleNr - 1, &NumOuts);
       if (GoingThroughTele && NumOuts > 0) {
         pCore->m_HookedPlayer = -1;
 
@@ -961,8 +981,9 @@ void cc_pre_tick(SCharacterCore *pCore) {
         // i don't want to use random number obviously since this is for
         // simulation purposes so the player should be able to control this with
         // an input
-        pCore->m_HookPos = vvadd(pTeleOuts[pCore->m_pWorld->m_GameTick],
-                                 vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
+        pCore->m_HookPos =
+            vvadd(pTeleOuts[pCore->m_pWorld->m_GameTick % NumOuts],
+                  vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
         pCore->m_HookDir = TargetDirection;
         pCore->m_HookTeleBase = pCore->m_HookPos;
       } else {
@@ -1027,6 +1048,132 @@ void cc_pre_tick(SCharacterCore *pCore) {
     cc_tick_deferred(pCore);
 }
 
+void cc_set_weapon(SCharacterCore *pCore, int W) {
+
+  if (W == pCore->m_ActiveWeapon)
+    return;
+
+  pCore->m_LastWeapon = pCore->m_ActiveWeapon;
+  pCore->m_QueuedWeapon = -1;
+  pCore->m_ActiveWeapon = W;
+
+  if (pCore->m_ActiveWeapon < 0 || pCore->m_ActiveWeapon >= NUM_WEAPONS)
+    pCore->m_ActiveWeapon = 0;
+}
+
+void cc_remove_ninja(SCharacterCore *pCore) {
+  pCore->m_Ninja.m_ActivationDir = (vec2){0, 0};
+  pCore->m_Ninja.m_ActivationTick = 0;
+  pCore->m_Ninja.m_CurrentMoveTime = 0;
+  pCore->m_Ninja.m_OldVelAmount = 0;
+  pCore->m_aWeapons[WEAPON_NINJA].m_Got = false;
+  pCore->m_aWeapons[WEAPON_NINJA].m_Ammo = 0;
+  pCore->m_ActiveWeapon = pCore->m_LastWeapon;
+
+  cc_set_weapon(pCore, pCore->m_ActiveWeapon);
+}
+
+void cc_handle_ninja(SCharacterCore *pCore) {
+
+  if ((pCore->m_pWorld->m_GameTick - pCore->m_Ninja.m_ActivationTick) >
+      (g_pData->m_Weapons.m_Ninja.m_Duration * SERVER_TICK_SPEED / 1000)) {
+    // time's up, return
+    cc_remove_ninja(pCore);
+    return;
+  }
+
+  int NinjaTime =
+      pCore->m_Ninja.m_ActivationTick +
+      (g_pData->m_Weapons.m_Ninja.m_Duration * SERVER_TICK_SPEED / 1000) -
+      pCore->m_pWorld->m_GameTick;
+
+  // force ninja Weapon
+  cc_set_weapon(pCore, WEAPON_NINJA);
+
+  pCore->m_Ninja.m_CurrentMoveTime--;
+
+  if (pCore->m_Ninja.m_CurrentMoveTime == 0) {
+    // reset velocity
+    pCore->m_Vel =
+        vfmul(pCore->m_Ninja.m_ActivationDir, pCore->m_Ninja.m_OldVelAmount);
+  }
+
+  if (pCore->m_Ninja.m_CurrentMoveTime > 0) {
+    // Set velocity
+    pCore->m_Vel =
+        pCore->m_Ninja.m_ActivationDir * g_pData->m_Weapons.m_Ninja.m_Velocity;
+    vec2 OldPos = pCore->m_Pos;
+    vec2 GroundElasticity =
+        (vec2){tune_get(pCore->m_Tuning.m_GroundElasticityX),
+               tune_get(pCore->m_Tuning.m_GroundElasticityY)};
+
+    Collision()->MoveBox(&pCore->m_Pos, &pCore->m_Vel, PHYSICALSIZEVEC,
+                         GroundElasticity);
+
+    pCore->m_Vel = VZERO;
+
+    // check if we Hit anything along the way
+    {
+      CEntity *apEnts[MAX_CLIENTS];
+      float Radius = PHYSICALSIZE * 2.0f;
+      int Num = GameServer()->m_World.FindEntities(
+          OldPos, Radius, apEnts, MAX_CLIENTS, CGameWorld::ENTTYPE_CHARACTER);
+
+      // check that we're not in solo part
+      if (pCore->m_Solo)
+        return;
+
+      for (int i = 0; i < Num; ++i) {
+        auto *pChr = static_cast<CCharacter *>(apEnts[i]);
+        if (pChr == this)
+          continue;
+
+        // Don't hit players in other teams
+        if (Team() != pChr->Team())
+          continue;
+
+        // Don't hit players in solo parts
+        if (Teams()->m_Core.GetSolo(pChr->m_pPlayer->GetCid()))
+          return;
+
+        // make sure we haven't Hit this object before
+        bool AlreadyHit = false;
+        for (int j = 0; j < m_NumObjectsHit; j++) {
+          if (m_apHitObjects[j] == pChr)
+            AlreadyHit = true;
+        }
+        if (AlreadyHit)
+          continue;
+
+        // check so we are sufficiently close
+        if (distance(pChr->m_Pos, m_Pos) > (GetProximityRadius() * 2.0f))
+          continue;
+
+        // set his velocity to fast upward (for now)
+        if (m_NumObjectsHit < 10)
+          m_apHitObjects[m_NumObjectsHit++] = pChr;
+
+        pChr->TakeDamage(vec2(0, -10.0f),
+                         g_pData->m_Weapons.m_Ninja.m_pBase->m_Damage,
+                         m_pPlayer->GetCid(), WEAPON_NINJA);
+      }
+    }
+
+    return;
+  }
+}
+
+void cc_handle_weapons(SCharacterCore *pCore) {
+  if (pCore->m_ActiveWeapon == WEAPON_NINJA)
+    cc_handle_ninja(pCore);
+  cc_handle_jetpack(pCore);
+  if (pCore->m_ReloadTimer) {
+    --pCore->m_ReloadTimer;
+    return;
+  }
+  cc_fire_weapon(pCore);
+}
+
 void cc_tick(SCharacterCore *pCore) {
   if (pCore->m_pWorld->m_NoWeakHook) {
 
@@ -1036,9 +1183,9 @@ void cc_tick(SCharacterCore *pCore) {
   }
 
   // handle Weapons
-  HandleWeapons();
+  cc_handle_weapons(pCore);
 
-  DDRacePostCoreTick();
+  cc_ddrace_postcore_tick(pCore);
 
   // Previnput
   pCore->m_PrevInput = pCore->m_Input;
@@ -1081,6 +1228,24 @@ void init_switchers(SWorldCore *pCore, int HighestSwitchNumber) {
                                       .m_Type = 0,
                                       .m_LastUpdateTick = 0};
   }
+}
+
+// NOTE: spawn points are not the same as in ddnet. other players will not be
+// respected
+bool wc_next_spawn(SWorldCore *pCore, vec2 *pOutPos) {
+  int Num;
+  const vec2 *pSpawnPoints = spawn_points(pCore->m_pCollision, &Num);
+  if (!pSpawnPoints)
+    return false;
+  *pOutPos = pSpawnPoints[pCore->m_GameTick % Num];
+  return true;
+}
+
+void wc_release_hooked(SWorldCore *pCore, int Id) {
+  for (int i = 0; i < pCore->m_NumCharacters; ++i)
+    if (pCore->m_pCharacters[i].m_HookedPlayer == Id)
+      cc_release_hook(
+          &pCore->m_pCharacters[pCore->m_pCharacters[i].m_HookedPlayer]);
 }
 
 void wc_init(SWorldCore *pCore, SCollision *pCollision) {
