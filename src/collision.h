@@ -1,7 +1,9 @@
 #ifndef LIB_COLLISION_H
 #define LIB_COLLISION_H
 
+#include "../libs/ddnet_maploader_c/map_loader.h"
 #include "vmath.h"
+
 struct Collision {
 } typedef SCollision;
 

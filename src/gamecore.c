@@ -387,6 +387,14 @@ void cc_reset_hook(SCharacterCore *pCore) {
   pCore->m_HookPos = pCore->m_Pos;
 }
 
+void cc_reset_pickups(SCharacterCore *pCore) {
+  for (int i = WEAPON_SHOTGUN; i < NUM_WEAPONS - 1; i++) {
+    pCore->m_aWeapons[i].m_Got = false;
+    if (pCore->m_ActiveWeapon == i)
+      pCore->m_ActiveWeapon = WEAPON_GUN;
+  }
+}
+
 void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   int MapIndex = Index;
   int TileIndex = get_tile_index(pCore->m_pCollision, MapIndex);
@@ -487,13 +495,13 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
 
   // refill jumps
   if ((TileIndex == TILE_REFILL_JUMPS || TileFIndex == TILE_REFILL_JUMPS) &&
-      !m_LastRefillJumps) {
+      !pCore->m_LastRefillJumps) {
     pCore->m_JumpedTotal = 0;
     pCore->m_Jumped = 0;
-    m_LastRefillJumps = true;
+    pCore->m_LastRefillJumps = true;
   }
   if (TileIndex != TILE_REFILL_JUMPS && TileFIndex != TILE_REFILL_JUMPS) {
-    m_LastRefillJumps = false;
+    pCore->m_LastRefillJumps = false;
   }
 
   // Teleport gun
@@ -522,7 +530,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   }
 
   // stopper
-  if (pCore->m_Vel.y > 0 && (m_MoveRestrictions & CANTMOVE_DOWN)) {
+  if (pCore->m_Vel.y > 0 && (pCore->m_MoveRestrictions & CANTMOVE_DOWN)) {
     pCore->m_Jumped = 0;
     pCore->m_JumpedTotal = 0;
   }
@@ -541,25 +549,25 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
       pSwitches[Number].m_Status = true;
       pSwitches[Number].m_EndTick = 0;
       pSwitches[Number].m_Type = TILE_SWITCHOPEN;
-      pSwitches[Number].m_aLastUpdateTick = Tick;
+      pSwitches[Number].m_LastUpdateTick = Tick;
     } else if (Type == TILE_SWITCHTIMEDOPEN && Number > 0) {
       pSwitches[Number].m_Status = true;
       pSwitches[Number].m_EndTick = Tick + 1 + Delay * SERVER_TICK_SPEED;
       pSwitches[Number].m_Type = TILE_SWITCHTIMEDOPEN;
-      pSwitches[Number].m_aLastUpdateTick = Tick;
+      pSwitches[Number].m_LastUpdateTick = Tick;
     } else if (Type == TILE_SWITCHTIMEDCLOSE && Number > 0) {
       pSwitches[Number].m_Status = false;
       pSwitches[Number].m_EndTick = Tick + 1 + Delay * SERVER_TICK_SPEED;
       pSwitches[Number].m_Type = TILE_SWITCHTIMEDCLOSE;
-      pSwitches[Number].m_aLastUpdateTick = Tick;
+      pSwitches[Number].m_LastUpdateTick = Tick;
     } else if (Type == TILE_SWITCHCLOSE && Number > 0) {
       pSwitches[Number].m_Status = false;
       pSwitches[Number].m_EndTick = 0;
       pSwitches[Number].m_Type = TILE_SWITCHCLOSE;
-      pSwitches[Number].m_aLastUpdateTick = Tick;
+      pSwitches[Number].m_LastUpdateTick = Tick;
     } else if (Type == TILE_FREEZE) {
       if (Number == 0 || pSwitches[Number].m_Status) {
-        Freeze(Delay);
+        cc_freeze(pCore, Delay);
       }
     } else if (Type == TILE_DFREEZE) {
       if (Number == 0 || pSwitches[Number].m_Status)
@@ -599,18 +607,16 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
       if (NewJumps != pCore->m_Jumps) {
         pCore->m_Jumps = NewJumps;
       }
-    } else if (Type == TILE_ADD_TIME && !m_LastPenalty) {
+    } else if (Type == TILE_ADD_TIME && !pCore->m_LastPenalty) {
       int min = Delay;
       int sec = Number;
-      int Team = Teams()->pCore->Team(pCore->m_Id);
       pCore->m_StartTime -= (min * 60 + sec) * SERVER_TICK_SPEED;
       pCore->m_LastPenalty = true;
-    } else if (Type == TILE_SUBTRACT_TIME && !m_LastBonus) {
+    } else if (Type == TILE_SUBTRACT_TIME && !pCore->m_LastBonus) {
       int min = Delay;
       int sec = Number;
-      int Team = Teams()->pCore->Team(pCore->m_Id);
       pCore->m_StartTime += (min * 60 + sec) * SERVER_TICK_SPEED;
-      if (m_StartTime > Tick)
+      if (pCore->m_StartTime > Tick)
         pCore->m_StartTime = Tick;
       pCore->m_LastBonus = true;
     }
@@ -631,26 +637,26 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
     pCore->m_Pos = tele_outs(pCore->m_pCollision, z - 1,
                              &Num)[pCore->m_pWorld->m_GameTick % Num];
     if (!g_Config.m_SvTeleportHoldHook) {
-      ResetHook();
+      cc_reset_hook(pCore);
     }
     if (g_Config.m_SvTeleportLoseWeapons)
-      ResetPickups();
+      cc_reset_pickups(pCore);
     return;
   }
   int evilz = is_evil_teleport(pCore->m_pCollision, MapIndex);
   if (evilz && tele_outs(pCore->m_pCollision, evilz, &Num) && Num > 0) {
     // TODO: make this be controlled by player input later
-    pCore->m_Pos = tele_outs(pCore->m_pCollision,
-                             evilz - 1)[pCore->m_pWorld->m_GameTick % Num];
+    pCore->m_Pos = tele_outs(pCore->m_pCollision, evilz - 1,
+                             &Num)[pCore->m_pWorld->m_GameTick % Num];
     if (!g_Config.m_SvOldTeleportHook && !g_Config.m_SvOldTeleportWeapons) {
-      pCore->m_Vel = vec2(0, 0);
+      pCore->m_Vel = (vec2){0, 0};
 
       if (!g_Config.m_SvTeleportHoldHook) {
-        ResetHook();
+        cc_reset_hook(pCore);
         GameWorld()->ReleaseHooked(GetPlayer()->GetCid());
       }
       if (g_Config.m_SvTeleportLoseWeapons) {
-        ResetPickups();
+        cc_reset_pickups(pCore);
       }
     }
     return;
