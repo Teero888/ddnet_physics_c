@@ -25,13 +25,6 @@ inline static float tune_get(STuneParam Tune) { return Tune.m_Value / 100.f; }
 
 // Physics helper functions {{{
 
-enum {
-  CANTMOVE_LEFT = 1 << 0,
-  CANTMOVE_RIGHT = 1 << 1,
-  CANTMOVE_UP = 1 << 2,
-  CANTMOVE_DOWN = 1 << 3,
-};
-
 vec2 clamp_vel(int MoveRestriction, vec2 Vel) {
   if (Vel.x > 0 && (MoveRestriction & CANTMOVE_RIGHT)) {
     Vel.x = 0;
@@ -168,6 +161,7 @@ void cc_unfreeze(SCharacterCore *pCore) {
   pCore->m_FreezeTime = 0;
   pCore->m_FrozenLastTick = true;
 }
+
 bool is_switch_active_cb(int Number, void *pUser) {
   SCharacterCore *pThis = (SCharacterCore *)pUser;
   return pThis->m_pWorld->m_vSwitches &&
@@ -219,7 +213,8 @@ void cc_move(SCharacterCore *pCore) {
   pCore->m_Vel.x = pCore->m_Vel.x * (1.0f / RampValue);
 
   if (pCore->m_Tuning.m_PlayerCollision.m_Value &&
-      !pCore->m_CollisionDisabled && !pCore->m_Solo && pCore->m_pWorld->m_NumCharacters > 1) {
+      !pCore->m_CollisionDisabled && !pCore->m_Solo &&
+      pCore->m_pWorld->m_NumCharacters > 1) {
     // check player collision
     float Distance = vdistance(pCore->m_Pos, NewPos);
     if (Distance > 0) {
@@ -1627,7 +1622,7 @@ void wc_tick(SWorldCore *pCore) {
   for (int i = 0; i < pCore->m_NumCharacters; ++i)
     cc_on_predicted_input(&pCore->m_pCharacters[i],
                           &pCore->m_pCharacters[i].m_LatestInput);
-                          
+
   // Do Tick
   for (int i = 0; i < NUM_ENTTYPES; ++i) {
     // TODO: implement all other entities
