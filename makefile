@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -std=c99 -Wall -Wextra -O0 -I./src -I./libs/ddnet_maploader_c
+CFLAGS = -g -fsanitize=address -std=c99 -Wall -Wextra -O0 -I./src -I./libs/ddnet_maploader_c
 LDFLAGS = -lm -lz
 
 SRC_OBJS = $(patsubst %.c,%.o,$(wildcard src/*.c))

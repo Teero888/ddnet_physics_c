@@ -146,6 +146,8 @@ void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   cc_reset(pCore);
   pCore->m_pWorld = pWorld;
   pCore->m_pCollision = pWorld->m_pCollision;
+  pCore->m_aWeapons[0].m_Got = true;
+  pCore->m_aWeapons[1].m_Got = true;
 
   // The world assigns ids to the core
   pCore->m_Id = -1;
@@ -217,7 +219,7 @@ void cc_move(SCharacterCore *pCore) {
   pCore->m_Vel.x = pCore->m_Vel.x * (1.0f / RampValue);
 
   if (pCore->m_Tuning.m_PlayerCollision.m_Value &&
-      !pCore->m_CollisionDisabled && !pCore->m_Solo) {
+      !pCore->m_CollisionDisabled && !pCore->m_Solo && pCore->m_pWorld->m_NumCharacters > 1) {
     // check player collision
     float Distance = vdistance(pCore->m_Pos, NewPos);
     if (Distance > 0) {
@@ -340,6 +342,8 @@ void cc_ddracetick(SCharacterCore *pCore) {
   int TuneZoneOld = pCore->m_TuneZone;
   // TODO: implement these functions xd
   int CurrentIndex = get_map_index(pCore->m_pCollision, pCore->m_Pos);
+  if (CurrentIndex < 0)
+    return;
   pCore->m_TuneZone = is_tune(pCore->m_pCollision, CurrentIndex);
   if (TuneZoneOld != pCore->m_TuneZone)
     pCore->m_Tuning =
@@ -357,14 +361,15 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
                         pCore->m_Pos.y - DEATH) == TILE_DEATH ||
        get_collision_at(pCore->m_pCollision, pCore->m_Pos.x - DEATH,
                         pCore->m_Pos.y + DEATH) == TILE_DEATH ||
-       get_front_collision_at(pCore->m_pCollision, pCore->m_Pos.x + DEATH,
-                              pCore->m_Pos.y - DEATH) == TILE_DEATH ||
-       get_front_collision_at(pCore->m_pCollision, pCore->m_Pos.x + DEATH,
-                              pCore->m_Pos.y + DEATH) == TILE_DEATH ||
-       get_front_collision_at(pCore->m_pCollision, pCore->m_Pos.x - DEATH,
-                              pCore->m_Pos.y - DEATH) == TILE_DEATH ||
-       get_front_collision_at(pCore->m_pCollision, pCore->m_Pos.x - DEATH,
-                              pCore->m_Pos.y + DEATH) == TILE_DEATH)) {
+       (pCore->m_pCollision->m_FrontLayer.m_pData &&
+        (get_front_collision_at(pCore->m_pCollision, pCore->m_Pos.x + DEATH,
+                                pCore->m_Pos.y - DEATH) == TILE_DEATH ||
+         get_front_collision_at(pCore->m_pCollision, pCore->m_Pos.x + DEATH,
+                                pCore->m_Pos.y + DEATH) == TILE_DEATH ||
+         get_front_collision_at(pCore->m_pCollision, pCore->m_Pos.x - DEATH,
+                                pCore->m_Pos.y - DEATH) == TILE_DEATH ||
+         get_front_collision_at(pCore->m_pCollision, pCore->m_Pos.x - DEATH,
+                                pCore->m_Pos.y + DEATH) == TILE_DEATH)))) {
     // TODO: implement death logic actually
     // Die(m_pPlayer->GetCid(), WEAPON_WORLD);
     return;
@@ -1518,7 +1523,7 @@ void cc_handle_weapon_switch(SCharacterCore *pCore) {
   cc_do_weapon_switch(pCore);
 }
 
-void cc_on_direct_input(SCharacterCore *pCore, SPlayerInput *pNewInput) {
+void cc_on_input(SCharacterCore *pCore, SPlayerInput *pNewInput) {
   pCore->m_NumInputs++;
   pCore->m_LatestPrevInput = pCore->m_LatestInput;
   pCore->m_LatestInput = *pNewInput;
@@ -1585,9 +1590,10 @@ void wc_release_hooked(SWorldCore *pCore, int Id) {
           &pCore->m_pCharacters[pCore->m_pCharacters[i].m_HookedPlayer]);
 }
 
-void wc_init(SWorldCore *pCore, SCollision *pCollision) {
+void wc_init(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig) {
   memset(pCore, 0, sizeof(SWorldCore));
   pCore->m_pCollision = pCollision;
+  pCore->m_pConfig = pConfig;
 
   // TODO: figure out highest switch number in collision
   init_switchers(pCore, 0);
@@ -1612,11 +1618,16 @@ void wc_free(SWorldCore *pCore) {
       free(pFree);
     }
   }
+  free(pCore->m_pTuningList);
   free(pCore->m_pCharacters);
 }
 
 void wc_tick(SWorldCore *pCore) {
-
+  ++pCore->m_GameTick;
+  for (int i = 0; i < pCore->m_NumCharacters; ++i)
+    cc_on_predicted_input(&pCore->m_pCharacters[i],
+                          &pCore->m_pCharacters[i].m_LatestInput);
+                          
   // Do Tick
   for (int i = 0; i < NUM_ENTTYPES; ++i) {
     // TODO: implement all other entities
@@ -1654,7 +1665,30 @@ void wc_tick(SWorldCore *pCore) {
     }
   }
   for (int i = 0; i < pCore->m_NumCharacters; ++i)
-    cc_world_tick_deferred((SCharacterCore *)&pCore->m_pCharacters[i]);
+    cc_world_tick_deferred(&pCore->m_pCharacters[i]);
+}
+
+SCharacterCore *wc_add_character(SWorldCore *pWorld) {
+  const int NewSize = pWorld->m_NumCharacters + 1;
+  SCharacterCore *pNewArray =
+      realloc(pWorld->m_pCharacters, NewSize * sizeof(SCharacterCore));
+  if (!pNewArray)
+    return NULL;
+
+  pWorld->m_pCharacters = pNewArray;
+  SCharacterCore *pChar = &pWorld->m_pCharacters[pWorld->m_NumCharacters];
+  pWorld->m_NumCharacters = NewSize;
+
+  cc_init(pChar, pWorld);
+  pChar->m_Id = pWorld->m_NumCharacters - 1;
+
+  vec2 SpawnPos;
+  if (wc_next_spawn(pWorld, &SpawnPos)) {
+    pChar->m_Pos = SpawnPos;
+    pChar->m_PrevPos = SpawnPos;
+  }
+
+  return pChar;
 }
 
 // }}}

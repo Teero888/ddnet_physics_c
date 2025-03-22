@@ -1,4 +1,5 @@
 #include "collision.h"
+#include "vmath.h"
 
 enum {
   MR_DIR_HERE = 0,
@@ -100,12 +101,13 @@ int get_move_restrictions(SCollision *pCollision,
     if (d == MR_DIR_HERE && OverrideCenterTileIndex >= 0) {
       ModMapIndex = OverrideCenterTileIndex;
     }
-    for (int Front = 0; Front < 2; Front++) {
+    for (int Front = 0; Front < 2 - !(pCollision->m_FrontLayer.m_pData);
+         Front++) {
       int Tile;
       int Flags;
       if (!Front) {
         Tile = get_tile_index(pCollision, ModMapIndex);
-        Flags = get_front_tile_flags(pCollision, ModMapIndex);
+        Flags = get_tile_flags(pCollision, ModMapIndex);
       } else {
         Tile = get_front_tile_index(pCollision, ModMapIndex);
         Flags = get_front_tile_flags(pCollision, ModMapIndex);
@@ -113,7 +115,7 @@ int get_move_restrictions(SCollision *pCollision,
       Restrictions |= move_restrictions(d, Tile, Flags);
     }
     if (pfnSwitchActive) {
-      if ((pCollision->m_DoorLayer.m_pIndex && ModMapIndex >= 0) ||
+      if (pCollision->m_DoorLayer.m_pIndex && ModMapIndex >= 0 &&
           pCollision->m_DoorLayer.m_pIndex[ModMapIndex]) {
         if (pfnSwitchActive(pCollision->m_DoorLayer.m_pNumber[ModMapIndex],
                             pUser)) {
@@ -139,8 +141,8 @@ int get_map_index(SCollision *pCollision, vec2 Pos) {
 }
 
 bool check_point(SCollision *pCollision, vec2 Pos) {
-  int Nx = iclamp(Pos.x / 32, 0, pCollision->m_Width - 1);
-  int Ny = iclamp(Pos.y / 32, 0, pCollision->m_Height - 1);
+  int Nx = iclamp(round_to_int(Pos.x) / 32, 0, pCollision->m_Width - 1);
+  int Ny = iclamp(round_to_int(Pos.y) / 32, 0, pCollision->m_Height - 1);
   int Idx = pCollision->m_GameLayer.m_pData[Ny * pCollision->m_Width + Nx];
   return Idx == TILE_SOLID || Idx == TILE_NOHOOK;
 }
@@ -385,12 +387,12 @@ const vec2 *spawn_points(SCollision *pCollision, int *pOutNum) {
 }
 
 const vec2 *tele_outs(SCollision *pCollision, int Number, int *pOutNum) {
-  *pOutNum = pCollision->m_NumTeleOuts;
-  return (vec2 *)pCollision->m_pTeleOuts;
+  *pOutNum = pCollision->m_aNumTeleOuts[Number];
+  return (vec2 *)pCollision->m_apTeleOuts[Number];
 }
 const vec2 *tele_check_outs(SCollision *pCollision, int Number, int *pOutNum) {
-  *pOutNum = pCollision->m_NumTeleCheckOuts;
-  return (vec2 *)pCollision->m_pTeleCheckOuts;
+  *pOutNum = pCollision->m_aNumTeleCheckOuts[Number];
+  return (vec2 *)pCollision->m_apTeleCheckOuts[Number];
 }
 
 static bool tile_exists_next(SCollision *pCollision, int Index) {
@@ -512,7 +514,7 @@ bool tile_exists(SCollision *pCollision, int Index) {
     return true;
   if (pTune && pTune[Index])
     return true;
-  return tile_exists(pCollision, Index);
+  return tile_exists_next(pCollision, Index);
 }
 
 void move_box(SCollision *pCollision, vec2 *pInoutPos, vec2 *pInoutVel,

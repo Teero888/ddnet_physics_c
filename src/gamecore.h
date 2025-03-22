@@ -43,16 +43,14 @@ typedef struct PlayerInput {
 
 #define DEATH 9
 #define PHYSICALSIZE 28.f
-#define PHYSICALSIZEVEC                                                        \
-  (vec2) { 28.f, 28.f }
+#define PHYSICALSIZEVEC (vec2){28.f, 28.f}
 
-typedef struct WorldCore SWorldCore;
 enum { ENTTYPE_PROJECTILE = 0, ENTTYPE_LASER, ENTTYPE_PICKUP, NUM_ENTTYPES };
 
 // Entities {{{
 
 typedef struct Entity {
-  SWorldCore *m_pWorld;
+  struct WorldCore *m_pWorld;
   SCollision *m_pCollision;
   struct Entity *m_pPrevTypeEntity;
   struct Entity *m_pNextTypeEntity;
@@ -64,7 +62,7 @@ typedef struct Entity {
 } SEntity;
 
 typedef struct CharacterCore {
-  SWorldCore *m_pWorld;
+  struct WorldCore *m_pWorld;
   SCollision *m_pCollision;
   int m_Id;
   vec2 m_PrevPos;
@@ -165,7 +163,7 @@ typedef struct CharacterCore {
 // World {{{
 
 // We don't want teams for the physics, that makes switches easier
-typedef struct Switch {
+typedef struct {
   bool m_Status;
   bool m_Initial;
   int m_EndTick;
@@ -204,5 +202,11 @@ typedef struct WorldCore {
 // }}}
 
 void init_config(SConfig *pConfig);
+void wc_init(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig);
+void wc_tick(SWorldCore *pCore);
+void wc_free(SWorldCore *pCore);
+
+void cc_on_input(SCharacterCore *pCore, SPlayerInput *pNewInput);
+SCharacterCore *wc_add_character(SWorldCore *pWorld);
 
 #endif // LIB_GAMECORE_H
