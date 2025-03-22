@@ -2,10 +2,11 @@
 #define LIB_COLLISION_H
 
 #include "../libs/ddnet_maploader_c/map_loader.h"
+#include "stdbool.h"
 #include "vmath.h"
 
 typedef SMapData SCollision;
-typedef bool (*CALLBACK_SWITCHACTIVE)(int Number, void *pUser);
+typedef _Bool (*CALLBACK_SWITCHACTIVE)(int Number, void *pUser);
 
 // NOTE: we can probably inline most of these
 int get_move_restrictions(SCollision *pCollision,

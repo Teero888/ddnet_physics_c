@@ -172,6 +172,88 @@ bool is_switch_active_cb(int Number, void *pUser) {
          pThis->m_pWorld->m_vSwitches[Number].m_Status;
 }
 
+void cc_quantize(SCharacterCore *pCore) {
+  pCore->m_Pos.x = round_to_int(pCore->m_Pos.x);
+  pCore->m_Pos.y = round_to_int(pCore->m_Pos.y);
+  pCore->m_Vel.x = round_to_int(pCore->m_Vel.x * 256.0f) / 256.0f;
+  pCore->m_Vel.y = round_to_int(pCore->m_Vel.y * 256.0f) / 256.0f;
+  pCore->m_HookPos.x = round_to_int(pCore->m_HookPos.x);
+  pCore->m_HookPos.y = round_to_int(pCore->m_HookPos.y);
+  pCore->m_HookDir.x = round_to_int(pCore->m_HookDir.x * 256.0f) / 256.f;
+  pCore->m_HookDir.y = round_to_int(pCore->m_HookDir.y * 256.0f) / 256.f;
+}
+
+void cc_move(SCharacterCore *pCore) {
+  float RampValue = velocity_ramp(vlength(pCore->m_Vel) * 50,
+                                  tune_get(pCore->m_Tuning.m_VelrampStart),
+                                  tune_get(pCore->m_Tuning.m_VelrampRange),
+                                  tune_get(pCore->m_Tuning.m_VelrampCurvature));
+
+  pCore->m_Vel.x *= RampValue;
+
+  vec2 NewPos = pCore->m_Pos;
+
+  vec2 OldVel = pCore->m_Vel;
+  bool Grounded = false;
+  move_box(pCore->m_pCollision, &NewPos, &pCore->m_Vel, PHYSICALSIZEVEC,
+           vec2(tune_get(pCore->m_Tuning.m_GroundElasticityX),
+                tune_get(pCore->m_Tuning.m_GroundElasticityY)),
+           &Grounded);
+
+  if (Grounded) {
+    pCore->m_Jumped &= ~2;
+    pCore->m_JumpedTotal = 0;
+  }
+
+  pCore->m_Colliding = 0;
+  if (pCore->m_Vel.x < 0.001f && pCore->m_Vel.x > -0.001f) {
+    if (OldVel.x > 0)
+      pCore->m_Colliding = 1;
+    else if (OldVel.x < 0)
+      pCore->m_Colliding = 2;
+  } else
+    pCore->m_LeftWall = true;
+
+  pCore->m_Vel.x = pCore->m_Vel.x * (1.0f / RampValue);
+
+  if (pCore->m_Tuning.m_PlayerCollision.m_Value &&
+      !pCore->m_CollisionDisabled && !pCore->m_Solo) {
+    // check player collision
+    float Distance = vdistance(pCore->m_Pos, NewPos);
+    if (Distance > 0) {
+      int End = Distance + 1;
+      vec2 LastPos = pCore->m_Pos;
+      for (int i = 0; i < End; i++) {
+        float a = i / Distance;
+        vec2 Pos = vvfmix(pCore->m_Pos, NewPos, a);
+        for (int p = 0; p < pCore->m_pWorld->m_NumCharacters; p++) {
+          SCharacterCore *pCharCore = &pCore->m_pWorld->m_pCharacters[p];
+          if (pCharCore == pCore)
+            continue;
+          if (pCharCore->m_Solo || pCharCore->m_CollisionDisabled)
+            continue;
+          float D = vdistance(Pos, pCharCore->m_Pos);
+          if (D < PHYSICALSIZE) {
+            if (a > 0.0f)
+              pCore->m_Pos = LastPos;
+            else if (vdistance(NewPos, pCharCore->m_Pos) > D)
+              pCore->m_Pos = NewPos;
+            return;
+          }
+        }
+        LastPos = Pos;
+      }
+    }
+  }
+
+  pCore->m_Pos = NewPos;
+}
+
+void cc_world_tick_deferred(SCharacterCore *pCore) {
+  cc_move(pCore);
+  cc_quantize(pCore);
+}
+
 void cc_tick_deferred(SCharacterCore *pCore) {
   if (pCore->m_pWorld->m_NumCharacters > 1)
     for (int i = 0; i < pCore->m_pWorld->m_NumCharacters; i++) {
@@ -413,8 +495,9 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   int MapIndex = Index;
   int TileIndex = get_tile_index(pCore->m_pCollision, MapIndex);
   int TileFIndex = get_front_tile_index(pCore->m_pCollision, MapIndex);
-  pCore->m_MoveRestrictions = get_move_restrictions(
-      is_switch_active_cb, pCore, pCore->m_Pos, 18.0f, MapIndex);
+  pCore->m_MoveRestrictions =
+      get_move_restrictions(pCore->m_pCollision, is_switch_active_cb, pCore,
+                            pCore->m_Pos, 18.0f, MapIndex);
   if (Index < 0) {
     pCore->m_LastRefillJumps = false;
     pCore->m_LastPenalty = false;
@@ -819,10 +902,12 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
   // get ground state
   const bool Grounded =
-      check_point(pCore->m_pCollision, pCore->m_Pos.x + PHYSICALSIZE / 2,
-                  pCore->m_Pos.y + PHYSICALSIZE / 2 + 5) ||
-      check_point(pCore->m_pCollision, pCore->m_Pos.x - PHYSICALSIZE / 2,
-                  pCore->m_Pos.y + PHYSICALSIZE / 2 + 5);
+      check_point(pCore->m_pCollision,
+                  vec2(pCore->m_Pos.x + PHYSICALSIZE / 2,
+                       pCore->m_Pos.y + PHYSICALSIZE / 2 + 5)) ||
+      check_point(pCore->m_pCollision,
+                  vec2(pCore->m_Pos.x - PHYSICALSIZE / 2,
+                       pCore->m_Pos.y + PHYSICALSIZE / 2 + 5));
 
   vec2 TargetDirection =
       vnormalize((vec2){pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY});
@@ -1201,7 +1286,7 @@ void cc_handle_jetpack(SCharacterCore *pCore) {
     }
 }
 
-void cc_weapon_switch(SCharacterCore *pCore) {
+void cc_do_weapon_switch(SCharacterCore *pCore) {
 
   // make sure we can switch
   if (pCore->m_ReloadTimer != 0 || pCore->m_QueuedWeapon == -1 ||
@@ -1220,7 +1305,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   if (pCore->m_ReloadTimer)
     return;
 
-  cc_weapon_switch(pCore);
+  cc_do_weapon_switch(pCore);
   vec2 Direction = vnormalize(
       vec2(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY));
 
@@ -1392,7 +1477,7 @@ void cc_handle_weapons(SCharacterCore *pCore) {
 }
 
 void cc_tick(SCharacterCore *pCore) {
-  if (pCore->m_pWorld->m_NoWeakHook) {
+  if (pCore->m_pWorld->m_NoWeakHookAndBounce) {
     cc_tick_deferred(pCore);
   } else {
     cc_pre_tick(pCore);
@@ -1409,17 +1494,57 @@ void cc_tick(SCharacterCore *pCore) {
   pCore->m_PrevPos = pCore->m_Pos;
 }
 
-void cc_move(SCharacterCore *pCore) {}
+void cc_handle_weapon_switch(SCharacterCore *pCore) {
+  if (pCore->m_NumInputs < 2)
+    return;
 
-void cc_quantize(SCharacterCore *pCore) {
-  pCore->m_Pos.x = round_to_int(pCore->m_Pos.x);
-  pCore->m_Pos.y = round_to_int(pCore->m_Pos.y);
-  pCore->m_Vel.x = round_to_int(pCore->m_Vel.x * 256.0f) / 256.0f;
-  pCore->m_Vel.y = round_to_int(pCore->m_Vel.y * 256.0f) / 256.0f;
-  pCore->m_HookPos.x = round_to_int(pCore->m_HookPos.x);
-  pCore->m_HookPos.y = round_to_int(pCore->m_HookPos.y);
-  pCore->m_HookDir.x = round_to_int(pCore->m_HookDir.x * 256.0f) / 256.f;
-  pCore->m_HookDir.y = round_to_int(pCore->m_HookDir.y * 256.0f) / 256.f;
+  int WantedWeapon = pCore->m_ActiveWeapon;
+  if (pCore->m_QueuedWeapon != -1)
+    WantedWeapon = pCore->m_QueuedWeapon;
+
+  bool Anything = false;
+  for (int i = 0; i < NUM_WEAPONS - 1; ++i)
+    if (pCore->m_aWeapons[i].m_Got)
+      Anything = true;
+  if (!Anything)
+    return;
+
+  // Direct Weapon selection
+  if (pCore->m_LatestInput.m_WantedWeapon)
+    WantedWeapon = pCore->m_Input.m_WantedWeapon - 1;
+
+  // check for insane values
+  if (WantedWeapon >= 0 && WantedWeapon < NUM_WEAPONS &&
+      WantedWeapon != pCore->m_ActiveWeapon &&
+      pCore->m_aWeapons[WantedWeapon].m_Got)
+    pCore->m_QueuedWeapon = WantedWeapon;
+
+  cc_do_weapon_switch(pCore);
+}
+
+void cc_on_direct_input(SCharacterCore *pCore, SPlayerInput *pNewInput) {
+  pCore->m_NumInputs++;
+  pCore->m_LatestPrevInput = pCore->m_LatestInput;
+  pCore->m_LatestInput = *pNewInput;
+
+  if (pCore->m_LatestInput.m_TargetX == 0 &&
+      pCore->m_LatestInput.m_TargetY == 0)
+    pCore->m_LatestInput.m_TargetY = -1;
+
+  if (pCore->m_NumInputs > 1) {
+    cc_handle_weapon_switch(pCore);
+    cc_fire_weapon(pCore);
+  }
+
+  pCore->m_LatestPrevInput = pCore->m_LatestInput;
+}
+
+void cc_on_predicted_input(SCharacterCore *pCore, SPlayerInput *pNewInput) {
+  pCore->m_Input = *pNewInput;
+  // it is not allowed to aim in the center
+  if (pCore->m_Input.m_TargetX == 0 && pCore->m_Input.m_TargetY == 0)
+    pCore->m_Input.m_TargetY = -1;
+  pCore->m_SavedInput = pCore->m_Input;
 }
 
 // }}}
@@ -1462,34 +1587,6 @@ void wc_release_hooked(SWorldCore *pCore, int Id) {
     if (pCore->m_pCharacters[i].m_HookedPlayer == Id)
       cc_release_hook(
           &pCore->m_pCharacters[pCore->m_pCharacters[i].m_HookedPlayer]);
-}
-
-int wc_find_players(SWorldCore *pCore, vec2 Pos, float Radius, CEntity **ppEnts,
-                    int Max, int Type) {
-
-  int Num = 0;
-
-  return Num;
-}
-
-int wc_find_entities(SWorldCore *pCore, vec2 Pos, float Radius,
-                     CEntity **ppEnts, int Max, int Type) {
-  if (Type < 0 || Type >= NUM_ENTTYPES)
-    return 0;
-
-  int Num = 0;
-  for (SEntity *pEnt = pCore->m_apFirstEntityTypes[Type]; pEnt;
-       pEnt = pEnt->m_pNextTypeEntity) {
-    if (vdistance(pEnt->m_Pos, Pos) < Radius + pEnt->m_ProximityRadius) {
-      if (ppEnts)
-        ppEnts[Num] = pEnt;
-      Num++;
-      if (Num == Max)
-        break;
-    }
-  }
-
-  return Num;
 }
 
 void wc_init(SWorldCore *pCore, SCollision *pCollision) {
@@ -1535,11 +1632,12 @@ void wc_tick(SWorldCore *pCore) {
     case ENTTYPE_PICKUP: {
     }
     }
-    if (pCore->m_NoWeakHook) {
-      for (int i = 0; i < pCore->m_NumCharacters; ++i)
-        cc_pre_tick((SCharacterCore *)&pCore->m_pCharacters[i]);
-    }
   }
+  if (pCore->m_NoWeakHook) {
+    for (int i = 0; i < pCore->m_NumCharacters; ++i)
+      cc_pre_tick((SCharacterCore *)&pCore->m_pCharacters[i]);
+  }
+
   for (int i = 0; i < pCore->m_NumCharacters; ++i)
     cc_tick((SCharacterCore *)&pCore->m_pCharacters[i]);
 
@@ -1560,7 +1658,7 @@ void wc_tick(SWorldCore *pCore) {
     }
   }
   for (int i = 0; i < pCore->m_NumCharacters; ++i)
-    cc_tick_deferred((SCharacterCore *)&pCore->m_pCharacters[i]);
+    cc_world_tick_deferred((SCharacterCore *)&pCore->m_pCharacters[i]);
 }
 
 // }}}
