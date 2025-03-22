@@ -43,7 +43,8 @@ struct PlayerInput {
 
 #define DEATH 9
 #define PHYSICALSIZE 28.f
-#define PHYSICALSIZEVEC ({vec2}(28.f, 28.f))
+#define PHYSICALSIZEVEC                                                        \
+  (vec2) { 28.f, 28.f }
 
 struct WorldCore typedef SWorldCore;
 
@@ -103,9 +104,15 @@ struct CharacterCore {
   int m_Jumps;
 
   int m_Direction;
+
+  SPlayerInput m_LatestPrevPrevInput;
+  SPlayerInput m_LatestPrevInput;
+  SPlayerInput m_LatestInput;
+
   SPlayerInput m_PrevInput;
   SPlayerInput m_Input;
   SPlayerInput m_SavedInput;
+
   int m_NumInputs;
 
   // DDRace
@@ -149,6 +156,10 @@ struct CharacterCore {
   bool m_IsBlueTeleGunTeleport;
 
   int m_ReloadTimer;
+
+  int m_aHitObjects[10];
+  int m_NumObjectsHit;
+
 } typedef SCharacterCore;
 // }}}
 

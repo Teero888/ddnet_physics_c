@@ -47,4 +47,7 @@ const vec2 *tele_check_outs(SCollision *pCollision, int Number, int *pOutNum);
 
 bool tile_exists(SCollision *pCollision, int Index);
 
+void move_box(SCollision *pCollision, vec2 *pInoutPos, vec2 *pInoutVel,
+              vec2 Size, vec2 Elasticity, bool *pGrounded);
+
 #endif // LIB_COLLISION_H

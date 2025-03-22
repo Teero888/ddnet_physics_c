@@ -9,6 +9,8 @@ struct vec2 {
 
 #define VZERO ((vec2){0, 0})
 
+#define vec2(a, b) ((vec2){a, b})
+
 inline vec2 vfmul(vec2 a, float b) { return (vec2){a.x * b, a.y * b}; }
 inline vec2 vfdiv(vec2 a, float b) { return (vec2){a.x / b, a.y / b}; }
 inline vec2 vfadd(vec2 a, float b) { return (vec2){a.x + b, a.y + b}; }

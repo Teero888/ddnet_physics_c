@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define NINJA_DURATION 15000
+#define NINJA_MOVETIME 200
+#define NINJA_VELOCITY 50
+
 static void init_tuning_params(STuningParams *pTunings) {
 #define MACRO_TUNING_PARAM(Name, ScriptName, Value, Description)               \
   pTunings->m_##Name.m_Value = Value * 100.f;
@@ -110,7 +114,7 @@ struct InputCount {
   int m_Releases;
 } typedef SInputCount;
 
-static inline SInputCount CountInput(int Prev, int Cur) {
+static inline SInputCount count_input(int Prev, int Cur) {
   SInputCount c = {0, 0};
   Prev &= INPUT_STATE_MASK;
   Cur &= INPUT_STATE_MASK;
@@ -1073,19 +1077,23 @@ void cc_remove_ninja(SCharacterCore *pCore) {
   cc_set_weapon(pCore, pCore->m_ActiveWeapon);
 }
 
+void cc_take_damage(SCharacterCore *pCore, vec2 Force) {
+  pCore->m_Vel =
+      clamp_vel(pCore->m_MoveRestrictions, vvadd(pCore->m_Vel, Force));
+}
+
 void cc_handle_ninja(SCharacterCore *pCore) {
 
   if ((pCore->m_pWorld->m_GameTick - pCore->m_Ninja.m_ActivationTick) >
-      (g_pData->m_Weapons.m_Ninja.m_Duration * SERVER_TICK_SPEED / 1000)) {
+      (NINJA_DURATION * SERVER_TICK_SPEED / 1000)) {
     // time's up, return
     cc_remove_ninja(pCore);
     return;
   }
 
-  int NinjaTime =
-      pCore->m_Ninja.m_ActivationTick +
-      (g_pData->m_Weapons.m_Ninja.m_Duration * SERVER_TICK_SPEED / 1000) -
-      pCore->m_pWorld->m_GameTick;
+  int NinjaTime = pCore->m_Ninja.m_ActivationTick +
+                  (NINJA_DURATION * SERVER_TICK_SPEED / 1000) -
+                  pCore->m_pWorld->m_GameTick;
 
   // force ninja Weapon
   cc_set_weapon(pCore, WEAPON_NINJA);
@@ -1100,66 +1108,275 @@ void cc_handle_ninja(SCharacterCore *pCore) {
 
   if (pCore->m_Ninja.m_CurrentMoveTime > 0) {
     // Set velocity
-    pCore->m_Vel =
-        pCore->m_Ninja.m_ActivationDir * g_pData->m_Weapons.m_Ninja.m_Velocity;
+    pCore->m_Vel = vfmul(pCore->m_Ninja.m_ActivationDir, NINJA_VELOCITY);
     vec2 OldPos = pCore->m_Pos;
     vec2 GroundElasticity =
         (vec2){tune_get(pCore->m_Tuning.m_GroundElasticityX),
                tune_get(pCore->m_Tuning.m_GroundElasticityY)};
 
-    Collision()->MoveBox(&pCore->m_Pos, &pCore->m_Vel, PHYSICALSIZEVEC,
-                         GroundElasticity);
+    move_box(pCore->m_pCollision, &pCore->m_Pos, &pCore->m_Vel, PHYSICALSIZEVEC,
+             GroundElasticity, NULL);
 
     pCore->m_Vel = VZERO;
 
     // check if we Hit anything along the way
     {
-      CEntity *apEnts[MAX_CLIENTS];
+      SCharacterCore **apEnts;
       float Radius = PHYSICALSIZE * 2.0f;
-      int Num = GameServer()->m_World.FindEntities(
-          OldPos, Radius, apEnts, MAX_CLIENTS, CGameWorld::ENTTYPE_CHARACTER);
 
       // check that we're not in solo part
       if (pCore->m_Solo)
         return;
 
-      for (int i = 0; i < Num; ++i) {
-        auto *pChr = static_cast<CCharacter *>(apEnts[i]);
-        if (pChr == this)
-          continue;
+      for (int i = 0; i < pCore->m_pWorld->m_NumCharacters; ++i) {
+        if (vdistance(pCore->m_pWorld->m_pCharacters[i].m_Pos, pCore->m_Pos) <
+            Radius + PHYSICALSIZE) {
+          SCharacterCore *pChr = &pCore->m_pWorld->m_pCharacters[i];
+          if (pChr == pCore)
+            continue;
 
-        // Don't hit players in other teams
-        if (Team() != pChr->Team())
-          continue;
+          if (pChr->m_Solo)
+            return;
 
-        // Don't hit players in solo parts
-        if (Teams()->m_Core.GetSolo(pChr->m_pPlayer->GetCid()))
-          return;
+          // make sure we haven't Hit this object before
+          bool AlreadyHit = false;
+          for (int j = 0; j < pCore->m_NumObjectsHit; j++) {
+            if (pCore->m_aHitObjects[j] == pChr->m_Id)
+              AlreadyHit = true;
+          }
+          if (AlreadyHit)
+            continue;
 
-        // make sure we haven't Hit this object before
-        bool AlreadyHit = false;
-        for (int j = 0; j < m_NumObjectsHit; j++) {
-          if (m_apHitObjects[j] == pChr)
-            AlreadyHit = true;
+          // check so we are sufficiently close
+          if (vdistance(pChr->m_Pos, pCore->m_Pos) > (PHYSICALSIZE * 2.0f))
+            continue;
+
+          // set his velocity to fast upward (for now)
+          if (pCore->m_NumObjectsHit < 10)
+            pCore->m_aHitObjects[pCore->m_NumObjectsHit++] = pChr->m_Id;
+
+          cc_take_damage(pChr, (vec2){0, -10.f});
         }
-        if (AlreadyHit)
-          continue;
-
-        // check so we are sufficiently close
-        if (distance(pChr->m_Pos, m_Pos) > (GetProximityRadius() * 2.0f))
-          continue;
-
-        // set his velocity to fast upward (for now)
-        if (m_NumObjectsHit < 10)
-          m_apHitObjects[m_NumObjectsHit++] = pChr;
-
-        pChr->TakeDamage(vec2(0, -10.0f),
-                         g_pData->m_Weapons.m_Ninja.m_pBase->m_Damage,
-                         m_pPlayer->GetCid(), WEAPON_NINJA);
       }
     }
 
     return;
+  }
+}
+
+void cc_handle_jetpack(SCharacterCore *pCore) {
+  vec2 Direction = vnormalize(
+      vec2(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY));
+
+  bool FullAuto = false;
+  if (pCore->m_ActiveWeapon == WEAPON_GRENADE ||
+      pCore->m_ActiveWeapon == WEAPON_SHOTGUN ||
+      pCore->m_ActiveWeapon == WEAPON_LASER)
+    FullAuto = true;
+  if (pCore->m_Jetpack && pCore->m_ActiveWeapon == WEAPON_GUN)
+    FullAuto = true;
+
+  // check if we gonna fire
+  bool WillFire = false;
+  if (count_input(pCore->m_LatestPrevInput.m_Fire, pCore->m_LatestInput.m_Fire)
+          .m_Presses)
+    WillFire = true;
+
+  if (FullAuto && (pCore->m_LatestInput.m_Fire & 1) &&
+      pCore->m_aWeapons[pCore->m_ActiveWeapon].m_Ammo)
+    WillFire = true;
+
+  if (!WillFire)
+    return;
+
+  // check for ammo
+  if (!pCore->m_aWeapons[pCore->m_ActiveWeapon].m_Ammo || pCore->m_FreezeTime) {
+    return;
+  }
+
+  if (pCore->m_ActiveWeapon == WEAPON_GUN)
+    if (pCore->m_Jetpack) {
+      float Strength = tune_get(pCore->m_Tuning.m_JetpackStrength);
+      cc_take_damage(pCore, vfmul(Direction, -(Strength / 100.f / 6.11f)));
+    }
+}
+
+void cc_weapon_switch(SCharacterCore *pCore) {
+
+  // make sure we can switch
+  if (pCore->m_ReloadTimer != 0 || pCore->m_QueuedWeapon == -1 ||
+      pCore->m_aWeapons[WEAPON_NINJA].m_Got ||
+      !pCore->m_aWeapons[pCore->m_QueuedWeapon].m_Got)
+    return;
+
+  // switch Weapon
+  cc_set_weapon(pCore, pCore->m_QueuedWeapon);
+}
+
+void cc_fire_weapon(SCharacterCore *pCore) {
+  if (pCore->m_NumInputs < 2)
+    return;
+
+  if (pCore->m_ReloadTimer)
+    return;
+
+  cc_weapon_switch(pCore);
+  vec2 Direction = vnormalize(
+      vec2(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY));
+
+  bool FullAuto = false;
+  if (pCore->m_ActiveWeapon == WEAPON_GRENADE ||
+      pCore->m_ActiveWeapon == WEAPON_SHOTGUN ||
+      pCore->m_ActiveWeapon == WEAPON_LASER)
+    FullAuto = true;
+  if (pCore->m_Jetpack && pCore->m_ActiveWeapon == WEAPON_GUN)
+    FullAuto = true;
+  if (pCore->m_FrozenLastTick)
+    FullAuto = true;
+
+  // don't fire hammer when player is deep and sv_deepfly is disabled
+  if (!pCore->m_pWorld->m_pConfig->m_SvDeepfly &&
+      pCore->m_ActiveWeapon == WEAPON_HAMMER && pCore->m_DeepFrozen)
+    return;
+
+  // check if we gonna fire
+  bool WillFire = false;
+  if (count_input(pCore->m_LatestPrevInput.m_Fire, pCore->m_LatestInput.m_Fire)
+          .m_Presses)
+    WillFire = true;
+
+  if (FullAuto && (pCore->m_LatestInput.m_Fire & 1) &&
+      pCore->m_aWeapons[pCore->m_ActiveWeapon].m_Ammo)
+    WillFire = true;
+
+  if (!WillFire)
+    return;
+
+  // check for ammo
+  if (!pCore->m_aWeapons[pCore->m_ActiveWeapon].m_Ammo || pCore->m_FreezeTime) {
+    return;
+  }
+
+  vec2 ProjStartPos =
+      vvadd(pCore->m_Pos, vfmul(Direction, PHYSICALSIZE * 0.75f));
+
+  switch (pCore->m_ActiveWeapon) {
+  case WEAPON_HAMMER: {
+    // reset objects Hit
+    pCore->m_NumObjectsHit = 0;
+
+    if (pCore->m_HammerHitDisabled)
+      break;
+    if (pCore->m_Solo)
+      break;
+
+    int Hits = 0;
+    for (int i = 0; i < pCore->m_pWorld->m_NumCharacters; ++i) {
+      if (vdistance(pCore->m_pWorld->m_pCharacters[i].m_Pos, pCore->m_Pos) <
+          (PHYSICALSIZE * 0.5f) + PHYSICALSIZE) {
+        SCharacterCore *pTarget = &pCore->m_pWorld->m_pCharacters[i];
+
+        if (pTarget == pCore || pTarget->m_Solo)
+          continue;
+
+        // set his velocity to fast upward (for now)
+
+        vec2 Dir;
+        if (vlength(vvsub(pTarget->m_Pos, pCore->m_Pos)) > 0.0f)
+          Dir = vnormalize(vvsub(pTarget->m_Pos, pCore->m_Pos));
+        else
+          Dir = vec2(0.f, -1.f);
+
+        float Strength = tune_get(pCore->m_Tuning.m_HammerStrength);
+
+        vec2 Temp =
+            vvadd(pTarget->m_Vel,
+                  vfmul(vnormalize(vvadd(Dir, vec2(0.f, -1.1f))), 10.0f));
+        Temp =
+            vvsub(clamp_vel(pTarget->m_MoveRestrictions, Temp), pTarget->m_Vel);
+
+        vec2 Force = vfmul(vvadd(vec2(0.f, -1.0f), Temp), Strength);
+
+        cc_take_damage(pTarget, Force);
+        cc_unfreeze(pTarget);
+
+        Hits++;
+      }
+    }
+
+    // if we Hit anything, we have to wait for the reload
+    if (Hits) {
+      float FireDelay = tune_get(pCore->m_Tuning.m_HammerHitFireDelay);
+      pCore->m_ReloadTimer = FireDelay * SERVER_TICK_SPEED / 1000;
+    }
+  } break;
+
+  case WEAPON_GUN: {
+    if (!pCore->m_Jetpack) {
+      int Lifetime =
+          (int)(SERVER_TICK_SPEED * tune_get(pCore->m_Tuning.m_GunLifetime));
+
+      // new CProjectile(GameWorld(),
+      //                 WEAPON_GUN,   // Type
+      //                 GetCid(),     // Owner
+      //                 ProjStartPos, // Pos
+      //                 Direction,    // Dir
+      //                 Lifetime,     // Span
+      //                 false,        // Freeze
+      //                 false,        // Explosive
+      //                 0,            // Force
+      //                 -1            // SoundImpact
+      // );
+    }
+  } break;
+
+  case WEAPON_SHOTGUN: {
+    float LaserReach = tune_get(pCore->m_Tuning.m_LaserReach);
+
+    // new CLaser(GameWorld(), m_Pos, Direction, LaserReach, GetCid(),
+    //            WEAPON_SHOTGUN);
+    break;
+  }
+
+  case WEAPON_GRENADE: {
+    int Lifetime =
+        (int)(SERVER_TICK_SPEED * tune_get(pCore->m_Tuning.m_GrenadeLifetime));
+
+    // new CProjectile(GameWorld(),
+    //                 WEAPON_GRENADE,       // Type
+    //                 GetCid(),             // Owner
+    //                 ProjStartPos,         // Pos
+    //                 Direction,            // Dir
+    //                 Lifetime,             // Span
+    //                 false,                // Freeze
+    //                 true,                 // Explosive
+    //                 SOUND_GRENADE_EXPLODE // SoundImpact
+    // );                                    // SoundImpact
+  } break;
+
+  case WEAPON_LASER: {
+    float LaserReach = tune_get(pCore->m_Tuning.m_LaserReach);
+
+    // new CLaser(GameWorld(), m_Pos, Direction, LaserReach, GetCid(),
+    //            WEAPON_LASER);
+  } break;
+
+  case WEAPON_NINJA: {
+    // reset Hit objects
+    pCore->m_NumObjectsHit = 0;
+
+    pCore->m_Ninja.m_ActivationDir = Direction;
+    pCore->m_Ninja.m_CurrentMoveTime =
+        NINJA_MOVETIME * SERVER_TICK_SPEED / 1000;
+    pCore->m_Ninja.m_OldVelAmount = vlength(pCore->m_Vel);
+  } break;
+  }
+
+  // reloadtimer can be changed earlier by hammer so check again
+  if (!pCore->m_ReloadTimer) {
+    pCore->m_ReloadTimer = tune_get(*(&pCore->m_Tuning.m_HammerFireDelay +
+                                      pCore->m_ActiveWeapon)) *
+                           SERVER_TICK_SPEED / 1000;
   }
 }
 
@@ -1176,7 +1393,6 @@ void cc_handle_weapons(SCharacterCore *pCore) {
 
 void cc_tick(SCharacterCore *pCore) {
   if (pCore->m_pWorld->m_NoWeakHook) {
-
     cc_tick_deferred(pCore);
   } else {
     cc_pre_tick(pCore);
@@ -1246,6 +1462,34 @@ void wc_release_hooked(SWorldCore *pCore, int Id) {
     if (pCore->m_pCharacters[i].m_HookedPlayer == Id)
       cc_release_hook(
           &pCore->m_pCharacters[pCore->m_pCharacters[i].m_HookedPlayer]);
+}
+
+int wc_find_players(SWorldCore *pCore, vec2 Pos, float Radius, CEntity **ppEnts,
+                    int Max, int Type) {
+
+  int Num = 0;
+
+  return Num;
+}
+
+int wc_find_entities(SWorldCore *pCore, vec2 Pos, float Radius,
+                     CEntity **ppEnts, int Max, int Type) {
+  if (Type < 0 || Type >= NUM_ENTTYPES)
+    return 0;
+
+  int Num = 0;
+  for (SEntity *pEnt = pCore->m_apFirstEntityTypes[Type]; pEnt;
+       pEnt = pEnt->m_pNextTypeEntity) {
+    if (vdistance(pEnt->m_Pos, Pos) < Radius + pEnt->m_ProximityRadius) {
+      if (ppEnts)
+        ppEnts[Num] = pEnt;
+      Num++;
+      if (Num == Max)
+        break;
+    }
+  }
+
+  return Num;
 }
 
 void wc_init(SWorldCore *pCore, SCollision *pCollision) {
