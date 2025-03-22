@@ -15,7 +15,7 @@ static void init_tuning_params(STuningParams *pTunings) {
 #undef MACRO_TUNING_PARAM
 }
 
-static void init_config(SConfig *pConfig) {
+void init_config(SConfig *pConfig) {
 #define MACRO_CONFIG_INT(Name, Def) pConfig->m_##Name = Def;
 #include "config.h"
 #undef MACRO_CONFIG_INT
@@ -109,10 +109,10 @@ enum {
 #define INPUT_STATE_MASK 0x3f
 
 // input count
-struct InputCount {
+typedef struct InputCount {
   int m_Presses;
   int m_Releases;
-} typedef SInputCount;
+} SInputCount;
 
 static inline SInputCount count_input(int Prev, int Cur) {
   SInputCount c = {0, 0};
@@ -645,41 +645,41 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
 
     // handle switch tiles
     if (Type == TILE_SWITCHOPEN && Number > 0) {
-      pSwitches[Number].m_Status = true;
-      pSwitches[Number].m_EndTick = 0;
-      pSwitches[Number].m_Type = TILE_SWITCHOPEN;
-      pSwitches[Number].m_LastUpdateTick = Tick;
+      pSwitch->m_Status = true;
+      pSwitch->m_EndTick = 0;
+      pSwitch->m_Type = TILE_SWITCHOPEN;
+      pSwitch->m_LastUpdateTick = Tick;
     } else if (Type == TILE_SWITCHTIMEDOPEN && Number > 0) {
-      pSwitches[Number].m_Status = true;
-      pSwitches[Number].m_EndTick = Tick + 1 + Delay * SERVER_TICK_SPEED;
-      pSwitches[Number].m_Type = TILE_SWITCHTIMEDOPEN;
-      pSwitches[Number].m_LastUpdateTick = Tick;
+      pSwitch->m_Status = true;
+      pSwitch->m_EndTick = Tick + 1 + Delay * SERVER_TICK_SPEED;
+      pSwitch->m_Type = TILE_SWITCHTIMEDOPEN;
+      pSwitch->m_LastUpdateTick = Tick;
     } else if (Type == TILE_SWITCHTIMEDCLOSE && Number > 0) {
-      pSwitches[Number].m_Status = false;
-      pSwitches[Number].m_EndTick = Tick + 1 + Delay * SERVER_TICK_SPEED;
-      pSwitches[Number].m_Type = TILE_SWITCHTIMEDCLOSE;
-      pSwitches[Number].m_LastUpdateTick = Tick;
+      pSwitch->m_Status = false;
+      pSwitch->m_EndTick = Tick + 1 + Delay * SERVER_TICK_SPEED;
+      pSwitch->m_Type = TILE_SWITCHTIMEDCLOSE;
+      pSwitch->m_LastUpdateTick = Tick;
     } else if (Type == TILE_SWITCHCLOSE && Number > 0) {
-      pSwitches[Number].m_Status = false;
-      pSwitches[Number].m_EndTick = 0;
-      pSwitches[Number].m_Type = TILE_SWITCHCLOSE;
-      pSwitches[Number].m_LastUpdateTick = Tick;
+      pSwitch->m_Status = false;
+      pSwitch->m_EndTick = 0;
+      pSwitch->m_Type = TILE_SWITCHCLOSE;
+      pSwitch->m_LastUpdateTick = Tick;
     } else if (Type == TILE_FREEZE) {
-      if (Number == 0 || pSwitches[Number].m_Status) {
+      if (Number == 0 || pSwitch->m_Status) {
         cc_freeze(pCore, Delay);
       }
     } else if (Type == TILE_DFREEZE) {
-      if (Number == 0 || pSwitches[Number].m_Status)
+      if (Number == 0 || pSwitch->m_Status)
         pCore->m_DeepFrozen = true;
     } else if (Type == TILE_DUNFREEZE) {
-      if (Number == 0 || pSwitches[Number].m_Status)
+      if (Number == 0 || pSwitch->m_Status)
         pCore->m_DeepFrozen = false;
     } else if (Type == TILE_LFREEZE) {
-      if (Number == 0 || pSwitches[Number].m_Status) {
+      if (Number == 0 || pSwitch->m_Status) {
         pCore->m_LiveFrozen = true;
       }
     } else if (Type == TILE_LUNFREEZE) {
-      if (Number == 0 || pSwitches[Number].m_Status) {
+      if (Number == 0 || pSwitch->m_Status) {
         pCore->m_LiveFrozen = false;
       }
     } else if (Type == TILE_HIT_ENABLE && Delay == WEAPON_HAMMER) {
@@ -898,7 +898,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
   cc_ddracetick(pCore);
 
   pCore->m_MoveRestrictions = get_move_restrictions(
-      pCore->m_pCollision, is_switch_active_cb, pCore, pCore->m_Pos);
+      pCore->m_pCollision, is_switch_active_cb, pCore, pCore->m_Pos, 18.f, -1);
 
   // get ground state
   const bool Grounded =
@@ -1014,8 +1014,9 @@ void cc_pre_tick(SCharacterCore *pCore) {
     bool GoingToRetract = false;
     bool GoingThroughTele = false;
     int teleNr = 0;
-    int Hit = intersect_line_tele_hook(pCore->m_pCollision, pCore->m_HookPos,
-                                       NewPos, &NewPos, NULL, &teleNr);
+    int Hit = intersect_line_tele_hook(
+        pCore->m_pCollision, pCore->m_HookPos, NewPos, &NewPos, NULL, &teleNr,
+        pCore->m_pWorld->m_pConfig->m_SvOldTeleportHook);
 
     if (Hit) {
       if (Hit == TILE_NOHOOK)
@@ -1176,10 +1177,6 @@ void cc_handle_ninja(SCharacterCore *pCore) {
     return;
   }
 
-  int NinjaTime = pCore->m_Ninja.m_ActivationTick +
-                  (NINJA_DURATION * SERVER_TICK_SPEED / 1000) -
-                  pCore->m_pWorld->m_GameTick;
-
   // force ninja Weapon
   cc_set_weapon(pCore, WEAPON_NINJA);
 
@@ -1206,7 +1203,6 @@ void cc_handle_ninja(SCharacterCore *pCore) {
 
     // check if we Hit anything along the way
     {
-      SCharacterCore **apEnts;
       float Radius = PHYSICALSIZE * 2.0f;
 
       // check that we're not in solo part
@@ -1214,8 +1210,7 @@ void cc_handle_ninja(SCharacterCore *pCore) {
         return;
 
       for (int i = 0; i < pCore->m_pWorld->m_NumCharacters; ++i) {
-        if (vdistance(pCore->m_pWorld->m_pCharacters[i].m_Pos, pCore->m_Pos) <
-            Radius + PHYSICALSIZE) {
+        if (vdistance(OldPos, pCore->m_Pos) < Radius + PHYSICALSIZE) {
           SCharacterCore *pChr = &pCore->m_pWorld->m_pCharacters[i];
           if (pChr == pCore)
             continue;
@@ -1342,8 +1337,8 @@ void cc_fire_weapon(SCharacterCore *pCore) {
     return;
   }
 
-  vec2 ProjStartPos =
-      vvadd(pCore->m_Pos, vfmul(Direction, PHYSICALSIZE * 0.75f));
+  // vec2 ProjStartPos =
+  //     vvadd(pCore->m_Pos, vfmul(Direction, PHYSICALSIZE * 0.75f));
 
   switch (pCore->m_ActiveWeapon) {
   case WEAPON_HAMMER: {
@@ -1398,9 +1393,9 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 
   case WEAPON_GUN: {
     if (!pCore->m_Jetpack) {
-      int Lifetime =
-          (int)(SERVER_TICK_SPEED * tune_get(pCore->m_Tuning.m_GunLifetime));
-
+      // TODO: idk about this xd. bullets are useless in ddrace
+      // int Lifetime =
+      //     (int)(SERVER_TICK_SPEED * tune_get(pCore->m_Tuning.m_GunLifetime));
       // new CProjectile(GameWorld(),
       //                 WEAPON_GUN,   // Type
       //                 GetCid(),     // Owner
@@ -1416,17 +1411,18 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   } break;
 
   case WEAPON_SHOTGUN: {
-    float LaserReach = tune_get(pCore->m_Tuning.m_LaserReach);
-
+    // float LaserReach = tune_get(pCore->m_Tuning.m_LaserReach);
     // new CLaser(GameWorld(), m_Pos, Direction, LaserReach, GetCid(),
     //            WEAPON_SHOTGUN);
     break;
   }
 
   case WEAPON_GRENADE: {
-    int Lifetime =
-        (int)(SERVER_TICK_SPEED * tune_get(pCore->m_Tuning.m_GrenadeLifetime));
-
+    // int Lifetime =
+    //     (int)(SERVER_TICK_SPEED *
+    //     tune_get(pCore->m_Tuning.m_GrenadeLifetime));
+    //
+    // TODO:
     // new CProjectile(GameWorld(),
     //                 WEAPON_GRENADE,       // Type
     //                 GetCid(),             // Owner
@@ -1440,8 +1436,8 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   } break;
 
   case WEAPON_LASER: {
-    float LaserReach = tune_get(pCore->m_Tuning.m_LaserReach);
-
+    // float LaserReach = tune_get(pCore->m_Tuning.m_LaserReach);
+    // TODO:
     // new CLaser(GameWorld(), m_Pos, Direction, LaserReach, GetCid(),
     //            WEAPON_LASER);
   } break;

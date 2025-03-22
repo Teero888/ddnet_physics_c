@@ -3,11 +3,12 @@
 
 #include <math.h>
 
-struct vec2 {
+typedef struct vec2 {
   float x, y;
-} typedef vec2;
+} vec2;
 
 #define VZERO ((vec2){0, 0})
+#define PI 3.14159265358979323846
 
 #define vec2(a, b) ((vec2){a, b})
 
@@ -21,9 +22,12 @@ inline float vlength(vec2 a) { return sqrt(a.x * a.x + a.y * a.y); }
 inline float vdistance(vec2 a, vec2 b) { return vlength(vvsub(a, b)); }
 inline vec2 vnormalize(vec2 a) { return vfdiv(a, vlength(a)); }
 
+inline bool vvcmp(vec2 a, vec2 b) { return a.x == b.x && a.y == b.y; }
+
 inline int round_to_int(float f) {
   return f > 0 ? (int)(f + 0.5f) : (int)(f - 0.5f);
 }
+
 inline float fclamp(float n, float a, float b) {
   return n > b ? b : n < a ? a : n;
 }
@@ -32,6 +36,7 @@ inline int iclamp(int n, int a, int b) { return n > b ? b : n < a ? a : n; }
 inline vec2 vvfmix(vec2 a, vec2 b, float t) {
   return vvadd(a, vfmul(vvsub(b, a), t));
 }
+inline vec2 vdirection(float angle) { return vec2(cos(angle), sin(angle)); }
 
 inline bool closest_point_on_line(vec2 line_pointA, vec2 line_pointB,
                                   vec2 target_point, vec2 *out_pos) {

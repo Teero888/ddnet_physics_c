@@ -4,22 +4,22 @@
 #include "stdbool.h"
 #include "vmath.h"
 
-struct TuneParam {
+typedef struct TuneParam {
   int m_Value;
-} typedef STuneParam;
+} STuneParam;
 
-struct TuningParams {
+typedef struct TuningParams {
 #define MACRO_TUNING_PARAM(Name, ScriptName, Value, Description)               \
   STuneParam m_##Name;
 #include "tuning.h"
 #undef MACRO_TUNING_PARAM
-} typedef STuningParams;
+} STuningParams;
 
-struct Config {
+typedef struct Config {
 #define MACRO_CONFIG_INT(Name, Def) int m_##Name;
 #include "config.h"
 #undef MACRO_CONFIG_INT
-} typedef SConfig;
+} SConfig;
 
 enum {
   WEAPON_HAMMER = 0,
@@ -31,7 +31,7 @@ enum {
   NUM_WEAPONS
 };
 
-struct PlayerInput {
+typedef struct PlayerInput {
   int m_Direction;
   int m_TargetX;
   int m_TargetY;
@@ -39,20 +39,19 @@ struct PlayerInput {
   int m_Fire;
   int m_Hook;
   int m_WantedWeapon;
-} typedef SPlayerInput;
+} SPlayerInput;
 
 #define DEATH 9
 #define PHYSICALSIZE 28.f
 #define PHYSICALSIZEVEC                                                        \
   (vec2) { 28.f, 28.f }
 
-struct WorldCore typedef SWorldCore;
-
+typedef struct WorldCore SWorldCore;
 enum { ENTTYPE_PROJECTILE = 0, ENTTYPE_LASER, ENTTYPE_PICKUP, NUM_ENTTYPES };
 
 // Entities {{{
 
-struct Entity {
+typedef struct Entity {
   SWorldCore *m_pWorld;
   SCollision *m_pCollision;
   struct Entity *m_pPrevTypeEntity;
@@ -62,9 +61,9 @@ struct Entity {
   int m_Id;
   int m_ObjType;
   bool m_MarkedForDestroy;
-} typedef SEntity;
+} SEntity;
 
-struct CharacterCore {
+typedef struct CharacterCore {
   SWorldCore *m_pWorld;
   SCollision *m_pCollision;
   int m_Id;
@@ -160,21 +159,21 @@ struct CharacterCore {
   int m_aHitObjects[10];
   int m_NumObjectsHit;
 
-} typedef SCharacterCore;
+} SCharacterCore;
 // }}}
 
 // World {{{
 
 // We don't want teams for the physics, that makes switches easier
-struct Switch {
+typedef struct Switch {
   bool m_Status;
   bool m_Initial;
   int m_EndTick;
   int m_Type;
   int m_LastUpdateTick;
-} typedef SSwitch;
+} SSwitch;
 
-struct WorldCore {
+typedef struct WorldCore {
   SCollision *m_pCollision;
 
   // Expects a config from outside so you can reuse it as many times as needed
@@ -200,8 +199,10 @@ struct WorldCore {
 
   bool m_NoWeakHook;
   bool m_NoWeakHookAndBounce;
-} typedef SWorldCore;
+} SWorldCore;
 
 // }}}
+
+void init_config(SConfig *pConfig);
 
 #endif // LIB_GAMECORE_H

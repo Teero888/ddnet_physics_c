@@ -17,22 +17,26 @@ int get_map_index(SCollision *pCollision, vec2 Pos);
 bool check_point(SCollision *pCollision, vec2 Pos);
 int intersect_line_tele_hook(SCollision *pCollision, vec2 Pos0, vec2 Pos1,
                              vec2 *pOutCollision, vec2 *pOutBeforeCollision,
-                             int *pTeleNr);
+                             int *pTeleNr, bool OldTeleHook);
 bool test_box(SCollision *pCollision, vec2 Pos, vec2 Size);
 int get_collision_at(SCollision *pCollision, float x, float y);
 int get_front_collision_at(SCollision *pCollision, float x, float y);
 int is_tune(SCollision *pCollision, int Index);
-int is_speedup(SCollision *pCollision, int Index);
+bool is_speedup(SCollision *pCollision, int Index);
 void get_speedup(SCollision *pCollision, int Index, vec2 *pDir, int *pForce,
                  int *pMaxSpeed, int *pType);
 int get_tile_index(SCollision *pCollision, int Index);
 int get_front_tile_index(SCollision *pCollision, int Index);
+
+int get_tile_flags(SCollision *pCollision, int Index);
+int get_front_tile_flags(SCollision *pCollision, int Index);
 
 int get_switch_number(SCollision *pCollision, int Index);
 int get_switch_type(SCollision *pCollision, int Index);
 int get_switch_delay(SCollision *pCollision, int Index);
 
 int is_teleport(SCollision *pCollision, int Index);
+int is_teleport_hook(SCollision *pCollision, int Index);
 int is_evil_teleport(SCollision *pCollision, int Index);
 bool is_check_teleport(SCollision *pCollision, int Index);
 bool is_check_evil_teleport(SCollision *pCollision, int Index);
