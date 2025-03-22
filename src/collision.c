@@ -379,10 +379,19 @@ int is_tele_checkpoint(SCollision *pCollision, int Index) {
              : 0;
 }
 
-const vec2 *spawn_points(SCollision *pCollision, int *pOutNum) {}
-const vec2 *tele_ins(SCollision *pCollision, int Number, int *pOutNum) {}
-const vec2 *tele_outs(SCollision *pCollision, int Number, int *pOutNum) {}
-const vec2 *tele_check_outs(SCollision *pCollision, int Number, int *pOutNum) {}
+const vec2 *spawn_points(SCollision *pCollision, int *pOutNum) {
+  *pOutNum = pCollision->m_NumSpawnPoints;
+  return (vec2 *)pCollision->m_pSpawnPoints;
+}
+
+const vec2 *tele_outs(SCollision *pCollision, int Number, int *pOutNum) {
+  *pOutNum = pCollision->m_NumTeleOuts;
+  return (vec2 *)pCollision->m_pTeleOuts;
+}
+const vec2 *tele_check_outs(SCollision *pCollision, int Number, int *pOutNum) {
+  *pOutNum = pCollision->m_NumTeleCheckOuts;
+  return (vec2 *)pCollision->m_pTeleCheckOuts;
+}
 
 static bool tile_exists_next(SCollision *pCollision, int Index) {
   const unsigned char *pTileIdx = pCollision->m_GameLayer.m_pData;

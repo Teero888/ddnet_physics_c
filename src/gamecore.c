@@ -1574,7 +1574,7 @@ bool wc_next_spawn(SWorldCore *pCore, vec2 *pOutPos) {
   const vec2 *pSpawnPoints = spawn_points(pCore->m_pCollision, &Num);
   if (!pSpawnPoints)
     return false;
-  *pOutPos = pSpawnPoints[pCore->m_GameTick % Num];
+  *pOutPos = vfadd(vfmul(pSpawnPoints[pCore->m_GameTick % Num], 32), 16);
   return true;
 }
 
