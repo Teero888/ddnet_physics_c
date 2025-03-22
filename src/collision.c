@@ -223,6 +223,7 @@ int intersect_line_tele_hook(SCollision *pCollision, vec2 Pos0, vec2 Pos1,
   vec2 Last = Pos0;
   int dx = 0, dy = 0; // Offset for checking the "through" tile
   ThroughOffset(Pos0, Pos1, &dx, &dy);
+  int LastIndex = 0;
   for (int i = 0; i <= End; i++) {
     float a = i / (float)End;
     vec2 Pos = vvfmix(Pos0, Pos1, a);
@@ -231,6 +232,9 @@ int intersect_line_tele_hook(SCollision *pCollision, vec2 Pos0, vec2 Pos1,
     int iy = round_to_int(Pos.y);
 
     int Index = get_pure_map_index(pCollision, Pos);
+    if (Index == LastIndex)
+      continue;
+    LastIndex = Index;
     if (pTeleNr) {
       // if (g_Config.m_SvOldTeleportHook)
       if (OldTeleHook)
@@ -520,7 +524,6 @@ bool tile_exists(SCollision *pCollision, int Index) {
 void move_box(SCollision *pCollision, vec2 *pInoutPos, vec2 *pInoutVel,
               vec2 Size, vec2 Elasticity, bool *pGrounded) {
 
-  // do the move
   vec2 Pos = *pInoutPos;
   vec2 Vel = *pInoutVel;
 
@@ -533,18 +536,11 @@ void move_box(SCollision *pCollision, vec2 *pInoutPos, vec2 *pInoutVel,
     float ElasticityY = fclamp(Elasticity.y, -1.0f, 1.0f);
 
     for (int i = 0; i <= Max; i++) {
-      // Early break as optimization to stop checking for collisions for
-      // large distances after the obstacles we have already hit reduced
-      // our speed to exactly 0.
       if (vvcmp(Vel, vec2(0, 0))) {
         break;
       }
 
-      vec2 NewPos =
-          vvadd(Pos, vfmul(Vel, Fraction)); // TODO: this row is not nice
-
-      // Fraction can be very small and thus the calculation has no effect, no
-      // reason to continue calculating.
+      vec2 NewPos = vvadd(Pos, vfmul(Vel, Fraction));
       if (vvcmp(NewPos, Pos)) {
         break;
       }
