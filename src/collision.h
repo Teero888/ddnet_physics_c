@@ -290,8 +290,9 @@ inline int get_move_restrictions(SCollision *pCollision,
                                  CALLBACK_SWITCHACTIVE pfnSwitchActive,
                                  void *pUser, vec2 Pos, float Distance,
                                  int OverrideCenterTileIndex) {
-  static const vec2 DIRECTIONS[NUM_MR_DIRS] = {
-      vec2(0, 0), vec2(1, 0), vec2(0, 1), vec2(-1, 0), vec2(0, -1)};
+  const vec2 DIRECTIONS[NUM_MR_DIRS] = {vec2_init(0, 0), vec2_init(1, 0),
+                                        vec2_init(0, 1), vec2_init(-1, 0),
+                                        vec2_init(0, -1)};
   int Restrictions = 0;
   for (int d = 0; d < NUM_MR_DIRS; d++) {
     vec2 ModPos = vvadd(Pos, vfmul(DIRECTIONS[d], Distance));
@@ -369,7 +370,7 @@ inline void ThroughOffset(vec2 Pos0, vec2 Pos1, int *pOffsetX, int *pOffsetY) {
 
 inline bool is_through(SCollision *pCollision, int x, int y, int OffsetX,
                        int OffsetY, vec2 Pos0, vec2 Pos1) {
-  int pos = get_pure_map_index(pCollision, vec2(x, y));
+  int pos = get_pure_map_index(pCollision, vec2_init(x, y));
 
   unsigned char *pFrontIdx = pCollision->m_FrontLayer.m_pData;
   unsigned char *pFrontFlgs = pCollision->m_FrontLayer.m_pFlags;
@@ -382,14 +383,15 @@ inline bool is_through(SCollision *pCollision, int x, int y, int OffsetX,
        (pFrontFlgs[pos] == ROTATION_180 && Pos0.y < Pos1.y) ||
        (pFrontFlgs[pos] == ROTATION_270 && Pos0.x > Pos1.x)))
     return true;
-  int offpos = get_pure_map_index(pCollision, vec2(x + OffsetX, y + OffsetY));
+  int offpos =
+      get_pure_map_index(pCollision, vec2_init(x + OffsetX, y + OffsetY));
   unsigned char *pTileIdx = pCollision->m_GameLayer.m_pData;
   return pTileIdx[offpos] == TILE_THROUGH ||
          (pFrontIdx && pFrontIdx[offpos] == TILE_THROUGH);
 }
 inline bool is_hook_blocker(SCollision *pCollision, int x, int y, vec2 Pos0,
                             vec2 Pos1) {
-  int pos = get_pure_map_index(pCollision, vec2(x, y));
+  int pos = get_pure_map_index(pCollision, vec2_init(x, y));
   unsigned char *pTileIdx = pCollision->m_GameLayer.m_pData;
   unsigned char *pTileFlgs = pCollision->m_GameLayer.m_pData;
 
@@ -450,7 +452,7 @@ inline int intersect_line_tele_hook(SCollision *pCollision, vec2 Pos0,
     }
 
     int hit = 0;
-    if (check_point(pCollision, vec2(ix, iy))) {
+    if (check_point(pCollision, vec2_init(ix, iy))) {
       if (!is_through(pCollision, ix, iy, dx, dy, Pos0, Pos1))
         hit = get_collision_at(pCollision, ix, iy);
     } else if (is_hook_blocker(pCollision, ix, iy, Pos0, Pos1)) {
@@ -475,13 +477,13 @@ inline int intersect_line_tele_hook(SCollision *pCollision, vec2 Pos0,
 
 inline bool test_box(SCollision *pCollision, vec2 Pos, vec2 Size) {
   Size = vfmul(Size, 0.5f);
-  if (check_point(pCollision, vec2(Pos.x - Size.x, Pos.y - Size.y)))
+  if (check_point(pCollision, vec2_init(Pos.x - Size.x, Pos.y - Size.y)))
     return true;
-  if (check_point(pCollision, vec2(Pos.x + Size.x, Pos.y - Size.y)))
+  if (check_point(pCollision, vec2_init(Pos.x + Size.x, Pos.y - Size.y)))
     return true;
-  if (check_point(pCollision, vec2(Pos.x - Size.x, Pos.y + Size.y)))
+  if (check_point(pCollision, vec2_init(Pos.x - Size.x, Pos.y + Size.y)))
     return true;
-  if (check_point(pCollision, vec2(Pos.x + Size.x, Pos.y + Size.y)))
+  if (check_point(pCollision, vec2_init(Pos.x + Size.x, Pos.y + Size.y)))
     return true;
   return false;
 }
@@ -539,7 +541,7 @@ inline void move_box(SCollision *pCollision, vec2 *pInoutPos, vec2 *pInoutVel,
     float ElasticityY = fclamp(Elasticity.y, -1.0f, 1.0f);
 
     for (int i = 0; i <= Max; i++) {
-      if (vvcmp(Vel, vec2(0, 0))) {
+      if (vvcmp(Vel, vec2_init(0, 0))) {
         break;
       }
 
@@ -548,10 +550,10 @@ inline void move_box(SCollision *pCollision, vec2 *pInoutPos, vec2 *pInoutVel,
         break;
       }
 
-      if (test_box(pCollision, vec2(NewPos.x, NewPos.y), Size)) {
+      if (test_box(pCollision, vec2_init(NewPos.x, NewPos.y), Size)) {
         int Hits = 0;
 
-        if (test_box(pCollision, vec2(Pos.x, NewPos.y), Size)) {
+        if (test_box(pCollision, vec2_init(Pos.x, NewPos.y), Size)) {
           if (pGrounded && ElasticityY > 0 && Vel.y > 0)
             *pGrounded = true;
           NewPos.y = Pos.y;
@@ -559,7 +561,7 @@ inline void move_box(SCollision *pCollision, vec2 *pInoutPos, vec2 *pInoutVel,
           Hits++;
         }
 
-        if (test_box(pCollision, vec2(NewPos.x, Pos.y), Size)) {
+        if (test_box(pCollision, vec2_init(NewPos.x, Pos.y), Size)) {
           NewPos.x = Pos.x;
           Vel.x *= -ElasticityX;
           Hits++;

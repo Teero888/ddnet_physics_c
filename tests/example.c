@@ -3,7 +3,7 @@
 #include "../src/gamecore.h"
 #include "map_loader.h"
 
-int main() {
+int main(void) {
   SMapData Collision = load_map("run_blue.map");
   if (!Collision.m_GameLayer.m_pData)
     return 1;

@@ -192,8 +192,8 @@ void cc_move(SCharacterCore *pCore) {
   vec2 OldVel = pCore->m_Vel;
   bool Grounded = false;
   move_box(pCore->m_pCollision, &NewPos, &pCore->m_Vel, PHYSICALSIZEVEC,
-           vec2(tune_get(pCore->m_Tuning.m_GroundElasticityX),
-                tune_get(pCore->m_Tuning.m_GroundElasticityY)),
+           vec2_init(tune_get(pCore->m_Tuning.m_GroundElasticityX),
+                     tune_get(pCore->m_Tuning.m_GroundElasticityY)),
            &Grounded);
 
   if (Grounded) {
@@ -749,7 +749,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
     pCore->m_Pos = tele_outs(pCore->m_pCollision, evilz - 1,
                              &Num)[pCore->m_pWorld->m_GameTick % Num];
     if (!pConfig->m_SvOldTeleportHook && !pConfig->m_SvOldTeleportWeapons) {
-      pCore->m_Vel = (vec2){0, 0};
+      pCore->m_Vel = vec2_init(0, 0);
 
       if (!pConfig->m_SvTeleportHoldHook) {
         cc_reset_hook(pCore);
@@ -768,7 +768,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
       if (tele_check_outs(pCore->m_pCollision, k, &Num)) {
         pCore->m_Pos = tele_check_outs(pCore->m_pCollision, k,
                                        &Num)[pCore->m_pWorld->m_GameTick % Num];
-        pCore->m_Vel = (vec2){0, 0};
+        pCore->m_Vel = vec2_init(0, 0);
 
         if (!pConfig->m_SvTeleportHoldHook) {
           cc_reset_hook(pCore);
@@ -783,7 +783,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
     vec2 SpawnPos;
     if (wc_next_spawn(pCore->m_pWorld, &SpawnPos)) {
       pCore->m_Pos = SpawnPos;
-      pCore->m_Vel = (vec2){0, 0};
+      pCore->m_Vel = vec2_init(0, 0);
 
       if (!pConfig->m_SvTeleportHoldHook) {
         cc_reset_hook(pCore);
@@ -888,7 +888,7 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
   if (pCore->m_TeleGunTeleport) {
     pCore->m_Pos = pCore->m_TeleGunPos;
     if (!pCore->m_IsBlueTeleGunTeleport)
-      pCore->m_Vel = (vec2){0, 0};
+      pCore->m_Vel = vec2_init(0, 0);
     pCore->m_TeleGunTeleport = false;
     pCore->m_IsBlueTeleGunTeleport = false;
   }
@@ -903,14 +903,14 @@ void cc_pre_tick(SCharacterCore *pCore) {
   // get ground state
   const bool Grounded =
       check_point(pCore->m_pCollision,
-                  vec2(pCore->m_Pos.x + PHYSICALSIZE / 2,
-                       pCore->m_Pos.y + PHYSICALSIZE / 2 + 5)) ||
+                  vec2_init(pCore->m_Pos.x + PHYSICALSIZE / 2,
+                            pCore->m_Pos.y + PHYSICALSIZE / 2 + 5)) ||
       check_point(pCore->m_pCollision,
-                  vec2(pCore->m_Pos.x - PHYSICALSIZE / 2,
-                       pCore->m_Pos.y + PHYSICALSIZE / 2 + 5));
+                  vec2_init(pCore->m_Pos.x - PHYSICALSIZE / 2,
+                            pCore->m_Pos.y + PHYSICALSIZE / 2 + 5));
 
   vec2 TargetDirection =
-      vnormalize((vec2){pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY});
+      vnormalize(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
 
   pCore->m_Vel.y += tune_get(pCore->m_Tuning.m_Gravity);
 
@@ -1152,7 +1152,7 @@ void cc_set_weapon(SCharacterCore *pCore, int W) {
 }
 
 void cc_remove_ninja(SCharacterCore *pCore) {
-  pCore->m_Ninja.m_ActivationDir = (vec2){0, 0};
+  pCore->m_Ninja.m_ActivationDir = vec2_init(0, 0);
   pCore->m_Ninja.m_ActivationTick = 0;
   pCore->m_Ninja.m_CurrentMoveTime = 0;
   pCore->m_Ninja.m_OldVelAmount = 0;
@@ -1193,8 +1193,8 @@ void cc_handle_ninja(SCharacterCore *pCore) {
     pCore->m_Vel = vfmul(pCore->m_Ninja.m_ActivationDir, NINJA_VELOCITY);
     vec2 OldPos = pCore->m_Pos;
     vec2 GroundElasticity =
-        (vec2){tune_get(pCore->m_Tuning.m_GroundElasticityX),
-               tune_get(pCore->m_Tuning.m_GroundElasticityY)};
+        vec2_init(tune_get(pCore->m_Tuning.m_GroundElasticityX),
+                  tune_get(pCore->m_Tuning.m_GroundElasticityY));
 
     move_box(pCore->m_pCollision, &pCore->m_Pos, &pCore->m_Vel, PHYSICALSIZEVEC,
              GroundElasticity, NULL);
@@ -1235,7 +1235,7 @@ void cc_handle_ninja(SCharacterCore *pCore) {
           if (pCore->m_NumObjectsHit < 10)
             pCore->m_aHitObjects[pCore->m_NumObjectsHit++] = pChr->m_Id;
 
-          cc_take_damage(pChr, (vec2){0, -10.f});
+          cc_take_damage(pChr, vec2_init(0, -10.f));
         }
       }
     }
@@ -1245,8 +1245,8 @@ void cc_handle_ninja(SCharacterCore *pCore) {
 }
 
 void cc_handle_jetpack(SCharacterCore *pCore) {
-  vec2 Direction = vnormalize(
-      vec2(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY));
+  vec2 Direction = vnormalize(vec2_init(pCore->m_LatestInput.m_TargetX,
+                                        pCore->m_LatestInput.m_TargetY));
 
   bool FullAuto = false;
   if (pCore->m_ActiveWeapon == WEAPON_GRENADE ||
@@ -1301,8 +1301,8 @@ void cc_fire_weapon(SCharacterCore *pCore) {
     return;
 
   cc_do_weapon_switch(pCore);
-  vec2 Direction = vnormalize(
-      vec2(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY));
+  vec2 Direction = vnormalize(vec2_init(pCore->m_LatestInput.m_TargetX,
+                                        pCore->m_LatestInput.m_TargetY));
 
   bool FullAuto = false;
   if (pCore->m_ActiveWeapon == WEAPON_GRENADE ||
@@ -1365,17 +1365,17 @@ void cc_fire_weapon(SCharacterCore *pCore) {
         if (vlength(vvsub(pTarget->m_Pos, pCore->m_Pos)) > 0.0f)
           Dir = vnormalize(vvsub(pTarget->m_Pos, pCore->m_Pos));
         else
-          Dir = vec2(0.f, -1.f);
+          Dir = vec2_init(0.f, -1.f);
 
         float Strength = tune_get(pCore->m_Tuning.m_HammerStrength);
 
         vec2 Temp =
             vvadd(pTarget->m_Vel,
-                  vfmul(vnormalize(vvadd(Dir, vec2(0.f, -1.1f))), 10.0f));
+                  vfmul(vnormalize(vvadd(Dir, vec2_init(0.f, -1.1f))), 10.0f));
         Temp =
             vvsub(clamp_vel(pTarget->m_MoveRestrictions, Temp), pTarget->m_Vel);
 
-        vec2 Force = vfmul(vvadd(vec2(0.f, -1.0f), Temp), Strength);
+        vec2 Force = vfmul(vvadd(vec2_init(0.f, -1.0f), Temp), Strength);
 
         cc_take_damage(pTarget, Force);
         cc_unfreeze(pTarget);

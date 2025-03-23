@@ -43,7 +43,7 @@ typedef struct PlayerInput {
 
 #define DEATH 9
 #define PHYSICALSIZE 28.f
-#define PHYSICALSIZEVEC (vec2){28.f, 28.f}
+#define PHYSICALSIZEVEC vec2_init(28.f, 28.f)
 
 enum { ENTTYPE_PROJECTILE = 0, ENTTYPE_LASER, ENTTYPE_PICKUP, NUM_ENTTYPES };
 
