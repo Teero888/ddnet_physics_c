@@ -1,6 +1,6 @@
 CC = gcc
 DBG = -O0 -g -fsanitize=address
-OPT = -O3 -march=native -flto -mavx2 -mfma -msse4.2
+OPT = -O3 -march=native -flto -mavx2 -mfma -msse4.1
 CFLAGS = $(OPT) -std=c99 -Wall -Wextra -I./src -I./libs/ddnet_maploader_c
 LDFLAGS = -lm -lz
 

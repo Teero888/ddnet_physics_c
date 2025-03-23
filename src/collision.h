@@ -23,69 +23,47 @@ enum {
   CANTMOVE_DOWN = 1 << 3,
 };
 
-inline int get_pure_map_index(SCollision *pCollision, vec2 Pos) {
-  int Nx = iclamp(round_to_int(Pos.x) / 32, 0, pCollision->m_Width - 1);
-  int Ny = iclamp(round_to_int(Pos.y) / 32, 0, pCollision->m_Height - 1);
-  return Ny * pCollision->m_Width + Nx;
+ALWAYS_INLINE int get_pure_map_index(SCollision *pCollision, vec2 Pos) {
+  const int nx = iclamp((int)Pos.x >> 5, 0, pCollision->m_Width - 1);
+  const int ny = iclamp((int)Pos.y >> 5, 0, pCollision->m_Height - 1);
+  const int idx = ny * pCollision->m_Width + nx;
+  return idx;
 }
 
 inline int get_move_restrictions_mask(int Direction) {
-  switch (Direction) {
-  case MR_DIR_HERE:
-    return 0;
-  case MR_DIR_RIGHT:
-    return CANTMOVE_RIGHT;
-  case MR_DIR_DOWN:
-    return CANTMOVE_DOWN;
-  case MR_DIR_LEFT:
-    return CANTMOVE_LEFT;
-  case MR_DIR_UP:
-    return CANTMOVE_UP;
-  }
-  return 0;
+  static const int aDirections[NUM_MR_DIRS] = {0, CANTMOVE_RIGHT, CANTMOVE_DOWN,
+                                               CANTMOVE_LEFT, CANTMOVE_UP};
+  return aDirections[Direction];
 }
 
-inline int get_move_restrictions_raw(int Tile, int Flags) {
-  Flags = Flags & (TILEFLAG_XFLIP | TILEFLAG_YFLIP | TILEFLAG_ROTATE);
+ALWAYS_INLINE int get_move_restrictions_raw(int Tile, int Flags) {
+  Flags &= (TILEFLAG_XFLIP | TILEFLAG_YFLIP | TILEFLAG_ROTATE);
   switch (Tile) {
-  case TILE_STOP:
-    switch (Flags) {
-    case ROTATION_0:
-      return CANTMOVE_DOWN;
-    case ROTATION_90:
-      return CANTMOVE_LEFT;
-    case ROTATION_180:
-      return CANTMOVE_UP;
-    case ROTATION_270:
-      return CANTMOVE_RIGHT;
-    case TILEFLAG_YFLIP ^ ROTATION_0:
-      return CANTMOVE_UP;
-    case TILEFLAG_YFLIP ^ ROTATION_90:
-      return CANTMOVE_RIGHT;
-    case TILEFLAG_YFLIP ^ ROTATION_180:
-      return CANTMOVE_DOWN;
-    case TILEFLAG_YFLIP ^ ROTATION_270:
-      return CANTMOVE_LEFT;
-    }
-    break;
+  case TILE_STOP: {
+    static const int move_table[] = {
+        CANTMOVE_DOWN, // 0: ROTATION_0
+        CANTMOVE_DOWN, // 1: TILEFLAG_YFLIP ^ ROTATION_180
+        CANTMOVE_UP,   // 2: TILEFLAG_YFLIP ^ ROTATION_0
+        CANTMOVE_UP,   // 3: ROTATION_180
+        0,
+        0,
+        0,
+        0,              // 4-7: unused
+        CANTMOVE_LEFT,  // 8: ROTATION_90
+        CANTMOVE_LEFT,  // 9: TILEFLAG_YFLIP ^ ROTATION_270
+        CANTMOVE_RIGHT, // 10: TILEFLAG_YFLIP ^ ROTATION_90
+        CANTMOVE_RIGHT  // 11: ROTATION_270
+    };
+    return move_table[Flags];
+  }
   case TILE_STOPS:
-    switch (Flags) {
-    case ROTATION_0:
-    case ROTATION_180:
-    case TILEFLAG_YFLIP ^ ROTATION_0:
-    case TILEFLAG_YFLIP ^ ROTATION_180:
-      return CANTMOVE_DOWN | CANTMOVE_UP;
-    case ROTATION_90:
-    case ROTATION_270:
-    case TILEFLAG_YFLIP ^ ROTATION_90:
-    case TILEFLAG_YFLIP ^ ROTATION_270:
-      return CANTMOVE_LEFT | CANTMOVE_RIGHT;
-    }
-    break;
+    return (Flags & TILEFLAG_ROTATE) ? (CANTMOVE_LEFT | CANTMOVE_RIGHT)
+                                     : (CANTMOVE_DOWN | CANTMOVE_UP);
   case TILE_STOPA:
     return CANTMOVE_LEFT | CANTMOVE_RIGHT | CANTMOVE_UP | CANTMOVE_DOWN;
+  default:
+    return 0;
   }
-  return 0;
 }
 
 inline int move_restrictions(int Direction, int Tile, int Flags) {
