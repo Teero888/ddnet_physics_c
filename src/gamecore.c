@@ -1199,7 +1199,7 @@ void cc_handle_ninja(SCharacterCore *pCore) {
     move_box(pCore->m_pCollision, &pCore->m_Pos, &pCore->m_Vel, PHYSICALSIZEVEC,
              GroundElasticity, NULL);
 
-    pCore->m_Vel = VZERO;
+    pCore->m_Vel = vec2_init(0, 0);
 
     // check if we Hit anything along the way
     {

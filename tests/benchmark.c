@@ -83,7 +83,7 @@ int aRandom[256] = {
     311180177,   -945314925,  933326812,   -648073597,  -584794547,
     -483801347};
 
-#define TICKS 10000000
+#define TICKS 1000000
 
 int main(void) {
   SMapData Collision = load_map("run_blue.map");

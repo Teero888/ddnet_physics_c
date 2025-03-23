@@ -23,7 +23,7 @@ enum {
   CANTMOVE_DOWN = 1 << 3,
 };
 
-ALWAYS_INLINE int get_pure_map_index(SCollision *pCollision, vec2 Pos) {
+inline int get_pure_map_index(SCollision *pCollision, vec2 Pos) {
   const int nx = iclamp((int)Pos.x >> 5, 0, pCollision->m_Width - 1);
   const int ny = iclamp((int)Pos.y >> 5, 0, pCollision->m_Height - 1);
   const int idx = ny * pCollision->m_Width + nx;
@@ -36,7 +36,7 @@ inline int get_move_restrictions_mask(int Direction) {
   return aDirections[Direction];
 }
 
-ALWAYS_INLINE int get_move_restrictions_raw(int Tile, int Flags) {
+inline int get_move_restrictions_raw(int Tile, int Flags) {
   Flags &= (TILEFLAG_XFLIP | TILEFLAG_YFLIP | TILEFLAG_ROTATE);
   switch (Tile) {
   case TILE_STOP: {
