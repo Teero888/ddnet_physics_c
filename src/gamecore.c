@@ -494,7 +494,9 @@ bool wc_next_spawn(SWorldCore *pCore, vec2 *pOutPos);
 void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   int MapIndex = Index;
   int TileIndex = get_tile_index(pCore->m_pCollision, MapIndex);
-  int TileFIndex = get_front_tile_index(pCore->m_pCollision, MapIndex);
+  int TileFIndex = pCore->m_pCollision->m_FrontLayer.m_pData
+                       ? get_front_tile_index(pCore->m_pCollision, MapIndex)
+                       : 0;
   pCore->m_MoveRestrictions =
       get_move_restrictions(pCore->m_pCollision, is_switch_active_cb, pCore,
                             pCore->m_Pos, 18.0f, MapIndex);

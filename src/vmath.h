@@ -5,7 +5,9 @@
 #include <stdbool.h>
 #include <xmmintrin.h>
 
+#ifndef ALIGN
 #define ALIGN(x) __attribute__((aligned(x)))
+#endif
 
 typedef union vec2 {
   struct {
@@ -16,9 +18,14 @@ typedef union vec2 {
 } ALIGN(16) vec2;
 
 #define PI 3.14159265358979323846
+
+// Only use this for compile time stuff
+#define CTVEC2(x, y) ((vec2){{x, y}})
+
 inline vec2 vec2_init(float x, float y) {
   return (vec2){.simd = _mm_set_ps(0.0f, 0.0f, y, x)};
 }
+
 inline vec2 vfmul(vec2 a, float b) { return vec2_init(a.x * b, a.y * b); }
 inline vec2 vfdiv(vec2 a, float b) { return vec2_init(a.x / b, a.y / b); }
 inline vec2 vfadd(vec2 a, float b) { return vec2_init(a.x + b, a.y + b); }

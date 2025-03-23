@@ -24,10 +24,9 @@ enum {
 };
 
 inline int get_pure_map_index(SCollision *pCollision, vec2 Pos) {
-  const int nx = iclamp((int)Pos.x >> 5, 0, pCollision->m_Width - 1);
-  const int ny = iclamp((int)Pos.y >> 5, 0, pCollision->m_Height - 1);
-  const int idx = ny * pCollision->m_Width + nx;
-  return idx;
+  const int nx = iclamp(round_to_int(Pos.x) / 32, 0, pCollision->m_Width - 1);
+  const int ny = iclamp(round_to_int(Pos.y) / 32, 0, pCollision->m_Height - 1);
+  return ny * pCollision->m_Width + nx;
 }
 
 inline int get_move_restrictions_mask(int Direction) {
@@ -367,6 +366,7 @@ inline bool is_through(SCollision *pCollision, int x, int y, int OffsetX,
   return pTileIdx[offpos] == TILE_THROUGH ||
          (pFrontIdx && pFrontIdx[offpos] == TILE_THROUGH);
 }
+
 inline bool is_hook_blocker(SCollision *pCollision, int x, int y, vec2 Pos0,
                             vec2 Pos1) {
   int pos = get_pure_map_index(pCollision, vec2_init(x, y));
@@ -415,7 +415,6 @@ inline int intersect_line_tele_hook(SCollision *pCollision, vec2 Pos0,
       continue;
     LastIndex = Index;
     if (pTeleNr) {
-      // if (g_Config.m_SvOldTeleportHook)
       if (OldTeleHook)
         *pTeleNr = is_teleport(pCollision, Index);
       else

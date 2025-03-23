@@ -1,5 +1,6 @@
 #include "vmath.h"
 
+extern inline vec2 vec2_init(float x, float y);
 extern inline vec2 vfmul(vec2 a, float b);
 extern inline vec2 vfdiv(vec2 a, float b);
 extern inline vec2 vfadd(vec2 a, float b);
