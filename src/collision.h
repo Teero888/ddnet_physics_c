@@ -5,6 +5,10 @@
 #include "stdbool.h"
 #include "vmath.h"
 
+#define DEATH 9
+#define PHYSICALSIZE 28.f
+#define PHYSICALSIZEVEC vec2_init(28.f, 28.f)
+
 typedef SMapData SCollision;
 typedef _Bool (*CALLBACK_SWITCHACTIVE)(int Number, void *pUser);
 
@@ -100,6 +104,11 @@ inline int is_teleport(SCollision *pCollision, int Index) {
 }
 inline int is_teleport_hook(SCollision *pCollision, int Index) {
   return pCollision->m_TeleLayer.m_pType[Index] == TILE_TELEINHOOK
+             ? pCollision->m_TeleLayer.m_pNumber[Index]
+             : 0;
+}
+inline int is_teleport_weapon(SCollision *pCollision, int Index) {
+  return pCollision->m_TeleLayer.m_pType[Index] == TILE_TELEINWEAPON
              ? pCollision->m_TeleLayer.m_pNumber[Index]
              : 0;
 }
@@ -503,6 +512,35 @@ inline const vec2 *tele_check_outs(SCollision *pCollision, int Number,
   return (vec2 *)pCollision->m_apTeleCheckOuts[Number];
 }
 
+inline int intersect_line(SCollision *pCollision, vec2 Pos0, vec2 Pos1,
+                          vec2 *pOutCollision, vec2 *pOutBeforeCollision) {
+  float Distance = vdistance(Pos0, Pos1);
+  int End = Distance + 1;
+  vec2 Last = Pos0;
+  for (int i = 0; i <= End; i++) {
+    float a = i / (float)End;
+    vec2 Pos = vvfmix(Pos0, Pos1, a);
+    // Temporary position for checking collision
+    int ix = round_to_int(Pos.x);
+    int iy = round_to_int(Pos.y);
+
+    if (check_point(pCollision, vec2_init(ix, iy))) {
+      if (pOutCollision)
+        *pOutCollision = Pos;
+      if (pOutBeforeCollision)
+        *pOutBeforeCollision = Last;
+      return get_collision_at(pCollision, ix, iy);
+    }
+
+    Last = Pos;
+  }
+  if (pOutCollision)
+    *pOutCollision = Pos1;
+  if (pOutBeforeCollision)
+    *pOutBeforeCollision = Pos1;
+  return 0;
+}
+
 inline void move_box(SCollision *pCollision, vec2 *pInoutPos, vec2 *pInoutVel,
                      vec2 Size, vec2 Elasticity, bool *pGrounded) {
 
@@ -562,6 +600,75 @@ inline void move_box(SCollision *pCollision, vec2 *pInoutPos, vec2 *pInoutVel,
 
   *pInoutPos = Pos;
   *pInoutVel = Vel;
+}
+
+inline bool get_nearest_air_pos_player(SCollision *pCollision, vec2 PlayerPos,
+                                       vec2 *pOutPos) {
+  for (int dist = 5; dist >= -1; dist--) {
+    *pOutPos = vec2_init(PlayerPos.x, PlayerPos.y - dist);
+    if (!test_box(pCollision, *pOutPos, PHYSICALSIZEVEC)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+inline bool get_nearest_air_pos(SCollision *pCollision, vec2 Pos, vec2 PrevPos,
+                                vec2 *pOutPos) {
+  for (int k = 0; k < 16 && check_point(pCollision, Pos); k++) {
+    Pos = vvsub(Pos, vnormalize(vvsub(PrevPos, Pos)));
+  }
+
+  vec2 PosInBlock =
+      vec2_init(round_to_int(Pos.x) % 32, round_to_int(Pos.y) % 32);
+  vec2 BlockCenter = vfadd(
+      vvsub(vec2_init(round_to_int(Pos.x), round_to_int(Pos.y)), PosInBlock),
+      16.0f);
+
+  *pOutPos =
+      vec2_init(BlockCenter.x + (PosInBlock.x < 16 ? -2.0f : 1.0f), Pos.y);
+  if (!test_box(pCollision, *pOutPos, PHYSICALSIZEVEC))
+    return true;
+
+  *pOutPos =
+      vec2_init(Pos.x, BlockCenter.y + (PosInBlock.y < 16 ? -2.0f : 1.0f));
+  if (!test_box(pCollision, *pOutPos, PHYSICALSIZEVEC))
+    return true;
+
+  *pOutPos = vec2_init(BlockCenter.x + (PosInBlock.x < 16 ? -2.0f : 1.0f),
+                       BlockCenter.y + (PosInBlock.y < 16 ? -2.0f : 1.0f));
+  return !test_box(pCollision, *pOutPos, PHYSICALSIZEVEC);
+}
+
+inline int get_index(SCollision *pCollision, vec2 PrevPos, vec2 Pos) {
+  float Distance = vdistance(PrevPos, Pos);
+
+  if (!Distance) {
+    int Nx = iclamp((int)Pos.x / 32, 0, pCollision->m_Width - 1);
+    int Ny = iclamp((int)Pos.y / 32, 0, pCollision->m_Height - 1);
+
+    if (pCollision->m_TeleLayer.m_pType ||
+        (pCollision->m_SpeedupLayer.m_pForce &&
+         pCollision->m_SpeedupLayer.m_pForce[Ny * pCollision->m_Width + Nx] >
+             0)) {
+      return Ny * pCollision->m_Width + Nx;
+    }
+  }
+
+  for (int i = 0, id = ceil(Distance); i < id; i++) {
+    float a = (float)i / Distance;
+    vec2 Tmp = vvfmix(PrevPos, Pos, a);
+    int Nx = iclamp((int)Tmp.x / 32, 0, pCollision->m_Width - 1);
+    int Ny = iclamp((int)Tmp.y / 32, 0, pCollision->m_Height - 1);
+    if (pCollision->m_TeleLayer.m_pType ||
+        (pCollision->m_SpeedupLayer.m_pForce &&
+         pCollision->m_SpeedupLayer.m_pForce[Ny * pCollision->m_Width + Nx] >
+             0)) {
+      return Ny * pCollision->m_Width + Nx;
+    }
+  }
+
+  return -1;
 }
 
 #endif // LIB_COLLISION_H

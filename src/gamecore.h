@@ -31,7 +31,7 @@ enum {
   NUM_WEAPONS
 };
 
-typedef struct PlayerInput {
+typedef struct {
   int m_Direction;
   int m_TargetX;
   int m_TargetY;
@@ -40,10 +40,6 @@ typedef struct PlayerInput {
   int m_Hook;
   int m_WantedWeapon;
 } SPlayerInput;
-
-#define DEATH 9
-#define PHYSICALSIZE 28.f
-#define PHYSICALSIZEVEC vec2_init(28.f, 28.f)
 
 enum { ENTTYPE_PROJECTILE = 0, ENTTYPE_LASER, ENTTYPE_PICKUP, NUM_ENTTYPES };
 
@@ -59,7 +55,25 @@ typedef struct Entity {
   int m_Id;
   int m_ObjType;
   bool m_MarkedForDestroy;
+  int m_Number;
+  int m_Layer;
 } SEntity;
+
+typedef struct Projectile {
+  SEntity m_Base;
+  vec2 m_Direction;
+  vec2 m_InitDir;
+  int m_LifeSpan;
+  int m_Owner;
+  int m_Type;
+  int m_StartTick;
+  int m_Bouncing;
+  int m_DDRaceTeam;
+  int m_TuneZone;
+  bool m_Explosive;
+  bool m_Freeze;
+  bool m_IsSolo;
+} SProjectile;
 
 typedef struct CharacterCore {
   struct WorldCore *m_pWorld;
@@ -206,7 +220,7 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig);
 void wc_tick(SWorldCore *pCore);
 void wc_free(SWorldCore *pCore);
 
-void cc_on_input(SCharacterCore *pCore, SPlayerInput *pNewInput);
+void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput);
 SCharacterCore *wc_add_character(SWorldCore *pWorld);
 
 #endif // LIB_GAMECORE_H

@@ -126,6 +126,225 @@ static inline SInputCount count_input(int Prev, int Cur) {
 
 // }}}
 
+// Entities {{{
+
+void ent_init(SEntity *pEnt, SWorldCore *pGameWorld, int ObjType, vec2 Pos,
+              int ProximityRadius) {
+  pEnt->m_pWorld = pGameWorld;
+  pEnt->m_ObjType = ObjType;
+  pEnt->m_Pos = Pos;
+  pEnt->m_ProximityRadius = ProximityRadius;
+  pEnt->m_pCollision = pGameWorld->m_pCollision;
+  pEnt->m_MarkedForDestroy = false;
+  pEnt->m_pPrevTypeEntity = NULL;
+  pEnt->m_pNextTypeEntity = NULL;
+}
+
+void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner,
+              vec2 Pos, vec2 Dir, int Span, bool Freeze, bool Explosive,
+              vec2 InitDir, int Layer, int Number) {
+  ent_init(&pProj->m_Base, pGameWorld, ENTTYPE_PROJECTILE, Pos, 0);
+  pProj->m_Type = Type;
+  pProj->m_Direction = Dir;
+  pProj->m_LifeSpan = Span;
+  pProj->m_Owner = Owner;
+  pProj->m_StartTick = pGameWorld->m_GameTick;
+  pProj->m_Explosive = Explosive;
+  pProj->m_Base.m_Layer = Layer;
+  pProj->m_Base.m_Number = Number;
+  pProj->m_Freeze = Freeze;
+  pProj->m_InitDir = InitDir;
+  pProj->m_TuneZone = is_tune(pGameWorld->m_pCollision,
+                              get_map_index(pGameWorld->m_pCollision, Pos));
+  pProj->m_IsSolo = pGameWorld->m_pCharacters[Owner].m_Solo;
+}
+
+vec2 prj_get_pos(SProjectile *pProj, float Time) {
+  float Curvature = 0;
+  float Speed = 0;
+  STuningParams *pTuning =
+      &pProj->m_Base.m_pWorld->m_pTuningList[pProj->m_TuneZone];
+
+  switch (pProj->m_Type) {
+  case WEAPON_GRENADE:
+    Curvature = tune_get(pTuning->m_GrenadeCurvature);
+    Speed = tune_get(pTuning->m_GrenadeSpeed);
+    break;
+
+  case WEAPON_SHOTGUN:
+    Curvature = tune_get(pTuning->m_ShotgunCurvature);
+    Speed = tune_get(pTuning->m_ShotgunSpeed);
+    break;
+
+  case WEAPON_GUN:
+    Curvature = tune_get(pTuning->m_GunCurvature);
+    Speed = tune_get(pTuning->m_GunSpeed);
+    break;
+  }
+
+  return calc_pos(pProj->m_Base.m_Pos, pProj->m_Direction, Curvature, Speed,
+                  Time);
+}
+SCharacterCore *wc_intersect_character(SWorldCore *pWorld, vec2 Pos0, vec2 Pos1,
+                                       float Radius, vec2 *pNewPos,
+                                       const SCharacterCore *pNotThis,
+                                       const SCharacterCore *pThisOnly);
+
+void wc_create_explosion(SWorldCore *pWorld, vec2 Pos, int Owner);
+
+void prj_tick(SProjectile *pProj) {
+  float Pt = (pProj->m_Base.m_pWorld->m_GameTick - pProj->m_StartTick - 1) /
+             (float)SERVER_TICK_SPEED;
+  float Ct = (pProj->m_Base.m_pWorld->m_GameTick - pProj->m_StartTick) /
+             (float)SERVER_TICK_SPEED;
+  vec2 PrevPos = prj_get_pos(pProj, Pt);
+  vec2 CurPos = prj_get_pos(pProj, Ct);
+  vec2 ColPos;
+  vec2 NewPos;
+  int Collide = intersect_line(pProj->m_Base.m_pCollision, PrevPos, CurPos,
+                               &ColPos, &NewPos);
+  SCharacterCore *pOwnerChar = NULL;
+
+  if (pProj->m_Owner >= 0)
+    pOwnerChar = &pProj->m_Base.m_pWorld->m_pCharacters[pProj->m_Owner];
+
+  SCharacterCore *pTargetChr = NULL;
+
+  if (pOwnerChar ? !pOwnerChar->m_GrenadeHitDisabled
+                 : pProj->m_Base.m_pWorld->m_pConfig->m_SvHit)
+    pTargetChr = wc_intersect_character(pProj->m_Base.m_pWorld, PrevPos, ColPos,
+                                        6.0f, &ColPos, pOwnerChar, NULL);
+
+  if (pProj->m_LifeSpan > -1)
+    pProj->m_LifeSpan--;
+
+  // TODO: the owner can't be "not alive" right now xd
+  // so fix this later
+  // if (pOwnerChar && pOwnerChar->IsAlive()) {
+  //   TeamMask = pOwnerChar->TeamMask();
+  // } else if (m_Owner >= 0 &&
+  //            (m_Type != WEAPON_GRENADE ||
+  //            g_Config.m_SvDestroyBulletsOnDeath)) {
+  //   m_MarkedForDestroy = true;
+  //   return;
+  // }
+
+  if ((pTargetChr &&
+       (pOwnerChar ? !pOwnerChar->m_GrenadeHitDisabled
+                   : pProj->m_Base.m_pWorld->m_pConfig->m_SvHit ||
+                         pProj->m_Owner == -1 || pTargetChr == pOwnerChar)) ||
+      Collide) {
+    if (pProj->m_Explosive &&
+        (!pTargetChr ||
+         (pTargetChr && (pProj->m_Type == WEAPON_SHOTGUN && Collide)))) {
+      // int Number = 1;
+      // TODO: we are ignoring this bug. It only happens on the map Binary
+      // if (GameServer()->EmulateBug(BUG_GRENADE_DOUBLEEXPLOSION) &&
+      //     m_LifeSpan == -1) {
+      //   Number = 2;
+      // }
+      // for (int i = 0; i < Number; i++) {
+      wc_create_explosion(pProj->m_Base.m_pWorld, ColPos, pProj->m_Owner);
+      // }
+    }
+
+    if (pOwnerChar &&
+        ((pProj->m_Type == WEAPON_GRENADE && pOwnerChar->m_HasTelegunGrenade) ||
+         (pProj->m_Type == WEAPON_GUN && pOwnerChar->m_HasTelegunGun))) {
+      int MapIndex = get_pure_map_index(
+          pProj->m_Base.m_pCollision, pTargetChr ? pTargetChr->m_Pos : ColPos);
+      int TileFIndex =
+          pProj->m_Base.m_pCollision->m_FrontLayer.m_pData
+              ? get_front_tile_index(pProj->m_Base.m_pCollision, MapIndex)
+              : 0;
+      bool IsSwitchTeleGun = false;
+      bool IsBlueSwitchTeleGun = false;
+      if (pProj->m_Base.m_pCollision->m_SwitchLayer.m_pType) {
+        IsSwitchTeleGun = get_switch_type(pProj->m_Base.m_pCollision,
+                                          MapIndex) == TILE_ALLOW_TELE_GUN;
+        IsBlueSwitchTeleGun =
+            get_switch_type(pProj->m_Base.m_pCollision, MapIndex) ==
+            TILE_ALLOW_BLUE_TELE_GUN;
+      }
+
+      if (IsSwitchTeleGun || IsBlueSwitchTeleGun) {
+        // Delay specifies which weapon the tile should work for.
+        // Delay = 0 means all.
+        int delay = get_switch_delay(pProj->m_Base.m_pCollision, MapIndex);
+
+        if (delay == 1 && pProj->m_Type != WEAPON_GUN)
+          IsSwitchTeleGun = IsBlueSwitchTeleGun = false;
+        if (delay == 2 && pProj->m_Type != WEAPON_GRENADE)
+          IsSwitchTeleGun = IsBlueSwitchTeleGun = false;
+        if (delay == 3 && pProj->m_Type != WEAPON_LASER)
+          IsSwitchTeleGun = IsBlueSwitchTeleGun = false;
+      }
+
+      if (TileFIndex == TILE_ALLOW_TELE_GUN ||
+          TileFIndex == TILE_ALLOW_BLUE_TELE_GUN || IsSwitchTeleGun ||
+          IsBlueSwitchTeleGun || pTargetChr) {
+        bool Found;
+        vec2 PossiblePos;
+
+        if (!Collide)
+          Found = get_nearest_air_pos_player(
+              pProj->m_Base.m_pCollision,
+              pTargetChr ? pTargetChr->m_Pos : ColPos, &PossiblePos);
+        else
+          Found = get_nearest_air_pos(pProj->m_Base.m_pCollision, NewPos,
+                                      CurPos, &PossiblePos);
+
+        if (Found) {
+          pOwnerChar->m_TeleGunPos = PossiblePos;
+          pOwnerChar->m_TeleGunTeleport = true;
+          pOwnerChar->m_IsBlueTeleGunTeleport =
+              TileFIndex == TILE_ALLOW_BLUE_TELE_GUN || IsBlueSwitchTeleGun;
+        }
+      }
+    }
+
+    if (Collide && pProj->m_Bouncing != 0) {
+      pProj->m_StartTick = pProj->m_Base.m_pWorld->m_GameTick;
+      pProj->m_Base.m_Pos = vvadd(NewPos, vfmul(pProj->m_Direction, -4));
+      if (pProj->m_Bouncing == 1)
+        pProj->m_Direction.x = -pProj->m_Direction.x;
+      else if (pProj->m_Bouncing == 2)
+        pProj->m_Direction.y = -pProj->m_Direction.y;
+      if (fabs(pProj->m_Direction.x) < 1e-6f)
+        pProj->m_Direction.x = 0;
+      if (fabs(pProj->m_Direction.y) < 1e-6f)
+        pProj->m_Direction.y = 0;
+      pProj->m_Base.m_Pos = vvadd(pProj->m_Base.m_Pos, pProj->m_Direction);
+    } else {
+      pProj->m_Base.m_MarkedForDestroy = true;
+      return;
+    }
+  }
+  if (pProj->m_LifeSpan == -1) {
+    if (pProj->m_Explosive) {
+      wc_create_explosion(pProj->m_Base.m_pWorld, ColPos, pProj->m_Owner);
+    }
+    pProj->m_Base.m_MarkedForDestroy = true;
+    return;
+  }
+
+  int x = get_index(pProj->m_Base.m_pCollision, PrevPos, CurPos);
+  int z;
+  if (pProj->m_Base.m_pWorld->m_pConfig->m_SvOldTeleportWeapons)
+    z = is_teleport(pProj->m_Base.m_pCollision, x);
+  else
+    z = is_teleport_weapon(pProj->m_Base.m_pCollision, x);
+  int NumTeleOuts;
+  if (z && tele_outs(pProj->m_Base.m_pCollision, z - 1, &NumTeleOuts)) {
+    pProj->m_Base.m_Pos = tele_outs(
+        pProj->m_Base.m_pCollision, z - 1,
+        &NumTeleOuts)[pProj->m_Base.m_pWorld->m_GameTick % NumTeleOuts];
+    pProj->m_StartTick = pProj->m_Base.m_pWorld->m_GameTick;
+  }
+}
+
+// }}}
+
 // CharacterCore functions {{{
 
 void cc_reset(SCharacterCore *pCore) {
@@ -390,7 +609,7 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
     if (Type == TILE_SPEED_BOOST_OLD) {
       float TeeAngle, SpeederAngle, DiffAngle, SpeedLeft, TeeSpeed;
       if (Force == 255 && MaxSpeed) {
-        pCore->m_Vel = vfmul(Direction, (MaxSpeed / 5));
+        pCore->m_Vel = vfmul(Direction, ((float)MaxSpeed / 5.f));
       } else {
         if (MaxSpeed > 0 && MaxSpeed < 5)
           MaxSpeed = 5;
@@ -1295,6 +1514,7 @@ void cc_do_weapon_switch(SCharacterCore *pCore) {
   cc_set_weapon(pCore, pCore->m_QueuedWeapon);
 }
 
+void wc_insert_entity(SWorldCore *pWorld, SEntity *pEnt);
 void cc_fire_weapon(SCharacterCore *pCore) {
   if (pCore->m_NumInputs < 2)
     return;
@@ -1303,8 +1523,9 @@ void cc_fire_weapon(SCharacterCore *pCore) {
     return;
 
   cc_do_weapon_switch(pCore);
-  vec2 Direction = vnormalize(vec2_init(pCore->m_LatestInput.m_TargetX,
-                                        pCore->m_LatestInput.m_TargetY));
+  vec2 MouseTarget =
+      vec2_init(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY);
+  vec2 Direction = vnormalize(MouseTarget);
 
   bool FullAuto = false;
   if (pCore->m_ActiveWeapon == WEAPON_GRENADE ||
@@ -1339,8 +1560,8 @@ void cc_fire_weapon(SCharacterCore *pCore) {
     return;
   }
 
-  // vec2 ProjStartPos =
-  //     vvadd(pCore->m_Pos, vfmul(Direction, PHYSICALSIZE * 0.75f));
+  vec2 ProjStartPos =
+      vvadd(pCore->m_Pos, vfmul(Direction, PHYSICALSIZE * 0.75f));
 
   switch (pCore->m_ActiveWeapon) {
   case WEAPON_HAMMER: {
@@ -1420,21 +1641,12 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   }
 
   case WEAPON_GRENADE: {
-    // int Lifetime =
-    //     (int)(SERVER_TICK_SPEED *
-    //     tune_get(pCore->m_Tuning.m_GrenadeLifetime));
-    //
-    // TODO:
-    // new CProjectile(GameWorld(),
-    //                 WEAPON_GRENADE,       // Type
-    //                 GetCid(),             // Owner
-    //                 ProjStartPos,         // Pos
-    //                 Direction,            // Dir
-    //                 Lifetime,             // Span
-    //                 false,                // Freeze
-    //                 true,                 // Explosive
-    //                 SOUND_GRENADE_EXPLODE // SoundImpact
-    // );                                    // SoundImpact
+    int Lifetime =
+        (int)(SERVER_TICK_SPEED * tune_get(pCore->m_Tuning.m_GrenadeLifetime));
+    SProjectile *pNewProj = malloc(sizeof(SProjectile));
+    prj_init(pNewProj, pCore->m_pWorld, WEAPON_GRENADE, pCore->m_Id,
+             ProjStartPos, Direction, Lifetime, false, true, MouseTarget, 0, 0);
+    wc_insert_entity(pCore->m_pWorld, (SEntity *)pNewProj);
   } break;
 
   case WEAPON_LASER: {
@@ -1450,16 +1662,17 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 
     pCore->m_Ninja.m_ActivationDir = Direction;
     pCore->m_Ninja.m_CurrentMoveTime =
-        NINJA_MOVETIME * SERVER_TICK_SPEED / 1000;
+        (NINJA_MOVETIME * SERVER_TICK_SPEED) / 1000;
     pCore->m_Ninja.m_OldVelAmount = vlength(pCore->m_Vel);
   } break;
   }
 
   // reloadtimer can be changed earlier by hammer so check again
   if (!pCore->m_ReloadTimer) {
-    pCore->m_ReloadTimer = tune_get(*(&pCore->m_Tuning.m_HammerFireDelay +
-                                      pCore->m_ActiveWeapon)) *
-                           SERVER_TICK_SPEED / 1000;
+    pCore->m_ReloadTimer = (tune_get(*(&pCore->m_Tuning.m_HammerFireDelay +
+                                       pCore->m_ActiveWeapon)) *
+                            SERVER_TICK_SPEED) /
+                           1000;
   }
 }
 
@@ -1520,7 +1733,7 @@ void cc_handle_weapon_switch(SCharacterCore *pCore) {
   cc_do_weapon_switch(pCore);
 }
 
-void cc_on_input(SCharacterCore *pCore, SPlayerInput *pNewInput) {
+void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
   pCore->m_NumInputs++;
   pCore->m_LatestPrevInput = pCore->m_LatestInput;
   pCore->m_LatestInput = *pNewInput;
@@ -1686,6 +1899,74 @@ SCharacterCore *wc_add_character(SWorldCore *pWorld) {
   }
 
   return pChar;
+}
+
+void wc_create_explosion(SWorldCore *pWorld, vec2 Pos, int Owner) {
+  float Radius = 135.0f;
+  float InnerRadius = 48.0f;
+  for (int i = 0; i < pWorld->m_NumCharacters; i++) {
+    SCharacterCore *pChr = &pWorld->m_pCharacters[i];
+    vec2 Diff = vvsub(pChr->m_Pos, Pos);
+    vec2 ForceDir = vec2_init(0, 1);
+    float l = vlength(Diff);
+    if (l)
+      ForceDir = vnormalize(Diff);
+    l = 1 - fclamp((l - InnerRadius) / (Radius - InnerRadius), 0.0f, 1.0f);
+    float Strength;
+    Strength =
+        tune_get(pWorld->m_pCharacters[Owner].m_Tuning.m_ExplosionStrength);
+
+    float Dmg = Strength * l;
+    if (!(int)Dmg)
+      continue;
+
+    if (!pWorld->m_pCharacters[Owner].m_GrenadeHitDisabled ||
+        Owner == pChr->m_Id) {
+      if (pChr->m_Solo && Owner != pChr->m_Id)
+        continue;
+      cc_take_damage(pChr, vfmul(ForceDir, Dmg * 2));
+    }
+  }
+}
+
+SCharacterCore *wc_intersect_character(SWorldCore *pWorld, vec2 Pos0, vec2 Pos1,
+                                       float Radius, vec2 *pNewPos,
+                                       const SCharacterCore *pNotThis,
+                                       const SCharacterCore *pThisOnly) {
+  float ClosestLen = vdistance(Pos0, Pos1) * 100.0f;
+  SCharacterCore *pClosest = NULL;
+
+  for (int i = 0; i < pWorld->m_NumCharacters; ++i) {
+    SCharacterCore *pEntity = &pWorld->m_pCharacters[i];
+    if (pEntity == pNotThis)
+      continue;
+
+    if (pThisOnly && pEntity != pThisOnly)
+      continue;
+
+    vec2 IntersectPos;
+    if (closest_point_on_line(Pos0, Pos1, pEntity->m_Pos, &IntersectPos)) {
+      float Len = vdistance(pEntity->m_Pos, IntersectPos);
+      if (Len < PHYSICALSIZE + Radius) {
+        Len = vdistance(Pos0, IntersectPos);
+        if (Len < ClosestLen) {
+          *pNewPos = IntersectPos;
+          ClosestLen = Len;
+          pClosest = pEntity;
+        }
+      }
+    }
+  }
+
+  return pClosest;
+}
+
+void wc_insert_entity(SWorldCore *pWorld, SEntity *pEnt) {
+  if (pWorld->m_apFirstEntityTypes[pEnt->m_ObjType])
+    pWorld->m_apFirstEntityTypes[pEnt->m_ObjType]->m_pPrevTypeEntity = pEnt;
+  pEnt->m_pNextTypeEntity = pWorld->m_apFirstEntityTypes[pEnt->m_ObjType];
+  pEnt->m_pPrevTypeEntity = NULL;
+  pWorld->m_apFirstEntityTypes[pEnt->m_ObjType] = pEnt;
 }
 
 // }}}

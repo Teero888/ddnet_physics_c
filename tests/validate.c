@@ -9,60 +9,75 @@
 
 #define SIZE(x) sizeof(x) / sizeof(x[0])
 
+typedef struct {
+  const char *m_Description;
+  const SValidation *m_pValidationData;
+} STest;
+
+static const STest s_aTests[] = {
+    (STest){"run_blue jumping up and down", &s_JumpTest},
+    (STest){"run_blue with simple hook movements", &s_HookTest},
+    (STest){"run_blue with simple grenade movements", &s_GrenadeTest},
+};
+
 int main(void) {
-  SMapData Collision = load_map("run_blue.map");
-  if (!Collision.m_GameLayer.m_pData)
-    return 1;
 
-  SConfig Config;
-  init_config(&Config);
+  for (int Test = 0; (unsigned long)Test < SIZE(s_aTests); ++Test) {
+    const SValidation *pData = s_aTests[Test].m_pValidationData;
+    SMapData Collision = load_map(pData->m_aMapName);
+    if (!Collision.m_GameLayer.m_pData)
+      return 1;
 
-  SWorldCore World;
-  wc_init(&World, &Collision, &Config);
+    SConfig Config;
+    init_config(&Config);
 
-  SValidateState *pData = aRunBlueNoWpns;
-  int DataSize = SIZE(aRunBlueNoWpns);
+    SWorldCore World;
+    wc_init(&World, &Collision, &Config);
 
-  SCharacterCore *pChar = wc_add_character(&World);
-  vec2 PreviousVel;
+    SCharacterCore *pChar = wc_add_character(&World);
+    vec2 PreviousVel;
 
-  bool Failed = false;
-  printf("StartTick: %d\n", pData[0].m_GameTick);
-  printf("DataSize: %d\n", DataSize);
-  for (int i = 0; i < pData[0].m_GameTick + DataSize; ++i) {
-    if (i >= pData[0].m_GameTick)
-      cc_on_input(pChar, &pData[i - pData[0].m_GameTick].m_Input);
-    PreviousVel = pChar->m_Vel;
-    wc_tick(&World);
-    if (i >= pData[0].m_GameTick) {
-      int Tick = i - pData[0].m_GameTick;
-      if (!vvcmp(pData[Tick].m_Pos, pChar->m_Pos)) {
-        printf("Validation failed at tick %d\n", i);
-        printf("Expected State:\n"
-               "\tPos: %f, %f\n"
-               "\tVel: %f, %f\n"
-               "Found State: \n"
-               "\tPos: %f, %f\n"
-               "\tVel: %f, %f\n",
-               pData[Tick].m_Pos.x, pData[Tick].m_Pos.y, pData[Tick].m_Vel.x,
-               pData[Tick].m_Vel.y, pChar->m_Pos.x, pChar->m_Pos.y,
-               pChar->m_Vel.x, pChar->m_Vel.y);
-        printf("Previous State:\n"
-               "\tPos: %f, %f\n"
-               "\tVel: %f, %f\n",
-               pChar->m_PrevPos.x, pChar->m_PrevPos.y, PreviousVel.x,
-               PreviousVel.y);
-        Failed = true;
-        break;
+    bool Failed = false;
+    for (int i = 0; i < pData->m_StartTick + 3000; ++i) {
+      if (i >= pData->m_StartTick) {
+        cc_on_input(pChar,
+                    &pData->m_vStates[0][i - pData->m_StartTick].m_Input);
+      }
+      PreviousVel = pChar->m_Vel;
+      wc_tick(&World);
+      if (i >= pData->m_StartTick) {
+        int Tick = i - pData->m_StartTick;
+        if (!vvcmp(pData->m_vStates[0][Tick].m_Pos, pChar->m_Pos)) {
+          printf("Test '%s' failed at step %d\n", s_aTests[Test].m_Description,
+                 Tick);
+          printf("Expected State:\n"
+                 "\tPos: %f, %f\n"
+                 "\tVel: %f, %f\n"
+                 "Found State: \n"
+                 "\tPos: %f, %f\n"
+                 "\tVel: %f, %f\n",
+                 pData->m_vStates[0][Tick].m_Pos.x,
+                 pData->m_vStates[0][Tick].m_Pos.y,
+                 pData->m_vStates[0][Tick].m_Vel.x,
+                 pData->m_vStates[0][Tick].m_Vel.y, pChar->m_Pos.x,
+                 pChar->m_Pos.y, pChar->m_Vel.x, pChar->m_Vel.y);
+          printf("Previous State:\n"
+                 "\tPos: %f, %f\n"
+                 "\tVel: %f, %f\n",
+                 pChar->m_PrevPos.x, pChar->m_PrevPos.y, PreviousVel.x,
+                 PreviousVel.y);
+          Failed = true;
+          break;
+        }
       }
     }
-  }
-  if (!Failed) {
-    printf("Validation successful.\n");
-  }
+    if (!Failed) {
+      printf("Test '%s' passed.\n", s_aTests[Test].m_Description);
+    }
 
-  wc_free(&World);
-  free_map_data(&Collision);
+    wc_free(&World);
+    free_map_data(&Collision);
+  }
 
   return 0;
 }

@@ -18,6 +18,7 @@ extern inline int get_switch_type(SCollision *pCollision, int Index);
 extern inline int get_switch_delay(SCollision *pCollision, int Index);
 extern inline int is_teleport(SCollision *pCollision, int Index);
 extern inline int is_teleport_hook(SCollision *pCollision, int Index);
+extern inline int is_teleport_weapon(SCollision *pCollision, int Index);
 extern inline int is_evil_teleport(SCollision *pCollision, int Index);
 extern inline bool is_check_teleport(SCollision *pCollision, int Index);
 extern inline bool is_check_evil_teleport(SCollision *pCollision, int Index);
@@ -55,6 +56,18 @@ extern inline const vec2 *tele_outs(SCollision *pCollision, int Number,
 extern inline const vec2 *tele_check_outs(SCollision *pCollision, int Number,
                                           int *pOutNum);
 
+extern inline int intersect_line(SCollision *pCollision, vec2 Pos0, vec2 Pos1,
+                                 vec2 *pOutCollision,
+                                 vec2 *pOutBeforeCollision);
+
 extern inline void move_box(SCollision *pCollision, vec2 *pInoutPos,
                             vec2 *pInoutVel, vec2 Size, vec2 Elasticity,
                             bool *pGrounded);
+
+extern inline bool get_nearest_air_pos_player(SCollision *pCollision,
+                                              vec2 PlayerPos, vec2 *pOutPos);
+
+extern inline bool get_nearest_air_pos(SCollision *pCollision, vec2 Pos,
+                                       vec2 PrevPos, vec2 *pOutPos);
+
+extern inline int get_index(SCollision *pCollision, vec2 PrevPos, vec2 Pos);
