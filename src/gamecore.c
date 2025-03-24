@@ -1800,9 +1800,6 @@ void cc_tick(SCharacterCore *pCore) {
 
   cc_ddrace_postcore_tick(pCore);
 
-  // Previnput
-  pCore->m_PrevInput = pCore->m_Input;
-
   pCore->m_PrevPos = pCore->m_Pos;
 }
 
