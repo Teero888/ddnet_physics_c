@@ -1,5 +1,6 @@
 #include "gamecore.h"
 #include "collision.h"
+#include "map_loader.h"
 #include "vmath.h"
 #include <stdlib.h>
 #include <string.h>
@@ -343,6 +344,113 @@ void prj_tick(SProjectile *pProj) {
   }
 }
 
+enum {
+  POWERUP_HEALTH,
+  POWERUP_ARMOR,
+  POWERUP_WEAPON,
+  POWERUP_NINJA,
+  POWERUP_ARMOR_SHOTGUN,
+  POWERUP_ARMOR_GRENADE,
+  POWERUP_ARMOR_NINJA,
+  POWERUP_ARMOR_LASER,
+  NUM_POWERUPS
+};
+
+bool cc_freeze(SCharacterCore *pCore, int Seconds);
+
+void pick_init(SPickup *pPickup, SWorldCore *pGameWorld, int Type, int SubType,
+               int Layer, int Number) {
+  memset(pPickup, 0, sizeof(SPickup));
+  pPickup->m_Base.m_pWorld = pGameWorld;
+  pPickup->m_Base.m_pCollision = pGameWorld->m_pCollision;
+  pPickup->m_Base.m_ObjType = ENTTYPE_PICKUP;
+  pPickup->m_Base.m_ProximityRadius = 14;
+  pPickup->m_Core = vec2_init(0.0f, 0.0f);
+  pPickup->m_Type = Type;
+  pPickup->m_Subtype = SubType;
+
+  pPickup->m_Base.m_Layer = Layer;
+  pPickup->m_Base.m_Number = Number;
+}
+
+void pick_tick(SPickup *pPickup) {
+  if (pPickup->m_Base.m_pWorld->m_GameTick % (int)(SERVER_TICK_SPEED * 0.15f) ==
+      0) {
+    mover_speed(pPickup->m_Base.m_pCollision, pPickup->m_Base.m_Pos.x,
+                pPickup->m_Base.m_Pos.y, &pPickup->m_Core);
+    pPickup->m_Base.m_Pos = vvadd(pPickup->m_Base.m_Pos, pPickup->m_Core);
+  }
+
+  for (int i = 0; i < pPickup->m_Base.m_pWorld->m_NumCharacters; ++i) {
+    SCharacterCore *pChar = &pPickup->m_Base.m_pWorld->m_pCharacters[i];
+    if (vdistance(pChar->m_Pos, pPickup->m_Base.m_Pos) >=
+        pPickup->m_Base.m_ProximityRadius + 6 + PHYSICALSIZE) {
+      continue;
+    }
+
+    if (pPickup->m_Base.m_Layer == LAYER_SWITCH &&
+        pPickup->m_Base.m_Number > 0 &&
+        !pPickup->m_Base.m_pWorld->m_vSwitches[pPickup->m_Base.m_Number]
+             .m_Status)
+      continue;
+
+    switch (pPickup->m_Type) {
+    case POWERUP_HEALTH:
+      cc_freeze(pChar, pChar->m_pWorld->m_pConfig->m_SvFreezeDelay);
+      break;
+
+    case POWERUP_ARMOR:
+      for (int j = WEAPON_SHOTGUN; j < NUM_WEAPONS; j++) {
+        pChar->m_aWeaponGot[j] = false;
+      }
+      pChar->m_Ninja.m_ActivationDir = vec2_init(0, 0);
+      pChar->m_Ninja.m_ActivationTick = -500;
+      pChar->m_Ninja.m_CurrentMoveTime = 0;
+      if (pChar->m_ActiveWeapon >= WEAPON_SHOTGUN)
+        pChar->m_ActiveWeapon = WEAPON_HAMMER;
+      break;
+
+    case POWERUP_ARMOR_SHOTGUN:
+      pChar->m_aWeaponGot[WEAPON_SHOTGUN] = false;
+      if (pChar->m_ActiveWeapon == WEAPON_SHOTGUN)
+        pChar->m_ActiveWeapon = WEAPON_HAMMER;
+      break;
+
+    case POWERUP_ARMOR_GRENADE:
+      pChar->m_aWeaponGot[WEAPON_GRENADE] = false;
+      if (pChar->m_ActiveWeapon == WEAPON_GRENADE)
+        pChar->m_ActiveWeapon = WEAPON_HAMMER;
+      break;
+
+    case POWERUP_ARMOR_NINJA:
+      pChar->m_Ninja.m_ActivationDir = vec2_init(0, 0);
+      pChar->m_Ninja.m_ActivationTick = -500;
+      pChar->m_Ninja.m_CurrentMoveTime = 0;
+      break;
+
+    case POWERUP_ARMOR_LASER:
+      pChar->m_aWeaponGot[WEAPON_LASER] = false;
+      if (pChar->m_ActiveWeapon == WEAPON_LASER)
+        pChar->m_ActiveWeapon = WEAPON_HAMMER;
+      break;
+
+    case POWERUP_WEAPON:
+      // we do checks for this somewhere else i hope
+      pChar->m_aWeaponGot[pPickup->m_Subtype] = true;
+      break;
+
+    case POWERUP_NINJA: {
+      pChar->m_Ninja.m_ActivationTick = pChar->m_pWorld->m_GameTick;
+      pChar->m_aWeaponGot[WEAPON_NINJA] = true;
+      pChar->m_ActiveWeapon = WEAPON_NINJA;
+      break;
+    }
+    default:
+      break;
+    };
+  }
+}
+
 // }}}
 
 // CharacterCore functions {{{
@@ -358,8 +466,8 @@ void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   cc_reset(pCore);
   pCore->m_pWorld = pWorld;
   pCore->m_pCollision = pWorld->m_pCollision;
-  pCore->m_aWeapons[0].m_Got = true;
-  pCore->m_aWeapons[1].m_Got = true;
+  pCore->m_aWeaponGot[0] = true;
+  pCore->m_aWeaponGot[1] = true;
 
   // The world assigns ids to the core
   pCore->m_Id = -1;
@@ -375,7 +483,7 @@ void cc_set_worldcore(SCharacterCore *pCore, SWorldCore *pWorld,
 void cc_unfreeze(SCharacterCore *pCore) {
   if (pCore->m_FreezeTime <= 0)
     return;
-  if (!pCore->m_aWeapons[pCore->m_ActiveWeapon].m_Got)
+  if (!pCore->m_aWeaponGot[pCore->m_ActiveWeapon])
     pCore->m_ActiveWeapon = WEAPON_GUN;
   pCore->m_FreezeTime = 0;
   pCore->m_FrozenLastTick = true;
@@ -701,7 +809,7 @@ void cc_reset_hook(SCharacterCore *pCore) {
 
 void cc_reset_pickups(SCharacterCore *pCore) {
   for (int i = WEAPON_SHOTGUN; i < NUM_WEAPONS - 1; i++) {
-    pCore->m_aWeapons[i].m_Got = false;
+    pCore->m_aWeaponGot[i] = false;
     if (pCore->m_ActiveWeapon == i)
       pCore->m_ActiveWeapon = WEAPON_GUN;
   }
@@ -732,7 +840,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   // freeze
   if ((TileIndex == TILE_FREEZE || TileFIndex == TILE_FREEZE) &&
       !pCore->m_DeepFrozen) {
-    cc_freeze(pCore, 3);
+    cc_freeze(pCore, pCore->m_pWorld->m_pConfig->m_SvFreezeDelay);
   } else if ((TileIndex == TILE_UNFREEZE || TileFIndex == TILE_UNFREEZE) &&
              !pCore->m_DeepFrozen)
     cc_unfreeze(pCore);
@@ -999,8 +1107,8 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
         return;
       }
     }
-    // if no checkpointout have been found (or if there no recorded checkpoint),
-    // teleport to start
+    // if no checkpointout have been found (or if there no recorded
+    // checkpoint), teleport to start
     vec2 SpawnPos;
     if (wc_next_spawn(pCore->m_pWorld, &SpawnPos)) {
       pCore->m_Pos = SpawnPos;
@@ -1029,8 +1137,8 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
         return;
       }
     }
-    // if no checkpointout have been found (or if there no recorded checkpoint),
-    // teleport to start
+    // if no checkpointout have been found (or if there no recorded
+    // checkpoint), teleport to start
     vec2 SpawnPos;
     if (wc_next_spawn(pCore->m_pWorld, &SpawnPos)) {
       pCore->m_Pos = SpawnPos;
@@ -1050,12 +1158,11 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
 
   pCore->m_FrozenLastTick = false;
 
-  // hardcode 3s freeze for now
   if (pCore->m_DeepFrozen)
-    cc_freeze(pCore, 3);
+    cc_freeze(pCore, pCore->m_pWorld->m_pConfig->m_SvFreezeDelay);
 
-  // following jump rules can be overridden by tiles, like Refill Jumps, Stopper
-  // and Wall Jump
+  // following jump rules can be overridden by tiles, like Refill Jumps,
+  // Stopper and Wall Jump
   if (pCore->m_Jumps == -1) {
     // The player has only one ground jump, so his feet are always dark
     pCore->m_Jumped |= 2;
@@ -1192,8 +1299,8 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
   // handle jumping
   // 1 bit = to keep track if a jump has been made on this input (player is
-  // holding space bar) 2 bit = to track if all air-jumps have been used up (tee
-  // gets dark feet)
+  // holding space bar) 2 bit = to track if all air-jumps have been used up
+  // (tee gets dark feet)
   if (Grounded) {
     pCore->m_Jumped &= ~2;
     pCore->m_JumpedTotal = 0;
@@ -1290,8 +1397,8 @@ void cc_pre_tick(SCharacterCore *pCore) {
         pCore->m_NewHook = true;
         // TODO: add a proper system for this.
         // i don't want to use random number obviously since this is for
-        // simulation purposes so the player should be able to control this with
-        // an input
+        // simulation purposes so the player should be able to control this
+        // with an input
         pCore->m_HookPos =
             vvadd(pTeleOuts[pCore->m_pWorld->m_GameTick % NumOuts],
                   vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
@@ -1364,7 +1471,6 @@ void cc_set_weapon(SCharacterCore *pCore, int W) {
   if (W == pCore->m_ActiveWeapon)
     return;
 
-  pCore->m_LastWeapon = pCore->m_ActiveWeapon;
   pCore->m_QueuedWeapon = -1;
   pCore->m_ActiveWeapon = W;
 
@@ -1377,9 +1483,7 @@ void cc_remove_ninja(SCharacterCore *pCore) {
   pCore->m_Ninja.m_ActivationTick = 0;
   pCore->m_Ninja.m_CurrentMoveTime = 0;
   pCore->m_Ninja.m_OldVelAmount = 0;
-  pCore->m_aWeapons[WEAPON_NINJA].m_Got = false;
-  pCore->m_aWeapons[WEAPON_NINJA].m_Ammo = 0;
-  pCore->m_ActiveWeapon = pCore->m_LastWeapon;
+  pCore->m_aWeaponGot[WEAPON_NINJA] = false;
 
   cc_set_weapon(pCore, pCore->m_ActiveWeapon);
 }
@@ -1483,15 +1587,13 @@ void cc_handle_jetpack(SCharacterCore *pCore) {
           .m_Presses)
     WillFire = true;
 
-  if (FullAuto && (pCore->m_LatestInput.m_Fire & 1) &&
-      pCore->m_aWeapons[pCore->m_ActiveWeapon].m_Ammo)
+  if (FullAuto && (pCore->m_LatestInput.m_Fire & 1))
     WillFire = true;
 
   if (!WillFire)
     return;
 
-  // check for ammo
-  if (!pCore->m_aWeapons[pCore->m_ActiveWeapon].m_Ammo || pCore->m_FreezeTime) {
+  if (pCore->m_FreezeTime) {
     return;
   }
 
@@ -1506,8 +1608,8 @@ void cc_do_weapon_switch(SCharacterCore *pCore) {
 
   // make sure we can switch
   if (pCore->m_ReloadTimer != 0 || pCore->m_QueuedWeapon == -1 ||
-      pCore->m_aWeapons[WEAPON_NINJA].m_Got ||
-      !pCore->m_aWeapons[pCore->m_QueuedWeapon].m_Got)
+      pCore->m_aWeaponGot[WEAPON_NINJA] ||
+      !pCore->m_aWeaponGot[pCore->m_QueuedWeapon])
     return;
 
   // switch Weapon
@@ -1548,15 +1650,13 @@ void cc_fire_weapon(SCharacterCore *pCore) {
           .m_Presses)
     WillFire = true;
 
-  if (FullAuto && (pCore->m_LatestInput.m_Fire & 1) &&
-      pCore->m_aWeapons[pCore->m_ActiveWeapon].m_Ammo)
+  if (FullAuto && (pCore->m_LatestInput.m_Fire & 1))
     WillFire = true;
 
   if (!WillFire)
     return;
 
-  // check for ammo
-  if (!pCore->m_aWeapons[pCore->m_ActiveWeapon].m_Ammo || pCore->m_FreezeTime) {
+  if (pCore->m_FreezeTime) {
     return;
   }
 
@@ -1618,7 +1718,8 @@ void cc_fire_weapon(SCharacterCore *pCore) {
     if (!pCore->m_Jetpack) {
       // TODO: idk about this xd. bullets are useless in ddrace
       // int Lifetime =
-      //     (int)(SERVER_TICK_SPEED * tune_get(pCore->m_Tuning.m_GunLifetime));
+      //     (int)(SERVER_TICK_SPEED *
+      //     tune_get(pCore->m_Tuning.m_GunLifetime));
       // new CProjectile(GameWorld(),
       //                 WEAPON_GUN,   // Type
       //                 GetCid(),     // Owner
@@ -1715,19 +1816,19 @@ void cc_handle_weapon_switch(SCharacterCore *pCore) {
 
   bool Anything = false;
   for (int i = 0; i < NUM_WEAPONS - 1; ++i)
-    if (pCore->m_aWeapons[i].m_Got)
+    if (pCore->m_aWeaponGot[i])
       Anything = true;
   if (!Anything)
     return;
 
   // Direct Weapon selection
   if (pCore->m_LatestInput.m_WantedWeapon)
-    WantedWeapon = pCore->m_Input.m_WantedWeapon - 1;
+    WantedWeapon = pCore->m_Input.m_WantedWeapon;
 
   // check for insane values
   if (WantedWeapon >= 0 && WantedWeapon < NUM_WEAPONS &&
       WantedWeapon != pCore->m_ActiveWeapon &&
-      pCore->m_aWeapons[WantedWeapon].m_Got)
+      pCore->m_aWeaponGot[WantedWeapon])
     pCore->m_QueuedWeapon = WantedWeapon;
 
   cc_do_weapon_switch(pCore);
@@ -1800,6 +1901,244 @@ void wc_release_hooked(SWorldCore *pCore, int Id) {
           &pCore->m_pCharacters[pCore->m_pCharacters[i].m_HookedPlayer]);
 }
 
+bool wc_on_entity(SWorldCore *pCore, int Index, int x, int y, int Layer,
+                  int Flags, int Number) {
+  const vec2 Pos = vec2_init(x * 32.0f + 16.0f, y * 32.0f + 16.0f);
+
+  int aSides[8];
+  aSides[0] = entity(pCore->m_pCollision, x, y + 1, Layer);
+  aSides[1] = entity(pCore->m_pCollision, x + 1, y + 1, Layer);
+  aSides[2] = entity(pCore->m_pCollision, x + 1, y, Layer);
+  aSides[3] = entity(pCore->m_pCollision, x + 1, y - 1, Layer);
+  aSides[4] = entity(pCore->m_pCollision, x, y - 1, Layer);
+  aSides[5] = entity(pCore->m_pCollision, x - 1, y - 1, Layer);
+  aSides[6] = entity(pCore->m_pCollision, x - 1, y, Layer);
+  aSides[7] = entity(pCore->m_pCollision, x - 1, y + 1, Layer);
+
+  if (Index == ENTITY_DOOR) {
+    for (int i = 0; i < 8; i++) {
+      if (aSides[i] >= ENTITY_LASER_SHORT && aSides[i] <= ENTITY_LASER_LONG) {
+        // TODO: DOORS
+        // new CDoor(&GameServer()->m_World, // GameWorld
+        //           Pos,                    // Pos
+        //           pi / 4 * i,             // Rotation
+        //           32 * 3 + 32 * (aSides[i] - ENTITY_LASER_SHORT) * 3, //
+        //           Length Number // Number
+        // );
+      }
+    }
+  } else if (Index == ENTITY_CRAZY_SHOTGUN_EX) {
+    int Dir;
+    if (!Flags)
+      Dir = 0;
+    else if (Flags == ROTATION_90)
+      Dir = 1;
+    else if (Flags == ROTATION_180)
+      Dir = 2;
+    else
+      Dir = 3;
+    float Deg = Dir * (PI / 2);
+    SProjectile *pBullet = malloc(sizeof(SProjectile));
+    prj_init(pBullet, pCore,
+             WEAPON_SHOTGUN,                // Type
+             -1,                            // Owner
+             Pos,                           // Pos
+             vec2_init(sin(Deg), cos(Deg)), // Dir
+             -2,                            // Span
+             true,                          // Freeze
+             true,                          // Explosive
+             vec2_init(sin(Deg), cos(Deg)), // InitDir
+             Layer, Number);
+    pBullet->m_Bouncing = 2 - (Dir % 2);
+    wc_insert_entity(pCore, (SEntity *)pBullet);
+  } else if (Index == ENTITY_CRAZY_SHOTGUN) {
+    int Dir;
+    if (!Flags)
+      Dir = 0;
+    else if (Flags == (TILEFLAG_ROTATE))
+      Dir = 1;
+    else if (Flags == (TILEFLAG_XFLIP | TILEFLAG_YFLIP))
+      Dir = 2;
+    else
+      Dir = 3;
+    float Deg = Dir * (PI / 2);
+    SProjectile *pBullet = malloc(sizeof(SProjectile));
+    prj_init(pBullet, pCore,
+             WEAPON_SHOTGUN,                // Type
+             -1,                            // Owner
+             Pos,                           // Pos
+             vec2_init(sin(Deg), cos(Deg)), // Dir
+             -2,                            // Span
+             true,                          // Freeze
+             false,                         // Explosive
+             vec2_init(sin(Deg), cos(Deg)), // InitDir
+             Layer, Number);
+    pBullet->m_Bouncing = 2 - (Dir % 2);
+    wc_insert_entity(pCore, (SEntity *)pBullet);
+  }
+
+  int Type = -1;
+  int SubType = 0;
+
+  if (Index == ENTITY_ARMOR_1)
+    Type = POWERUP_ARMOR;
+  else if (Index == ENTITY_ARMOR_SHOTGUN)
+    Type = POWERUP_ARMOR_SHOTGUN;
+  else if (Index == ENTITY_ARMOR_GRENADE)
+    Type = POWERUP_ARMOR_GRENADE;
+  else if (Index == ENTITY_ARMOR_NINJA)
+    Type = POWERUP_ARMOR_NINJA;
+  else if (Index == ENTITY_ARMOR_LASER)
+    Type = POWERUP_ARMOR_LASER;
+  else if (Index == ENTITY_HEALTH_1)
+    Type = POWERUP_HEALTH;
+  else if (Index == ENTITY_WEAPON_SHOTGUN) {
+    Type = POWERUP_WEAPON;
+    SubType = WEAPON_SHOTGUN;
+  } else if (Index == ENTITY_WEAPON_GRENADE) {
+    Type = POWERUP_WEAPON;
+    SubType = WEAPON_GRENADE;
+  } else if (Index == ENTITY_WEAPON_LASER) {
+    Type = POWERUP_WEAPON;
+    SubType = WEAPON_LASER;
+  } else if (Index == ENTITY_POWERUP_NINJA) {
+    Type = POWERUP_NINJA;
+    SubType = WEAPON_NINJA;
+  } else if (Index >= ENTITY_LASER_FAST_CCW && Index <= ENTITY_LASER_FAST_CW) {
+    // TODO: IMPLEMENT LIGHTS
+    // int aSides2[8];
+    // aSides2[0] = entity(pCore->m_pCollision, x, y + 2, Layer);
+    // aSides2[1] = entity(pCore->m_pCollision, x + 2, y + 2, Layer);
+    // aSides2[2] = entity(pCore->m_pCollision, x + 2, y, Layer);
+    // aSides2[3] = entity(pCore->m_pCollision, x + 2, y - 2, Layer);
+    // aSides2[4] = entity(pCore->m_pCollision, x, y - 2, Layer);
+    // aSides2[5] = entity(pCore->m_pCollision, x - 2, y - 2, Layer);
+    // aSides2[6] = entity(pCore->m_pCollision, x - 2, y, Layer);
+    // aSides2[7] = entity(pCore->m_pCollision, x - 2, y + 2, Layer);
+    // int Ind = Index - ENTITY_LASER_STOP;
+    // int M;
+    // if (Ind < 0) {
+    //   Ind = -Ind;
+    //   M = 1;
+    // } else if (Ind == 0)
+    //   M = 0;
+    // else
+    //   M = -1;
+    // float AngularSpeed = 0.0f;
+    // if (Ind == 0)
+    //   AngularSpeed = 0.0f;
+    // else if (Ind == 1)
+    //   AngularSpeed = PI / 360;
+    // else if (Ind == 2)
+    //   AngularSpeed = PI / 180;
+    // else if (Ind == 3)
+    //   AngularSpeed = PI / 90;
+    // AngularSpeed *= M;
+    // for (int i = 0; i < 8; i++) {
+    //   if (aSides[i] >= ENTITY_LASER_SHORT && aSides[i] <= ENTITY_LASER_LONG)
+    //   {
+    //     CLight *pLight = new CLight(
+    //         &GameServer()->m_World, Pos, pi / 4 * i,
+    //         32 * 3 + 32 * (aSides[i] - ENTITY_LASER_SHORT) * 3, Layer,
+    //         Number);
+    //     pLight->m_AngularSpeed = AngularSpeed;
+    //     if (aSides2[i] >= ENTITY_LASER_C_SLOW &&
+    //         aSides2[i] <= ENTITY_LASER_C_FAST) {
+    //       pLight->m_Speed = 1 + (aSides2[i] - ENTITY_LASER_C_SLOW) * 2;
+    //       pLight->m_CurveLength = pLight->m_Length;
+    //     } else if (aSides2[i] >= ENTITY_LASER_O_SLOW &&
+    //                aSides2[i] <= ENTITY_LASER_O_FAST) {
+    //       pLight->m_Speed = 1 + (aSides2[i] - ENTITY_LASER_O_SLOW) * 2;
+    //       pLight->m_CurveLength = 0;
+    //     } else
+    //       pLight->m_CurveLength = pLight->m_Length;
+    //   }
+    // }
+    // TODO: implement draggers + plasma
+  } else if (Index >= ENTITY_DRAGGER_WEAK && Index <= ENTITY_DRAGGER_STRONG) {
+    // new CDragger(&GameServer()->m_World, Pos, Index - ENTITY_DRAGGER_WEAK +
+    // 1,
+    //              false, Layer, Number);
+  } else if (Index >= ENTITY_DRAGGER_WEAK_NW &&
+             Index <= ENTITY_DRAGGER_STRONG_NW) {
+    // new CDragger(&GameServer()->m_World, Pos,
+    //              Index - ENTITY_DRAGGER_WEAK_NW + 1, true, Layer, Number);
+  } else if (Index == ENTITY_PLASMAE) {
+    // new CGun(&GameServer()->m_World, Pos, false, true, Layer, Number);
+  } else if (Index == ENTITY_PLASMAF) {
+    // new CGun(&GameServer()->m_World, Pos, true, false, Layer, Number);
+  } else if (Index == ENTITY_PLASMA) {
+    // new CGun(&GameServer()->m_World, Pos, true, true, Layer, Number);
+  } else if (Index == ENTITY_PLASMAU) {
+    // new CGun(&GameServer()->m_World, Pos, false, false, Layer, Number);
+  }
+
+  if (Type != -1) {
+    SPickup *pPickup = malloc(sizeof(SPickup));
+    pick_init(pPickup, pCore, Type, SubType, Layer, Number);
+    pPickup->m_Base.m_Pos = Pos;
+    wc_insert_entity(pCore, (SEntity *)pPickup);
+    return true;
+  }
+
+  return false;
+}
+
+void wc_create_all_entities(SWorldCore *pCore) {
+  for (int y = 0; y < pCore->m_pCollision->m_Height; y++) {
+    for (int x = 0; x < pCore->m_pCollision->m_Width; x++) {
+      const int Index = y * pCore->m_pCollision->m_Width + x;
+
+      // Game layer
+      {
+        const int GameIndex = pCore->m_pCollision->m_GameLayer.m_pData[Index];
+        if (GameIndex == TILE_OLDLASER) {
+          pCore->m_pConfig->m_SvOldLaser = 1;
+        } else if (GameIndex == TILE_NPC) {
+          pCore->m_pTuningList[0].m_PlayerCollision.m_Value = 0;
+        } else if (GameIndex == TILE_EHOOK) {
+          pCore->m_pConfig->m_SvEndlessDrag = 1;
+        } else if (GameIndex == TILE_NOHIT) {
+          pCore->m_pConfig->m_SvHit = 0;
+        } else if (GameIndex == TILE_NPH) {
+          pCore->m_pTuningList[0].m_PlayerHooking.m_Value = 0;
+        } else if (GameIndex >= ENTITY_OFFSET) {
+          wc_on_entity(pCore, GameIndex - ENTITY_OFFSET, x, y, LAYER_GAME,
+                       pCore->m_pCollision->m_GameLayer.m_pFlags[Index], 0);
+        }
+      }
+
+      if (pCore->m_pCollision->m_FrontLayer.m_pData) {
+        const int FrontIndex = pCore->m_pCollision->m_FrontLayer.m_pData[Index];
+        if (FrontIndex == TILE_OLDLASER) {
+          pCore->m_pConfig->m_SvOldLaser = 1;
+        } else if (FrontIndex == TILE_NPC) {
+          pCore->m_pTuningList[0].m_PlayerCollision.m_Value = 0;
+        } else if (FrontIndex == TILE_EHOOK) {
+          pCore->m_pConfig->m_SvEndlessDrag = 1;
+        } else if (FrontIndex == TILE_NOHIT) {
+          pCore->m_pConfig->m_SvHit = 0;
+        } else if (FrontIndex == TILE_NPH) {
+          pCore->m_pTuningList[0].m_PlayerHooking.m_Value = 0;
+        } else if (FrontIndex >= ENTITY_OFFSET) {
+          wc_on_entity(pCore, FrontIndex - ENTITY_OFFSET, x, y, LAYER_FRONT,
+                       pCore->m_pCollision->m_FrontLayer.m_pFlags[Index], 0);
+        }
+      }
+
+      if (pCore->m_pCollision->m_SwitchLayer.m_pType) {
+        const int SwitchType =
+            pCore->m_pCollision->m_SwitchLayer.m_pType[Index];
+        if (SwitchType >= ENTITY_OFFSET) {
+          wc_on_entity(pCore, SwitchType - ENTITY_OFFSET, x, y, LAYER_SWITCH,
+                       pCore->m_pCollision->m_SwitchLayer.m_pFlags[Index],
+                       pCore->m_pCollision->m_SwitchLayer.m_pNumber[Index]);
+        }
+      }
+    }
+  }
+}
+
 void wc_init(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig) {
   memset(pCore, 0, sizeof(SWorldCore));
   pCore->m_pCollision = pCollision;
@@ -1817,6 +2156,8 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig) {
   // configs
   pCore->m_NoWeakHook = false;
   pCore->m_NoWeakHookAndBounce = false;
+
+  wc_create_all_entities(pCore);
 }
 
 void wc_free(SWorldCore *pCore) {
@@ -1839,41 +2180,42 @@ void wc_tick(SWorldCore *pCore) {
                           &pCore->m_pCharacters[i].m_LatestInput);
 
   // Do Tick
-  for (int i = 0; i < NUM_ENTTYPES; ++i) {
-    // TODO: implement all other entities
-    switch (i) {
-    case ENTTYPE_PROJECTILE: {
+  {
+    // Tick projectiles
+    SEntity *pEntity = pCore->m_apFirstEntityTypes[ENTTYPE_PROJECTILE];
+    while (pEntity) {
+      prj_tick((SProjectile *)pEntity);
+      pEntity = pEntity->m_pNextTypeEntity;
     }
-    case ENTTYPE_LASER: {
-    }
-    case ENTTYPE_PICKUP: {
-    }
-    }
-  }
-  if (pCore->m_NoWeakHook) {
-    for (int i = 0; i < pCore->m_NumCharacters; ++i)
-      cc_pre_tick((SCharacterCore *)&pCore->m_pCharacters[i]);
-  }
 
-  for (int i = 0; i < pCore->m_NumCharacters; ++i)
-    cc_tick((SCharacterCore *)&pCore->m_pCharacters[i]);
+    // TODO: do lasers!!! aka. like 10 different entities that all identify as
+    // lasers
+    // Tick lasers
+    // pEntity = pCore->m_apFirstEntityTypes[ENTTYPE_LASER];
+    // while (pEntity) {
+    //   laser_tick((SLaser *)pEntity);
+    //   pEntity = pEntity->m_pNextTypeEntity;
+    // }
+
+    // Tick pickups
+    pEntity = pCore->m_apFirstEntityTypes[ENTTYPE_PICKUP];
+    while (pEntity) {
+      pick_tick((SPickup *)pEntity);
+      pEntity = pEntity->m_pNextTypeEntity;
+    }
+
+    // Tick characters
+    if (pCore->m_NoWeakHook) {
+      for (int i = 0; i < pCore->m_NumCharacters; ++i)
+        cc_pre_tick((SCharacterCore *)&pCore->m_pCharacters[i]);
+    }
+    for (int i = 0; i < pCore->m_NumCharacters; ++i)
+      cc_tick((SCharacterCore *)&pCore->m_pCharacters[i]);
+  }
 
   // Do tick deferred
-  for (int i = 0; i < NUM_ENTTYPES; ++i) {
-    switch (i) {
-    case ENTTYPE_PROJECTILE: {
-      // SEntity *pEntity = pCore->m_apFirstEntityTypes[i];
-      // while (pEntity) {
-      //   pj_tick_deferred((SProjectile *)pEntity);
-      //   pEntity = pEntity->m_pNextTypeEntity;
-      // }
-    }
-    case ENTTYPE_LASER: {
-    }
-    case ENTTYPE_PICKUP: {
-    }
-    }
-  }
+  // funny thing no other entities than the character actually have a deferred
+  // tick function lol
   for (int i = 0; i < pCore->m_NumCharacters; ++i)
     cc_world_tick_deferred(&pCore->m_pCharacters[i]);
 }

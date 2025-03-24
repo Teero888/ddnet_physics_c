@@ -4,6 +4,7 @@
 #include "../libs/ddnet_maploader_c/map_loader.h"
 #include "stdbool.h"
 #include "vmath.h"
+#include <stdio.h>
 
 #define DEATH 9
 #define PHYSICALSIZE 28.f
@@ -669,6 +670,68 @@ inline int get_index(SCollision *pCollision, vec2 PrevPos, vec2 Pos) {
   }
 
   return -1;
+}
+
+inline int mover_speed(SCollision *pCollision, int x, int y, vec2 *pSpeed) {
+  int Nx = iclamp(x / 32, 0, pCollision->m_Width - 1);
+  int Ny = iclamp(y / 32, 0, pCollision->m_Height - 1);
+  int Index = pCollision->m_GameLayer.m_pData[Ny * pCollision->m_Width + Nx];
+
+  if (Index != TILE_CP && Index != TILE_CP_F) {
+    return 0;
+  }
+
+  vec2 Target;
+  switch (pCollision->m_GameLayer.m_pFlags[Ny * pCollision->m_Width + Nx]) {
+  case ROTATION_0:
+    Target.x = 0.0f;
+    Target.y = -4.0f;
+    break;
+  case ROTATION_90:
+    Target.x = 4.0f;
+    Target.y = 0.0f;
+    break;
+  case ROTATION_180:
+    Target.x = 0.0f;
+    Target.y = 4.0f;
+    break;
+  case ROTATION_270:
+    Target.x = -4.0f;
+    Target.y = 0.0f;
+    break;
+  default:
+    Target = vec2_init(0.0f, 0.0f);
+    break;
+  }
+  if (Index == TILE_CP_F) {
+    Target = vfmul(Target, 4.0f);
+  }
+  *pSpeed = Target;
+  return Index;
+}
+
+inline int entity(SCollision *pCollision, int x, int y, int Layer) {
+  if (x < 0 || x >= pCollision->m_Width || y < 0 || y >= pCollision->m_Height)
+    return 0;
+
+  const int Index = y * pCollision->m_Width + x;
+  switch (Layer) {
+  case LAYER_GAME:
+    return pCollision->m_GameLayer.m_pData[Index] - ENTITY_OFFSET;
+  case LAYER_FRONT:
+    return pCollision->m_FrontLayer.m_pData[Index] - ENTITY_OFFSET;
+  case LAYER_SWITCH:
+    return pCollision->m_SwitchLayer.m_pType[Index] - ENTITY_OFFSET;
+  case LAYER_TELE:
+    return pCollision->m_TeleLayer.m_pType[Index] - ENTITY_OFFSET;
+  case LAYER_SPEEDUP:
+    return pCollision->m_SpeedupLayer.m_pType[Index] - ENTITY_OFFSET;
+  case LAYER_TUNE:
+    return pCollision->m_TuneLayer.m_pType[Index] - ENTITY_OFFSET;
+  default:
+    printf("Error while initializing gameworld: invalid layer found\n");
+  }
+  return 0;
 }
 
 #endif // LIB_COLLISION_H

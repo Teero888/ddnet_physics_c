@@ -2,13 +2,9 @@
 #include "vmath.h"
 
 extern inline int get_pure_map_index(SCollision *pCollision, vec2 Pos);
-
 extern inline int get_move_restrictions_mask(int Direction);
-
 extern inline int get_move_restrictions_raw(int Tile, int Flags);
-
 extern inline int move_restrictions(int Direction, int Tile, int Flags);
-
 extern inline int get_tile_index(SCollision *pCollision, int Index);
 extern inline int get_front_tile_index(SCollision *pCollision, int Index);
 extern inline int get_tile_flags(SCollision *pCollision, int Index);
@@ -45,7 +41,6 @@ extern inline int intersect_line_tele_hook(SCollision *pCollision, vec2 Pos0,
                                            vec2 *pOutBeforeCollision,
                                            int *pTeleNr, bool OldTeleHook);
 extern inline bool test_box(SCollision *pCollision, vec2 Pos, vec2 Size);
-
 extern inline int is_tune(SCollision *pCollision, int Index);
 extern inline bool is_speedup(SCollision *pCollision, int Index);
 extern inline void get_speedup(SCollision *pCollision, int Index, vec2 *pDir,
@@ -55,19 +50,17 @@ extern inline const vec2 *tele_outs(SCollision *pCollision, int Number,
                                     int *pOutNum);
 extern inline const vec2 *tele_check_outs(SCollision *pCollision, int Number,
                                           int *pOutNum);
-
 extern inline int intersect_line(SCollision *pCollision, vec2 Pos0, vec2 Pos1,
                                  vec2 *pOutCollision,
                                  vec2 *pOutBeforeCollision);
-
 extern inline void move_box(SCollision *pCollision, vec2 *pInoutPos,
                             vec2 *pInoutVel, vec2 Size, vec2 Elasticity,
                             bool *pGrounded);
-
 extern inline bool get_nearest_air_pos_player(SCollision *pCollision,
                                               vec2 PlayerPos, vec2 *pOutPos);
-
 extern inline bool get_nearest_air_pos(SCollision *pCollision, vec2 Pos,
                                        vec2 PrevPos, vec2 *pOutPos);
-
 extern inline int get_index(SCollision *pCollision, vec2 PrevPos, vec2 Pos);
+extern inline int mover_speed(SCollision *pCollision, int x, int y,
+                              vec2 *pSpeed);
+extern inline int entity(SCollision *pCollision, int x, int y, int Layer);

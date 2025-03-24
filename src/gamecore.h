@@ -59,6 +59,13 @@ typedef struct Entity {
   int m_Layer;
 } SEntity;
 
+typedef struct Pickup {
+  SEntity m_Base;
+  vec2 m_Core;
+  int m_Type;
+  int m_Subtype;
+} SPickup;
+
 typedef struct Projectile {
   SEntity m_Base;
   vec2 m_Direction;
@@ -75,6 +82,10 @@ typedef struct Projectile {
   bool m_IsSolo;
 } SProjectile;
 
+// }}}
+
+// SCharacter {{{
+
 typedef struct CharacterCore {
   struct WorldCore *m_pWorld;
   SCollision *m_pCollision;
@@ -89,15 +100,9 @@ typedef struct CharacterCore {
   int m_HookTick;
   int m_HookState;
 
-  int m_LastWeapon;
   int m_QueuedWeapon;
   int m_ActiveWeapon;
-  struct WeaponStat {
-    int m_AmmoRegenStart;
-    int m_Ammo;
-    int m_Ammocost;
-    bool m_Got;
-  } m_aWeapons[NUM_WEAPONS];
+  bool m_aWeaponGot[NUM_WEAPONS];
 
   // ninja
   struct {
@@ -116,11 +121,8 @@ typedef struct CharacterCore {
 
   int m_Direction;
 
-  SPlayerInput m_LatestPrevPrevInput;
   SPlayerInput m_LatestPrevInput;
   SPlayerInput m_LatestInput;
-
-  SPlayerInput m_PrevInput;
   SPlayerInput m_Input;
   SPlayerInput m_SavedInput;
 
