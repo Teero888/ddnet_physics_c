@@ -21,10 +21,9 @@ static const STest s_aTests[] = {
 };
 
 int main(void) {
-
   for (int Test = 0; (unsigned long)Test < SIZE(s_aTests); ++Test) {
     const SValidation *pData = s_aTests[Test].m_pValidationData;
-    SMapData Collision = load_map(pData->m_aMapName);
+    SMapData Collision = load_map(pData->m_aMapName, true);
     if (!Collision.m_GameLayer.m_pData)
       return 1;
 

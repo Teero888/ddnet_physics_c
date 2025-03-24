@@ -4,7 +4,7 @@
 #include "map_loader.h"
 
 int main(void) {
-  SMapData Collision = load_map("run_blue.map");
+  SMapData Collision = load_map("run_blue.map", true);
   if (!Collision.m_GameLayer.m_pData)
     return 1;
 

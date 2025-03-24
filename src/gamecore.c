@@ -24,6 +24,8 @@ void init_config(SConfig *pConfig) {
 
 inline static float tune_get(STuneParam Tune) { return Tune.m_Value / 100.f; }
 
+// TODO:implement guns, doors, lasers, lights and draggers
+
 // Physics helper functions {{{
 
 vec2 clamp_vel(int MoveRestriction, vec2 Vel) {
