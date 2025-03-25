@@ -34,7 +34,16 @@ inline vec2 vvsub(vec2 a, vec2 b) { return vec2_init(a.x - b.x, a.y - b.y); }
 inline float vdot(vec2 a, vec2 b) { return a.x * b.x + a.y * b.y; };
 inline float vlength(vec2 a) { return sqrt(a.x * a.x + a.y * a.y); }
 inline float vdistance(vec2 a, vec2 b) { return vlength(vvsub(a, b)); }
-inline vec2 vnormalize(vec2 a) { return vfdiv(a, vlength(a)); }
+
+// this has to be this exact else it will generate super small differences
+// between these physics and the ddnet ones
+inline vec2 vnormalize(vec2 a) {
+  const float divisor = vlength(a);
+  const float mask = (float)(divisor != 0.0f);
+  const float l = mask * (1.0f / (divisor + (1.0f - mask)));
+  return vec2_init(a.x * l, a.y * l);
+}
+
 inline bool vvcmp(vec2 a, vec2 b) { return a.x == b.x && a.y == b.y; }
 inline int round_to_int(float f) {
   return f > 0 ? (int)(f + 0.5f) : (int)(f - 0.5f);

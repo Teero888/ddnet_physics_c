@@ -52,11 +52,10 @@ typedef struct Entity {
   struct Entity *m_pNextTypeEntity;
   vec2 m_Pos;
   float m_ProximityRadius;
-  int m_Id;
   int m_ObjType;
-  bool m_MarkedForDestroy;
   int m_Number;
   int m_Layer;
+  bool m_MarkedForDestroy;
 } SEntity;
 
 typedef struct Pickup {

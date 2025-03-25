@@ -2,6 +2,7 @@
 #include "collision.h"
 #include "map_loader.h"
 #include "vmath.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -146,6 +147,7 @@ void ent_init(SEntity *pEnt, SWorldCore *pGameWorld, int ObjType, vec2 Pos,
 void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner,
               vec2 Pos, vec2 Dir, int Span, bool Freeze, bool Explosive,
               vec2 InitDir, int Layer, int Number) {
+  memset(pProj, 0, sizeof(SProjectile));
   ent_init(&pProj->m_Base, pGameWorld, ENTTYPE_PROJECTILE, Pos, 0);
   pProj->m_Type = Type;
   pProj->m_Direction = Dir;
@@ -192,6 +194,7 @@ SCharacterCore *wc_intersect_character(SWorldCore *pWorld, vec2 Pos0, vec2 Pos1,
                                        float Radius, vec2 *pNewPos,
                                        const SCharacterCore *pNotThis,
                                        const SCharacterCore *pThisOnly);
+bool cc_freeze(SCharacterCore *pCore, int Seconds);
 
 void wc_create_explosion(SWorldCore *pWorld, vec2 Pos, int Owner);
 
@@ -240,16 +243,25 @@ void prj_tick(SProjectile *pProj) {
     if (pProj->m_Explosive &&
         (!pTargetChr ||
          (pTargetChr && (pProj->m_Type == WEAPON_SHOTGUN && Collide)))) {
-      // int Number = 1;
-      // TODO: we are ignoring this bug. It only happens on the map Binary
-      // if (GameServer()->EmulateBug(BUG_GRENADE_DOUBLEEXPLOSION) &&
-      //     m_LifeSpan == -1) {
-      //   Number = 2;
-      // }
-      // for (int i = 0; i < Number; i++) {
       wc_create_explosion(pProj->m_Base.m_pWorld, ColPos, pProj->m_Owner);
-      // }
+    } else if (pProj->m_Freeze) {
+      for (int i = 0; i < pProj->m_Base.m_pWorld->m_NumCharacters; ++i) {
+        SCharacterCore *pChr = &pProj->m_Base.m_pWorld->m_pCharacters[i];
+        if (vdistance(CurPos, pChr->m_Pos) >= 1.f + PHYSICALSIZE)
+          continue;
+        if (pChr &&
+            (pProj->m_Base.m_Layer != LAYER_SWITCH ||
+             (pProj->m_Base.m_Layer == LAYER_SWITCH &&
+              pProj->m_Base.m_Number > 0 &&
+              pProj->m_Base.m_pWorld->m_vSwitches[pProj->m_Base.m_Number]
+                  .m_Status)))
+          cc_freeze(pChr, pProj->m_Base.m_pWorld->m_pConfig->m_SvFreezeDelay);
+      }
     }
+    // NOTE: im not sure about this. this might not have any effect
+    else if (pTargetChr)
+      pTargetChr->m_Vel =
+          clamp_vel(pTargetChr->m_MoveRestrictions, pTargetChr->m_Vel);
 
     if (pOwnerChar &&
         ((pProj->m_Type == WEAPON_GRENADE && pOwnerChar->m_HasTelegunGrenade) ||
@@ -318,7 +330,11 @@ void prj_tick(SProjectile *pProj) {
       if (fabs(pProj->m_Direction.y) < 1e-6f)
         pProj->m_Direction.y = 0;
       pProj->m_Base.m_Pos = vvadd(pProj->m_Base.m_Pos, pProj->m_Direction);
-    } else {
+    } else if (pProj->m_Type == WEAPON_GUN) {
+      pProj->m_Base.m_MarkedForDestroy = true;
+      return;
+    }
+    if (Collide && !pProj->m_Bouncing && !pProj->m_Freeze) {
       pProj->m_Base.m_MarkedForDestroy = true;
       return;
     }
@@ -822,10 +838,7 @@ bool wc_next_spawn(SWorldCore *pCore, vec2 *pOutPos);
 
 void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   int MapIndex = Index;
-  int TileIndex = get_tile_index(pCore->m_pCollision, MapIndex);
-  int TileFIndex = pCore->m_pCollision->m_FrontLayer.m_pData
-                       ? get_front_tile_index(pCore->m_pCollision, MapIndex)
-                       : 0;
+
   pCore->m_MoveRestrictions =
       get_move_restrictions(pCore->m_pCollision, is_switch_active_cb, pCore,
                             pCore->m_Pos, 18.0f, MapIndex);
@@ -835,6 +848,10 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
     pCore->m_LastBonus = false;
     return;
   }
+  int TileIndex = get_tile_index(pCore->m_pCollision, MapIndex);
+  int TileFIndex = pCore->m_pCollision->m_FrontLayer.m_pData
+                       ? get_front_tile_index(pCore->m_pCollision, MapIndex)
+                       : 0;
   int TeleCheckpoint = is_tele_checkpoint(pCore->m_pCollision, MapIndex);
   if (TeleCheckpoint)
     pCore->m_TeleCheckpoint = TeleCheckpoint;
@@ -1189,6 +1206,7 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
 
   float d = vdistance(pCore->m_PrevPos, pCore->m_Pos);
   int End = d + 1;
+  bool Handled = false;
   if (!d) {
     int Nx =
         iclamp((int)pCore->m_Pos.x / 32, 0, pCore->m_pCollision->m_Width - 1);
@@ -1196,9 +1214,10 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
         iclamp((int)pCore->m_Pos.y / 32, 0, pCore->m_pCollision->m_Height - 1);
     int Index = Ny * pCore->m_pCollision->m_Width + Nx;
 
-    if (tile_exists(pCore->m_pCollision, Index))
+    if (tile_exists(pCore->m_pCollision, Index)) {
+      Handled = true;
       cc_handle_tiles(pCore, Index);
-
+    }
   } else {
     int LastIndex = 0;
     for (int i = 0; i < End; i++) {
@@ -1210,8 +1229,12 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
       if (tile_exists(pCore->m_pCollision, Index) && LastIndex != Index) {
         cc_handle_tiles(pCore, Index);
         LastIndex = Index;
+        Handled = true;
       }
     }
+  }
+  if (!Handled) {
+    cc_handle_tiles(pCore, CurrentIndex);
   }
 
   // teleport gun
@@ -1599,7 +1622,8 @@ void cc_handle_jetpack(SCharacterCore *pCore) {
     return;
   }
 
-  if (pCore->m_ActiveWeapon == WEAPON_GUN)
+  if (pCore->m_ActiveWeapon ==
+      WEAPON_GUN) // put this up as weapon != gun: return
     if (pCore->m_Jetpack) {
       float Strength = tune_get(pCore->m_Tuning.m_JetpackStrength);
       cc_take_damage(pCore, vfmul(Direction, -(Strength / 100.f / 6.11f)));
@@ -1619,6 +1643,8 @@ void cc_do_weapon_switch(SCharacterCore *pCore) {
 }
 
 void wc_insert_entity(SWorldCore *pWorld, SEntity *pEnt);
+void wc_remove_entity(SWorldCore *pWorld, SEntity *pEnt);
+
 void cc_fire_weapon(SCharacterCore *pCore) {
   if (pCore->m_NumInputs < 2)
     return;
@@ -1812,13 +1838,6 @@ void cc_handle_weapon_switch(SCharacterCore *pCore) {
   int WantedWeapon = pCore->m_ActiveWeapon;
   if (pCore->m_QueuedWeapon != -1)
     WantedWeapon = pCore->m_QueuedWeapon;
-
-  bool Anything = false;
-  for (int i = 0; i < NUM_WEAPONS - 1; ++i)
-    if (pCore->m_aWeaponGot[i])
-      Anything = true;
-  if (!Anything)
-    return;
 
   // Direct Weapon selection
   if (pCore->m_LatestInput.m_WantedWeapon)
@@ -2217,6 +2236,19 @@ void wc_tick(SWorldCore *pCore) {
   // tick function lol
   for (int i = 0; i < pCore->m_NumCharacters; ++i)
     cc_world_tick_deferred(&pCore->m_pCharacters[i]);
+
+  // Remove all entities that are marked for destroy
+  for (int i = 0; i < NUM_ENTTYPES; ++i) {
+    SEntity *pEntity = pCore->m_apFirstEntityTypes[i];
+    while (pEntity) {
+      SEntity *pFree = pEntity;
+      pEntity = pEntity->m_pNextTypeEntity;
+      if (pFree->m_MarkedForDestroy) {
+        wc_remove_entity(pCore, pFree);
+        free(pFree);
+      }
+    }
+  }
 }
 
 SCharacterCore *wc_add_character(SWorldCore *pWorld) {
@@ -2243,19 +2275,26 @@ SCharacterCore *wc_add_character(SWorldCore *pWorld) {
 }
 
 void wc_create_explosion(SWorldCore *pWorld, vec2 Pos, int Owner) {
-  float Radius = 135.0f;
-  float InnerRadius = 48.0f;
+#define EXPLOSION_RADIUS 135.0f
+#define EXPLOSION_INNER_RADIUS 48.0f
   for (int i = 0; i < pWorld->m_NumCharacters; i++) {
     SCharacterCore *pChr = &pWorld->m_pCharacters[i];
     vec2 Diff = vvsub(pChr->m_Pos, Pos);
-    vec2 ForceDir = vec2_init(0, 1);
     float l = vlength(Diff);
+    if (l >= EXPLOSION_RADIUS + PHYSICALSIZE)
+      continue;
+    vec2 ForceDir = vec2_init(0, 1);
     if (l)
       ForceDir = vnormalize(Diff);
-    l = 1 - fclamp((l - InnerRadius) / (Radius - InnerRadius), 0.0f, 1.0f);
+    l = 1 - fclamp((l - EXPLOSION_INNER_RADIUS) /
+                       (EXPLOSION_RADIUS - EXPLOSION_INNER_RADIUS),
+                   0.0f, 1.0f);
     float Strength;
-    Strength =
-        tune_get(pWorld->m_pCharacters[Owner].m_Tuning.m_ExplosionStrength);
+    if (Owner != -1)
+      Strength =
+          tune_get(pWorld->m_pCharacters[Owner].m_Tuning.m_ExplosionStrength);
+    else
+      Strength = tune_get(pWorld->m_pTuningList[0].m_ExplosionStrength);
 
     float Dmg = Strength * l;
     if (!(int)Dmg)
@@ -2308,6 +2347,25 @@ void wc_insert_entity(SWorldCore *pWorld, SEntity *pEnt) {
   pEnt->m_pNextTypeEntity = pWorld->m_apFirstEntityTypes[pEnt->m_ObjType];
   pEnt->m_pPrevTypeEntity = NULL;
   pWorld->m_apFirstEntityTypes[pEnt->m_ObjType] = pEnt;
+}
+
+void wc_remove_entity(SWorldCore *pWorld, SEntity *pEnt) {
+  if (!pEnt->m_pNextTypeEntity && !pEnt->m_pPrevTypeEntity &&
+      pWorld->m_apFirstEntityTypes[pEnt->m_ObjType] != pEnt)
+    return;
+
+  if (pEnt->m_pPrevTypeEntity)
+    pEnt->m_pPrevTypeEntity->m_pNextTypeEntity = pEnt->m_pNextTypeEntity;
+  else
+    pWorld->m_apFirstEntityTypes[pEnt->m_ObjType] = pEnt->m_pNextTypeEntity;
+  if (pEnt->m_pNextTypeEntity)
+    pEnt->m_pNextTypeEntity->m_pPrevTypeEntity = pEnt->m_pPrevTypeEntity;
+
+  if (pWorld->m_pNextTraverseEntity == pEnt)
+    pWorld->m_pNextTraverseEntity = pEnt->m_pNextTypeEntity;
+
+  pEnt->m_pNextTypeEntity = NULL;
+  pEnt->m_pPrevTypeEntity = NULL;
 }
 
 // }}}

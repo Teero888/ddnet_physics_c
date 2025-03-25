@@ -1,7 +1,7 @@
 CC = gcc
 DBG = -O0 -g -fsanitize=address
-OPT = -O3 -march=native -flto
-CFLAGS = $(OPT) -mavx2 -mfma -msse4.1 -std=c99 -Wall -Wextra -I./src -I./libs/ddnet_maploader_c
+OPT = -O3 -march=native -flto -mavx2 -mfma -msse4.1 -g
+CFLAGS = $(OPT) -std=c99 -Wall -Wextra -I./src -I./libs/ddnet_maploader_c
 LDFLAGS = -lm -lz
 
 SRC_OBJS = $(patsubst %.c,%.o,$(wildcard src/*.c))
