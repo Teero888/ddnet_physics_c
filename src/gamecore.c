@@ -852,9 +852,11 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   int TileFIndex = pCore->m_pCollision->m_FrontLayer.m_pData
                        ? get_front_tile_index(pCore->m_pCollision, MapIndex)
                        : 0;
-  int TeleCheckpoint = is_tele_checkpoint(pCore->m_pCollision, MapIndex);
-  if (TeleCheckpoint)
-    pCore->m_TeleCheckpoint = TeleCheckpoint;
+  if (pCore->m_pCollision->m_TeleLayer.m_pType) {
+    int TeleCheckpoint = is_tele_checkpoint(pCore->m_pCollision, MapIndex);
+    if (TeleCheckpoint)
+      pCore->m_TeleCheckpoint = TeleCheckpoint;
+  }
 
   // freeze
   if ((TileIndex == TILE_FREEZE || TileFIndex == TILE_FREEZE) &&
@@ -1074,6 +1076,9 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
       pCore->m_LastBonus = false;
     }
   }
+
+  if (!pCore->m_pCollision->m_TeleLayer.m_pType)
+    return;
 
   int z = is_teleport(pCore->m_pCollision, MapIndex);
   int Num;
@@ -1368,7 +1373,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
     bool GoingThroughTele = false;
     int teleNr = 0;
     int Hit = intersect_line_tele_hook(
-        pCore->m_pCollision, pCore->m_HookPos, NewPos, &NewPos, NULL, &teleNr,
+        pCore->m_pCollision, pCore->m_HookPos, NewPos, &NewPos, NULL, pCore->m_pCollision->m_TeleLayer.m_pType ? &teleNr : NULL,
         pCore->m_pWorld->m_pConfig->m_SvOldTeleportHook);
 
     if (Hit) {

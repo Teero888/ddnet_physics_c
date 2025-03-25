@@ -10,20 +10,24 @@
 #define SIZE(x) sizeof(x) / sizeof(x[0])
 
 typedef struct {
+  const char *m_Name;
   const char *m_Description;
   const SValidation *m_pValidationData;
 } STest;
 
 static const STest s_aTests[] = {
-    (STest){"run_blue jumping up and down", &s_JumpTest},
-    (STest){"run_blue with simple hook movements", &s_HookTest},
-    (STest){"run_blue with simple grenade movements", &s_GrenadeTest},
+    (STest){"jump","simple jumping up and down on run_blue from spawn", &s_JumpTest},
+    (STest){"hook movement","just moving around with hook and jump on run_blue", &s_HookTest},
+    (STest){"grenade movement", "grenade+jump+hook movement on run_blue",&s_GrenadeTest},
+    (STest){"stopper physics", "tests the stoppers on a random stopper map", &s_StopperTest},
 };
 
 int main(void) {
   for (int Test = 0; (unsigned long)Test < SIZE(s_aTests); ++Test) {
     const SValidation *pData = s_aTests[Test].m_pValidationData;
-    SMapData Collision = load_map(pData->m_aMapName, true);
+    char aMapPath[64];
+    snprintf(aMapPath, 64, "tests/maps/%s", pData->m_aMapName);
+    SMapData Collision = load_map(aMapPath, true);
     if (!Collision.m_GameLayer.m_pData)
       return 1;
 

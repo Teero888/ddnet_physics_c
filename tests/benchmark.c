@@ -86,7 +86,7 @@ int aRandom[256] = {
 #define TICKS 1000000
 
 int main(void) {
-  SMapData Collision = load_map("run_blue.map", true);
+  SMapData Collision = load_map("tests/maps/run_blue.map", true);
   if (!Collision.m_GameLayer.m_pData)
     return 1;
 
