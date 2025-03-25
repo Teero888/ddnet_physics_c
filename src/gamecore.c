@@ -512,12 +512,19 @@ bool is_switch_active_cb(int Number, void *pUser) {
 }
 
 void cc_quantize(SCharacterCore *pCore) {
+#ifdef NO_COLLISION_CLAMP
+  pCore->m_Pos.x = (int)(pCore->m_Pos.x + 0.5f);
+  pCore->m_Pos.y = (int)(pCore->m_Pos.y + 0.5f);
+  pCore->m_HookPos.x = (int)(pCore->m_HookPos.x + 0.5f);
+  pCore->m_HookPos.y = (int)(pCore->m_HookPos.y + 0.5f);
+#else
   pCore->m_Pos.x = round_to_int(pCore->m_Pos.x);
   pCore->m_Pos.y = round_to_int(pCore->m_Pos.y);
-  pCore->m_Vel.x = round_to_int(pCore->m_Vel.x * 256.0f) / 256.0f;
-  pCore->m_Vel.y = round_to_int(pCore->m_Vel.y * 256.0f) / 256.0f;
   pCore->m_HookPos.x = round_to_int(pCore->m_HookPos.x);
   pCore->m_HookPos.y = round_to_int(pCore->m_HookPos.y);
+#endif
+  pCore->m_Vel.x = round_to_int(pCore->m_Vel.x * 256.0f) / 256.0f;
+  pCore->m_Vel.y = round_to_int(pCore->m_Vel.y * 256.0f) / 256.0f;
   pCore->m_HookDir.x = round_to_int(pCore->m_HookDir.x * 256.0f) / 256.f;
   pCore->m_HookDir.y = round_to_int(pCore->m_HookDir.y * 256.0f) / 256.f;
 }
@@ -533,7 +540,7 @@ void cc_move(SCharacterCore *pCore) {
 
   vec2 OldVel = pCore->m_Vel;
   bool Grounded = false;
-  move_box(pCore->m_pCollision, &NewPos, &pCore->m_Vel, PHYSICALSIZEVEC,
+  move_box(pCore->m_pCollision, &NewPos, &pCore->m_Vel,
            vec2_init(pCore->m_Tuning.m_GroundElasticityX,
                      pCore->m_Tuning.m_GroundElasticityY),
            &Grounded);
@@ -832,9 +839,8 @@ bool wc_next_spawn(SWorldCore *pCore, vec2 *pOutPos);
 void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   int MapIndex = Index;
 
-  pCore->m_MoveRestrictions =
-      get_move_restrictions(pCore->m_pCollision, is_switch_active_cb, pCore,
-                            pCore->m_Pos, 18.0f, MapIndex);
+  pCore->m_MoveRestrictions = get_move_restrictions(
+      pCore->m_pCollision, is_switch_active_cb, pCore, pCore->m_Pos, MapIndex);
   if (Index < 0) {
     pCore->m_LastRefillJumps = false;
     pCore->m_LastPenalty = false;
@@ -1249,7 +1255,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
   cc_ddracetick(pCore);
 
   pCore->m_MoveRestrictions = get_move_restrictions(
-      pCore->m_pCollision, is_switch_active_cb, pCore, pCore->m_Pos, 18.f, -1);
+      pCore->m_pCollision, is_switch_active_cb, pCore, pCore->m_Pos, -1);
 
   // get ground state
   const bool Grounded =
@@ -1544,7 +1550,7 @@ void cc_handle_ninja(SCharacterCore *pCore) {
     vec2 GroundElasticity = vec2_init(pCore->m_Tuning.m_GroundElasticityX,
                                       pCore->m_Tuning.m_GroundElasticityY);
 
-    move_box(pCore->m_pCollision, &pCore->m_Pos, &pCore->m_Vel, PHYSICALSIZEVEC,
+    move_box(pCore->m_pCollision, &pCore->m_Pos, &pCore->m_Vel,
              GroundElasticity, NULL);
 
     pCore->m_Vel = vec2_init(0, 0);

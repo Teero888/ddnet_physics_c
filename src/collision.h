@@ -14,13 +14,13 @@ enum {
 
 #define DEATH 9
 #define PHYSICALSIZE 28.f
+#define HALFPHYSICALSIZE 14
 #define PHYSICALSIZEVEC vec2_init(28.f, 28.f)
 
 typedef SMapData SCollision;
 typedef _Bool (*CALLBACK_SWITCHACTIVE)(int Number, void *pUser);
 
 int get_pure_map_index(SCollision *pCollision, vec2 Pos);
-int get_move_restrictions_mask(int Direction);
 int get_move_restrictions_raw(int Tile, int Flags);
 int move_restrictions(int Direction, int Tile, int Flags);
 int get_tile_index(SCollision *pCollision, int Index);
@@ -43,10 +43,10 @@ bool tile_exists_next(SCollision *pCollision, int Index);
 bool tile_exists(SCollision *pCollision, int Index);
 int get_move_restrictions(SCollision *pCollision,
                           CALLBACK_SWITCHACTIVE pfnSwitchActive, void *pUser,
-                          vec2 Pos, float Distance,
-                          int OverrideCenterTileIndex);
+                          vec2 Pos, int OverrideCenterTileIndex);
 int get_map_index(SCollision *pCollision, vec2 Pos);
 bool check_point(SCollision *pCollision, vec2 Pos);
+bool check_point_int(SCollision *pCollision, ivec2 Pos);
 void ThroughOffset(vec2 Pos0, vec2 Pos1, int *pOffsetX, int *pOffsetY);
 bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY,
                 vec2 Pos0, vec2 Pos1);
@@ -55,6 +55,7 @@ bool is_hook_blocker(SCollision *pCollision, int x, int y, vec2 Pos0,
 int intersect_line_tele_hook(SCollision *pCollision, vec2 Pos0, vec2 Pos1,
                              vec2 *pOutCollision, int *pTeleNr,
                              bool OldTeleHook);
+bool test_box_character(SCollision *pCollision, ivec2 Pos);
 bool test_box(SCollision *pCollision, vec2 Pos, vec2 Size);
 int is_tune(SCollision *pCollision, int Index);
 bool is_speedup(SCollision *pCollision, int Index);
@@ -66,7 +67,7 @@ const vec2 *tele_check_outs(SCollision *pCollision, int Number, int *pOutNum);
 int intersect_line(SCollision *pCollision, vec2 Pos0, vec2 Pos1,
                    vec2 *pOutCollision, vec2 *pOutBeforeCollision);
 void move_box(SCollision *pCollision, vec2 *pInoutPos, vec2 *pInoutVel,
-              vec2 Size, vec2 Elasticity, bool *pGrounded);
+              vec2 Elasticity, bool *pGrounded);
 bool get_nearest_air_pos_player(SCollision *pCollision, vec2 PlayerPos,
                                 vec2 *pOutPos);
 bool get_nearest_air_pos(SCollision *pCollision, vec2 Pos, vec2 PrevPos,

@@ -1,4 +1,6 @@
 #include "collision.h"
+#include "limits.h"
+#include "map_loader.h"
 #include "vmath.h"
 #include <stdio.h>
 
@@ -15,12 +17,6 @@ int get_pure_map_index(SCollision *pCollision, vec2 Pos) {
   const int nx = iclamp(round_to_int(Pos.x) >> 5, 0, pCollision->m_Width - 1);
   const int ny = iclamp(round_to_int(Pos.y) >> 5, 0, pCollision->m_Height - 1);
   return ny * pCollision->m_Width + nx;
-}
-
-int get_move_restrictions_mask(int Direction) {
-  static const int aDirections[NUM_MR_DIRS] = {0, CANTMOVE_RIGHT, CANTMOVE_DOWN,
-                                               CANTMOVE_LEFT, CANTMOVE_UP};
-  return aDirections[Direction];
 }
 
 int get_move_restrictions_raw(int Tile, int Flags) {
@@ -57,7 +53,9 @@ int move_restrictions(int Direction, int Tile, int Flags) {
   int Result = get_move_restrictions_raw(Tile, Flags);
   if (Direction == MR_DIR_HERE && Tile == TILE_STOP)
     return Result;
-  return Result & get_move_restrictions_mask(Direction);
+  static const int aDirections[NUM_MR_DIRS] = {0, CANTMOVE_RIGHT, CANTMOVE_DOWN,
+                                               CANTMOVE_LEFT, CANTMOVE_UP};
+  return Result & aDirections[Direction];
 }
 
 int get_tile_index(SCollision *pCollision, int Index) {
@@ -134,6 +132,7 @@ int get_front_collision_at(SCollision *pCollision, float x, float y) {
     return Idx;
   return 0;
 }
+
 bool tile_exists_next(SCollision *pCollision, int Index) {
   const unsigned char *pTileIdx = pCollision->m_GameLayer.m_pData;
   const unsigned char *pTileFlgs = pCollision->m_GameLayer.m_pFlags;
@@ -258,14 +257,13 @@ bool tile_exists(SCollision *pCollision, int Index) {
 
 int get_move_restrictions(SCollision *pCollision,
                           CALLBACK_SWITCHACTIVE pfnSwitchActive, void *pUser,
-                          vec2 Pos, float Distance,
-                          int OverrideCenterTileIndex) {
-  const vec2 DIRECTIONS[NUM_MR_DIRS] = {vec2_init(0, 0), vec2_init(1, 0),
-                                        vec2_init(0, 1), vec2_init(-1, 0),
-                                        vec2_init(0, -1)};
+                          vec2 Pos, int OverrideCenterTileIndex) {
+  const vec2 DIRECTIONS[NUM_MR_DIRS] = {vec2_init(0, 0), vec2_init(18, 0),
+                                        vec2_init(0, 18), vec2_init(-18, 0),
+                                        vec2_init(0, -18)};
   int Restrictions = 0;
   for (int d = 0; d < NUM_MR_DIRS; d++) {
-    vec2 ModPos = vvadd(Pos, vfmul(DIRECTIONS[d], Distance));
+    vec2 ModPos = vvadd(Pos, DIRECTIONS[d]);
     int ModMapIndex = get_pure_map_index(pCollision, ModPos);
     if (d == MR_DIR_HERE && OverrideCenterTileIndex >= 0) {
       ModMapIndex = OverrideCenterTileIndex;
@@ -312,6 +310,13 @@ int get_map_index(SCollision *pCollision, vec2 Pos) {
 bool check_point(SCollision *pCollision, vec2 Pos) {
   int Nx = iclamp(round_to_int(Pos.x) >> 5, 0, pCollision->m_Width - 1);
   int Ny = iclamp(round_to_int(Pos.y) >> 5, 0, pCollision->m_Height - 1);
+  int Idx = pCollision->m_GameLayer.m_pData[Ny * pCollision->m_Width + Nx];
+  return Idx == TILE_SOLID || Idx == TILE_NOHOOK;
+}
+
+bool check_point_int(SCollision *pCollision, ivec2 Pos) {
+  int Nx = iclamp(Pos.x >> 5, 0, pCollision->m_Width - 1);
+  int Ny = iclamp(Pos.y >> 5, 0, pCollision->m_Height - 1);
   int Idx = pCollision->m_GameLayer.m_pData[Ny * pCollision->m_Width + Nx];
   return Idx == TILE_SOLID || Idx == TILE_NOHOOK;
 }
@@ -390,7 +395,7 @@ int intersect_line_tele_hook(SCollision *pCollision, vec2 Pos0, vec2 Pos1,
                              vec2 *pOutCollision, int *pTeleNr,
                              bool OldTeleHook) {
   const int End = vdistance(Pos0, Pos1) + 1;
-  int dx = 0, dy = 0; // Offset for checking the "through" tile
+  int dx = 0, dy = 0;
   ThroughOffset(Pos0, Pos1, &dx, &dy);
   int LastIndex = 0;
   const float Step = 1.f / End;
@@ -400,14 +405,16 @@ int intersect_line_tele_hook(SCollision *pCollision, vec2 Pos0, vec2 Pos1,
 #endif
   for (float a = 0; a <= 1.f; a += Step) {
     vec2 Pos = vvfmix(Pos0, Pos1, a);
+#ifdef NO_COLLISION_CLAMP
+    const int ix = (int)(Pos.x + 0.5f);
+    const int iy = (int)(Pos.x + 0.5f);
+    const int Index = (iy >> 5) * Width + (ix >> 5);
+#else
     const int ix = round_to_int(Pos.x);
     const int iy = round_to_int(Pos.y);
-#ifndef NO_COLLISION_CLAMP
     const int nx = iclamp(ix >> 5, 0, Width - 1);
     const int ny = iclamp(iy >> 5, 0, Height);
     const int Index = ny * Width + nx;
-#else
-    const int Index = (iy >> 5) * Width + (ix >> 5);
 #endif
 
     // behind this is basically useless to optimize
@@ -441,6 +448,22 @@ int intersect_line_tele_hook(SCollision *pCollision, vec2 Pos0, vec2 Pos1,
   if (pOutCollision)
     *pOutCollision = Pos1;
   return 0;
+}
+
+bool test_box_character(SCollision *pCollision, ivec2 Pos) {
+  if (check_point_int(pCollision, (ivec2){Pos.x - HALFPHYSICALSIZE,
+                                          Pos.y - HALFPHYSICALSIZE}))
+    return true;
+  if (check_point_int(pCollision, (ivec2){Pos.x + HALFPHYSICALSIZE,
+                                          Pos.y - HALFPHYSICALSIZE}))
+    return true;
+  if (check_point_int(pCollision, (ivec2){Pos.x - HALFPHYSICALSIZE,
+                                          Pos.y + HALFPHYSICALSIZE}))
+    return true;
+  if (check_point_int(pCollision, (ivec2){Pos.x + HALFPHYSICALSIZE,
+                                          Pos.y + HALFPHYSICALSIZE}))
+    return true;
+  return false;
 }
 
 bool test_box(SCollision *pCollision, vec2 Pos, vec2 Size) {
@@ -523,40 +546,45 @@ int intersect_line(SCollision *pCollision, vec2 Pos0, vec2 Pos1,
 }
 
 void move_box(SCollision *pCollision, vec2 *pInoutPos, vec2 *pInoutVel,
-              vec2 Size, vec2 Elasticity, bool *pGrounded) {
-  vec2 Pos = *pInoutPos;
+              vec2 Elasticity, bool *pGrounded) {
   vec2 Vel = *pInoutVel;
   float Distance = vlength(Vel);
   if (Distance <= 0.00001f)
     return;
 
+  vec2 Pos = *pInoutPos;
+
   int Max = (int)Distance;
   float Fraction = 1.0f / (float)(Max + 1);
-  float ElasticityX = fclamp(Elasticity.x, -1.0f, 1.0f);
-  float ElasticityY = fclamp(Elasticity.y, -1.0f, 1.0f);
+
+  // NOTE: don't do this here xd. should be done when loading map tunes/commands
+  // float ElasticityX = fclamp(Elasticity.x, -1.0f, 1.0f);
+  // float ElasticityY = fclamp(Elasticity.y, -1.0f, 1.0f);
 
   for (int i = 0; i <= Max; i++) {
     vec2 NewPos = vvadd(Pos, vfmul(Vel, Fraction));
-    if (test_box(pCollision, NewPos, Size)) {
+    ivec2 IPos = (ivec2){round_to_int(Pos.x), round_to_int(Pos.y)};
+    ivec2 INewPos = (ivec2){round_to_int(NewPos.x), round_to_int(NewPos.y)};
+    if (test_box_character(pCollision, INewPos)) {
       int Hits = 0;
-      if (test_box(pCollision, vec2_init(Pos.x, NewPos.y), Size)) {
-        if (pGrounded && ElasticityY > 0 && Vel.y > 0)
+      if (test_box_character(pCollision, (ivec2){IPos.x, INewPos.y})) {
+        if (pGrounded && Elasticity.y > 0 && Vel.y > 0)
           *pGrounded = true;
         NewPos.y = Pos.y;
-        Vel.y *= -ElasticityY;
+        Vel.y *= -Elasticity.y;
         Hits++;
       }
-      if (test_box(pCollision, vec2_init(NewPos.x, Pos.y), Size)) {
+      if (test_box_character(pCollision, (ivec2){INewPos.x, IPos.y})) {
         NewPos.x = Pos.x;
-        Vel.x *= -ElasticityX;
+        Vel.x *= -Elasticity.x;
         Hits++;
       }
-      if (Hits == 0) { // Corner case
-        if (pGrounded && ElasticityY > 0 && Vel.y > 0)
+      if (Hits == 0) {
+        if (pGrounded && Elasticity.y > 0 && Vel.y > 0)
           *pGrounded = true;
         NewPos = Pos;
-        Vel.x *= -ElasticityX;
-        Vel.y *= -ElasticityY;
+        Vel.x *= -Elasticity.x;
+        Vel.y *= -Elasticity.y;
       }
     }
     Pos = NewPos;

@@ -16,6 +16,10 @@ typedef union vec2 {
   __m128 simd;
 } ALIGN(16) vec2;
 
+typedef struct ivec2 {
+  int x, y;
+} ivec2;
+
 #define PI 3.14159265358979323846
 
 // Only use this for compile time stuff
