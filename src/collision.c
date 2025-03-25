@@ -12,8 +12,8 @@ enum {
 };
 
 int get_pure_map_index(SCollision *pCollision, vec2 Pos) {
-  const int nx = iclamp(round_to_int(Pos.x) / 32, 0, pCollision->m_Width - 1);
-  const int ny = iclamp(round_to_int(Pos.y) / 32, 0, pCollision->m_Height - 1);
+  const int nx = iclamp(round_to_int(Pos.x) >> 5, 0, pCollision->m_Width - 1);
+  const int ny = iclamp(round_to_int(Pos.y) >> 5, 0, pCollision->m_Height - 1);
   return ny * pCollision->m_Width + nx;
 }
 
@@ -117,8 +117,8 @@ int is_tele_checkpoint(SCollision *pCollision, int Index) {
              : 0;
 }
 int get_collision_at(SCollision *pCollision, float x, float y) {
-  int Nx = iclamp(x / 32, 0, pCollision->m_Width - 1);
-  int Ny = iclamp(y / 32, 0, pCollision->m_Height - 1);
+  int Nx = iclamp((int)x >> 5, 0, pCollision->m_Width - 1);
+  int Ny = iclamp((int)y >> 5, 0, pCollision->m_Height - 1);
   int pos = Ny * pCollision->m_Width + Nx;
   int Idx = pCollision->m_GameLayer.m_pData[pos];
   if (Idx >= TILE_SOLID && Idx <= TILE_NOLASER)
@@ -126,8 +126,8 @@ int get_collision_at(SCollision *pCollision, float x, float y) {
   return 0;
 }
 int get_front_collision_at(SCollision *pCollision, float x, float y) {
-  int Nx = iclamp(x / 32, 0, pCollision->m_Width - 1);
-  int Ny = iclamp(y / 32, 0, pCollision->m_Height - 1);
+  int Nx = iclamp((int)x >> 5, 0, pCollision->m_Width - 1);
+  int Ny = iclamp((int)y >> 5, 0, pCollision->m_Height - 1);
   int pos = Ny * pCollision->m_Width + Nx;
   int Idx = pCollision->m_FrontLayer.m_pData[pos];
   if (Idx >= TILE_SOLID && Idx <= TILE_NOLASER)
@@ -299,8 +299,8 @@ int get_move_restrictions(SCollision *pCollision,
 }
 
 int get_map_index(SCollision *pCollision, vec2 Pos) {
-  int Nx = iclamp((int)Pos.x / 32, 0, pCollision->m_Width - 1);
-  int Ny = iclamp((int)Pos.y / 32, 0, pCollision->m_Height - 1);
+  int Nx = iclamp((int)Pos.x >> 5, 0, pCollision->m_Width - 1);
+  int Ny = iclamp((int)Pos.y >> 5, 0, pCollision->m_Height - 1);
   int Index = Ny * pCollision->m_Width + Nx;
 
   if (tile_exists(pCollision, Index))
@@ -310,8 +310,8 @@ int get_map_index(SCollision *pCollision, vec2 Pos) {
 }
 
 bool check_point(SCollision *pCollision, vec2 Pos) {
-  int Nx = iclamp(round_to_int(Pos.x) / 32, 0, pCollision->m_Width - 1);
-  int Ny = iclamp(round_to_int(Pos.y) / 32, 0, pCollision->m_Height - 1);
+  int Nx = iclamp(round_to_int(Pos.x) >> 5, 0, pCollision->m_Width - 1);
+  int Ny = iclamp(round_to_int(Pos.y) >> 5, 0, pCollision->m_Height - 1);
   int Idx = pCollision->m_GameLayer.m_pData[Ny * pCollision->m_Width + Nx];
   return Idx == TILE_SOLID || Idx == TILE_NOHOOK;
 }
@@ -386,71 +386,29 @@ bool is_hook_blocker(SCollision *pCollision, int x, int y, vec2 Pos0,
   return false;
 }
 
-int intersect_line_tele_hook_noclamp(SCollision *pCollision, vec2 Pos0,
-                                     vec2 Pos1, vec2 *pOutCollision,
-                                     int *pTeleNr, bool OldTeleHook) {
-  float Distance = vdistance(Pos0, Pos1);
-  int End = Distance + 1;
-  int dx = 0, dy = 0; // Offset for checking the "through" tile
-  ThroughOffset(Pos0, Pos1, &dx, &dy);
-  int LastIndex = 0;
-  for (int i = 0; i <= End; i++) {
-    float a = i / (float)End;
-    vec2 Pos = vvfmix(Pos0, Pos1, a);
-    // Temporary position for checking collision
-    int ix = round_to_int(Pos.x);
-    int iy = round_to_int(Pos.y);
-    const int nx = iclamp(ix / 32, 0, pCollision->m_Width - 1);
-    const int ny = iclamp(iy / 32, 0, pCollision->m_Height - 1);
-    int Index = ny * pCollision->m_Width + nx;
-    if (Index == LastIndex)
-      continue;
-    LastIndex = Index;
-    if (pTeleNr) {
-      if (OldTeleHook)
-        *pTeleNr = is_teleport(pCollision, Index);
-      else
-        *pTeleNr = is_teleport_hook(pCollision, Index);
-      if (*pTeleNr) {
-        if (pOutCollision)
-          *pOutCollision = Pos;
-        return TILE_TELEINHOOK;
-      }
-    }
-
-    if (check_point(pCollision, vec2_init(ix, iy))) {
-      if (!is_through(pCollision, ix, iy, dx, dy, Pos0, Pos1)) {
-        if (pOutCollision)
-          *pOutCollision = Pos;
-        return get_collision_at(pCollision, ix, iy);
-      }
-    } else if (is_hook_blocker(pCollision, ix, iy, Pos0, Pos1)) {
-      if (pOutCollision)
-        *pOutCollision = Pos;
-      return TILE_NOHOOK;
-    }
-  }
-  if (pOutCollision)
-    *pOutCollision = Pos1;
-  return 0;
-}
 int intersect_line_tele_hook(SCollision *pCollision, vec2 Pos0, vec2 Pos1,
                              vec2 *pOutCollision, int *pTeleNr,
                              bool OldTeleHook) {
-  float Distance = vdistance(Pos0, Pos1);
-  int End = Distance + 1;
+  const int End = vdistance(Pos0, Pos1) + 1;
   int dx = 0, dy = 0; // Offset for checking the "through" tile
   ThroughOffset(Pos0, Pos1, &dx, &dy);
   int LastIndex = 0;
-  for (int i = 0; i <= End; i++) {
-    float a = i / (float)End;
+  const float Step = 1.f / End;
+  const int Width = pCollision->m_Width;
+#ifndef NO_COLLISION_CLAMP
+  const int Height = pCollision->m_Height - 1;
+#endif
+  for (float a = 0; a <= 1.f; a += Step) {
     vec2 Pos = vvfmix(Pos0, Pos1, a);
-    // Temporary position for checking collision
-    int ix = round_to_int(Pos.x);
-    int iy = round_to_int(Pos.y);
-    const int nx = iclamp(ix >> 5, 0, pCollision->m_Width - 1);
-    const int ny = iclamp(iy >> 5, 0, pCollision->m_Height - 1);
-    int Index = ny * pCollision->m_Width + nx;
+    const int ix = round_to_int(Pos.x);
+    const int iy = round_to_int(Pos.y);
+#ifndef NO_COLLISION_CLAMP
+    const int nx = iclamp(ix >> 5, 0, Width - 1);
+    const int ny = iclamp(iy >> 5, 0, Height);
+    const int Index = ny * Width + nx;
+#else
+    const int Index = (iy >> 5) * Width + (ix >> 5);
+#endif
 
     // behind this is basically useless to optimize
     if (Index == LastIndex)
@@ -652,8 +610,8 @@ int get_index(SCollision *pCollision, vec2 PrevPos, vec2 Pos) {
   float Distance = vdistance(PrevPos, Pos);
 
   if (!Distance) {
-    int Nx = iclamp((int)Pos.x / 32, 0, pCollision->m_Width - 1);
-    int Ny = iclamp((int)Pos.y / 32, 0, pCollision->m_Height - 1);
+    int Nx = iclamp((int)Pos.x >> 5, 0, pCollision->m_Width - 1);
+    int Ny = iclamp((int)Pos.y >> 5, 0, pCollision->m_Height - 1);
 
     if (pCollision->m_TeleLayer.m_pType ||
         (pCollision->m_SpeedupLayer.m_pForce &&
@@ -666,8 +624,8 @@ int get_index(SCollision *pCollision, vec2 PrevPos, vec2 Pos) {
   for (int i = 0, id = ceil(Distance); i < id; i++) {
     float a = (float)i / Distance;
     vec2 Tmp = vvfmix(PrevPos, Pos, a);
-    int Nx = iclamp((int)Tmp.x / 32, 0, pCollision->m_Width - 1);
-    int Ny = iclamp((int)Tmp.y / 32, 0, pCollision->m_Height - 1);
+    int Nx = iclamp((int)Tmp.x >> 5, 0, pCollision->m_Width - 1);
+    int Ny = iclamp((int)Tmp.y >> 5, 0, pCollision->m_Height - 1);
     if (pCollision->m_TeleLayer.m_pType ||
         (pCollision->m_SpeedupLayer.m_pForce &&
          pCollision->m_SpeedupLayer.m_pForce[Ny * pCollision->m_Width + Nx] >
@@ -680,8 +638,8 @@ int get_index(SCollision *pCollision, vec2 PrevPos, vec2 Pos) {
 }
 
 int mover_speed(SCollision *pCollision, int x, int y, vec2 *pSpeed) {
-  int Nx = iclamp(x / 32, 0, pCollision->m_Width - 1);
-  int Ny = iclamp(y / 32, 0, pCollision->m_Height - 1);
+  int Nx = iclamp(x >> 5, 0, pCollision->m_Width - 1);
+  int Ny = iclamp(y >> 5, 0, pCollision->m_Height - 1);
   int Index = pCollision->m_GameLayer.m_pData[Ny * pCollision->m_Width + Nx];
 
   if (Index != TILE_CP && Index != TILE_CP_F) {

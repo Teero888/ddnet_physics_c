@@ -1,6 +1,5 @@
 #ifndef LIB_VMATH_H
 #define LIB_VMATH_H
-
 #include <math.h>
 #include <stdbool.h>
 #include <xmmintrin.h>
@@ -60,7 +59,14 @@ inline float fclamp(float n, float a, float b) {
   return n > b ? b : n < a ? a : n;
 }
 
-inline int iclamp(int n, int a, int b) { return n > b ? b : n < a ? a : n; }
+inline int ___iclamp(int n, int a, int b) { return n > b ? b : n < a ? a : n; }
+
+#ifdef NO_COLLISION_CLAMP
+#define iclamp(n, a, b) (n)
+#warning "NO_COLLISION_CLAMP is activated. Do not let your tee go out of bounds"
+#else
+#define iclamp(n, a, b) ___iclamp(n, a, b)
+#endif
 
 // saves ~20ms on the benchmark compared to non-simd usage within ddnet physics
 inline vec2 vvfmix(vec2 a, vec2 b, float t) {

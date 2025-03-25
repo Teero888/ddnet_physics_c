@@ -1207,9 +1207,9 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
   bool Handled = false;
   if (!d) {
     int Nx =
-        iclamp((int)pCore->m_Pos.x / 32, 0, pCore->m_pCollision->m_Width - 1);
+        iclamp((int)pCore->m_Pos.x >> 5, 0, pCore->m_pCollision->m_Width - 1);
     int Ny =
-        iclamp((int)pCore->m_Pos.y / 32, 0, pCore->m_pCollision->m_Height - 1);
+        iclamp((int)pCore->m_Pos.y >> 5, 0, pCore->m_pCollision->m_Height - 1);
     int Index = Ny * pCore->m_pCollision->m_Width + Nx;
 
     if (tile_exists(pCore->m_pCollision, Index)) {
@@ -1221,8 +1221,8 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
     for (int i = 0; i < End; i++) {
       float a = i / d;
       vec2 Tmp = vvfmix(pCore->m_PrevPos, pCore->m_Pos, a);
-      int Nx = iclamp((int)Tmp.x / 32, 0, pCore->m_pCollision->m_Width - 1);
-      int Ny = iclamp((int)Tmp.y / 32, 0, pCore->m_pCollision->m_Height - 1);
+      int Nx = iclamp((int)Tmp.x >> 5, 0, pCore->m_pCollision->m_Width - 1);
+      int Ny = iclamp((int)Tmp.y >> 5, 0, pCore->m_pCollision->m_Height - 1);
       int Index = Ny * pCore->m_pCollision->m_Width + Nx;
       if (tile_exists(pCore->m_pCollision, Index) && LastIndex != Index) {
         cc_handle_tiles(pCore, Index);
@@ -1365,19 +1365,10 @@ void cc_pre_tick(SCharacterCore *pCore) {
     bool GoingToRetract = false;
     bool GoingThroughTele = false;
     int teleNr = 0;
-    int Hit;
-    // if (NewPos.x < 0 || NewPos.y < 0 || pCore->m_HookPos.x < 0 ||
-    //     pCore->m_HookPos.y < 0 ||
-    //     pCore->m_HookPos.x >= pCore->m_pCollision->m_Width * 32 ||
-    //     pCore->m_HookPos.y >= pCore->m_pCollision->m_Height * 32 ||
-    //     NewPos.x >= pCore->m_pCollision->m_Width * 32 ||
-    //     NewPos.y >= pCore->m_pCollision->m_Height * 32)
-    Hit = intersect_line_tele_hook(
+    int Hit = intersect_line_tele_hook(
         pCore->m_pCollision, pCore->m_HookPos, NewPos, &NewPos,
         pCore->m_pCollision->m_TeleLayer.m_pType ? &teleNr : NULL,
         pCore->m_pWorld->m_pConfig->m_SvOldTeleportHook);
-    // else
-    //   Hit = 0;
 
     if (Hit) {
       if (Hit == TILE_NOHOOK)
