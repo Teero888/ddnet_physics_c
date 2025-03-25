@@ -27,7 +27,13 @@ inline vec2 vec2_init(float x, float y) {
 }
 
 inline vec2 vfmul(vec2 a, float b) { return vec2_init(a.x * b, a.y * b); }
-inline vec2 vfdiv(vec2 a, float b) { return vec2_init(a.x / b, a.y / b); }
+
+// saves ~30ms on the benchmark
+inline vec2 vfdiv(vec2 a, float b) {
+  __m128 scalar = _mm_set1_ps(b);
+  return (vec2){.simd = _mm_div_ps(a.simd, scalar)};
+}
+
 inline vec2 vfadd(vec2 a, float b) { return vec2_init(a.x + b, a.y + b); }
 inline vec2 vvadd(vec2 a, vec2 b) { return vec2_init(a.x + b.x, a.y + b.y); }
 inline vec2 vvsub(vec2 a, vec2 b) { return vec2_init(a.x - b.x, a.y - b.y); }
@@ -45,19 +51,29 @@ inline vec2 vnormalize(vec2 a) {
 }
 
 inline bool vvcmp(vec2 a, vec2 b) { return a.x == b.x && a.y == b.y; }
+
 inline int round_to_int(float f) {
   return f > 0 ? (int)(f + 0.5f) : (int)(f - 0.5f);
 }
+
 inline float fclamp(float n, float a, float b) {
   return n > b ? b : n < a ? a : n;
 }
+
 inline int iclamp(int n, int a, int b) { return n > b ? b : n < a ? a : n; }
+
+// saves ~20ms on the benchmark compared to non-simd usage within ddnet physics
 inline vec2 vvfmix(vec2 a, vec2 b, float t) {
-  return vvadd(a, vfmul(vvsub(b, a), t));
+  __m128 t_vec = _mm_set1_ps(t);
+  __m128 diff = _mm_sub_ps(b.simd, a.simd);
+  __m128 scaled_diff = _mm_mul_ps(diff, t_vec);
+  return (vec2){.simd = _mm_add_ps(a.simd, scaled_diff)};
 }
+
 inline vec2 vdirection(float angle) {
   return vec2_init(cos(angle), sin(angle));
 }
+
 inline bool closest_point_on_line(vec2 line_pointA, vec2 line_pointB,
                                   vec2 target_point, vec2 *out_pos) {
   vec2 AB = vvsub(line_pointB, line_pointA);

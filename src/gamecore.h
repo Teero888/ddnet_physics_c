@@ -4,13 +4,8 @@
 #include "stdbool.h"
 #include "vmath.h"
 
-typedef struct TuneParam {
-  int m_Value;
-} STuneParam;
-
 typedef struct TuningParams {
-#define MACRO_TUNING_PARAM(Name, ScriptName, Value, Description)               \
-  STuneParam m_##Name;
+#define MACRO_TUNING_PARAM(Name, ScriptName, Value, Description) float m_##Name;
 #include "tuning.h"
 #undef MACRO_TUNING_PARAM
 } STuningParams;

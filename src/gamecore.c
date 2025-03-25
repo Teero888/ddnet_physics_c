@@ -12,7 +12,7 @@
 
 static void init_tuning_params(STuningParams *pTunings) {
 #define MACRO_TUNING_PARAM(Name, ScriptName, Value, Description)               \
-  pTunings->m_##Name.m_Value = Value * 100.f;
+  pTunings->m_##Name = Value;
 #include "tuning.h"
 #undef MACRO_TUNING_PARAM
 }
@@ -22,8 +22,6 @@ void init_config(SConfig *pConfig) {
 #include "config.h"
 #undef MACRO_CONFIG_INT
 }
-
-inline static float tune_get(STuneParam Tune) { return Tune.m_Value / 100.f; }
 
 // TODO:implement guns, doors, lasers, lights and draggers
 
@@ -172,18 +170,18 @@ vec2 prj_get_pos(SProjectile *pProj, float Time) {
 
   switch (pProj->m_Type) {
   case WEAPON_GRENADE:
-    Curvature = tune_get(pTuning->m_GrenadeCurvature);
-    Speed = tune_get(pTuning->m_GrenadeSpeed);
+    Curvature = pTuning->m_GrenadeCurvature;
+    Speed = pTuning->m_GrenadeSpeed;
     break;
 
   case WEAPON_SHOTGUN:
-    Curvature = tune_get(pTuning->m_ShotgunCurvature);
-    Speed = tune_get(pTuning->m_ShotgunSpeed);
+    Curvature = pTuning->m_ShotgunCurvature;
+    Speed = pTuning->m_ShotgunSpeed;
     break;
 
   case WEAPON_GUN:
-    Curvature = tune_get(pTuning->m_GunCurvature);
-    Speed = tune_get(pTuning->m_GunSpeed);
+    Curvature = pTuning->m_GunCurvature;
+    Speed = pTuning->m_GunSpeed;
     break;
   }
 
@@ -525,10 +523,9 @@ void cc_quantize(SCharacterCore *pCore) {
 }
 
 void cc_move(SCharacterCore *pCore) {
-  float RampValue = velocity_ramp(vlength(pCore->m_Vel) * 50,
-                                  tune_get(pCore->m_Tuning.m_VelrampStart),
-                                  tune_get(pCore->m_Tuning.m_VelrampRange),
-                                  tune_get(pCore->m_Tuning.m_VelrampCurvature));
+  const float RampValue = velocity_ramp(
+      vlength(pCore->m_Vel) * 50, pCore->m_Tuning.m_VelrampStart,
+      pCore->m_Tuning.m_VelrampRange, pCore->m_Tuning.m_VelrampCurvature);
 
   pCore->m_Vel.x *= RampValue;
 
@@ -537,8 +534,8 @@ void cc_move(SCharacterCore *pCore) {
   vec2 OldVel = pCore->m_Vel;
   bool Grounded = false;
   move_box(pCore->m_pCollision, &NewPos, &pCore->m_Vel, PHYSICALSIZEVEC,
-           vec2_init(tune_get(pCore->m_Tuning.m_GroundElasticityX),
-                     tune_get(pCore->m_Tuning.m_GroundElasticityY)),
+           vec2_init(pCore->m_Tuning.m_GroundElasticityX,
+                     pCore->m_Tuning.m_GroundElasticityY),
            &Grounded);
 
   if (Grounded) {
@@ -557,9 +554,8 @@ void cc_move(SCharacterCore *pCore) {
 
   pCore->m_Vel.x = pCore->m_Vel.x * (1.0f / RampValue);
 
-  if (pCore->m_Tuning.m_PlayerCollision.m_Value &&
-      !pCore->m_CollisionDisabled && !pCore->m_Solo &&
-      pCore->m_pWorld->m_NumCharacters > 1) {
+  if (pCore->m_Tuning.m_PlayerCollision && !pCore->m_CollisionDisabled &&
+      !pCore->m_Solo && pCore->m_pWorld->m_NumCharacters > 1) {
     // check player collision
     float Distance = vdistance(pCore->m_Pos, NewPos);
     if (Distance > 0) {
@@ -610,7 +606,7 @@ void cc_tick_deferred(SCharacterCore *pCore) {
 
         bool CanCollide =
             (!pCore->m_CollisionDisabled && !pCharCore->m_CollisionDisabled &&
-             tune_get(pCore->m_Tuning.m_PlayerCollision));
+             pCore->m_Tuning.m_PlayerCollision);
 
         if (CanCollide && Distance < PHYSICALSIZE * 1.25f) {
           float a = (PHYSICALSIZE * 1.45f - Distance);
@@ -629,12 +625,11 @@ void cc_tick_deferred(SCharacterCore *pCore) {
 
         // handle hook influence
         if (!pCore->m_HookHitDisabled && pCore->m_HookedPlayer == i &&
-            pCore->m_Tuning.m_PlayerHooking.m_Value) {
+            pCore->m_Tuning.m_PlayerHooking) {
           if (Distance > PHYSICALSIZE * 1.50f) {
-            float HookAccel =
-                tune_get(pCore->m_Tuning.m_HookDragAccel) *
-                (Distance / tune_get(pCore->m_Tuning.m_HookLength));
-            float DragSpeed = tune_get(pCore->m_Tuning.m_HookDragSpeed);
+            float HookAccel = pCore->m_Tuning.m_HookDragAccel *
+                              (Distance / pCore->m_Tuning.m_HookLength);
+            float DragSpeed = pCore->m_Tuning.m_HookDragSpeed;
 
             vec2 Temp;
             // add force to the hooked player
@@ -783,12 +778,10 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
       static const float MaxSpeedScale = 5.0f;
       if (MaxSpeed == 0) {
         float MaxRampSpeed =
-            tune_get(pCore->m_Tuning.m_VelrampRange) /
-            (50 * log(fmax((float)tune_get(pCore->m_Tuning.m_VelrampCurvature),
-                           1.01f)));
-        MaxSpeed =
-            fmax(MaxRampSpeed, tune_get(pCore->m_Tuning.m_VelrampStart) / 50) *
-            MaxSpeedScale;
+            pCore->m_Tuning.m_VelrampRange /
+            (50 * log(fmax((float)pCore->m_Tuning.m_VelrampCurvature, 1.01f)));
+        MaxSpeed = fmax(MaxRampSpeed, pCore->m_Tuning.m_VelrampStart) / 50 *
+                   MaxSpeedScale;
       }
 
       float CurrentDirectionalSpeed = vdot(Direction, pCore->m_Vel);
@@ -1270,14 +1263,14 @@ void cc_pre_tick(SCharacterCore *pCore) {
   vec2 TargetDirection =
       vnormalize(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
 
-  pCore->m_Vel.y += tune_get(pCore->m_Tuning.m_Gravity);
+  pCore->m_Vel.y += pCore->m_Tuning.m_Gravity;
 
-  float MaxSpeed = Grounded ? tune_get(pCore->m_Tuning.m_GroundControlSpeed)
-                            : tune_get(pCore->m_Tuning.m_AirControlSpeed);
-  float Accel = Grounded ? tune_get(pCore->m_Tuning.m_GroundControlAccel)
-                         : tune_get(pCore->m_Tuning.m_AirControlAccel);
-  float Friction = Grounded ? tune_get(pCore->m_Tuning.m_GroundFriction)
-                            : tune_get(pCore->m_Tuning.m_AirFriction);
+  float MaxSpeed = Grounded ? pCore->m_Tuning.m_GroundControlSpeed
+                            : pCore->m_Tuning.m_AirControlSpeed;
+  float Accel = Grounded ? pCore->m_Tuning.m_GroundControlAccel
+                         : pCore->m_Tuning.m_AirControlAccel;
+  float Friction = Grounded ? pCore->m_Tuning.m_GroundFriction
+                            : pCore->m_Tuning.m_AirFriction;
 
   // handle input
   pCore->m_Direction = pCore->m_Input.m_Direction;
@@ -1293,7 +1286,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
   if (pCore->m_Input.m_Jump) {
     if (!(pCore->m_Jumped & 1)) {
       if (Grounded && (!(pCore->m_Jumped & 2) || pCore->m_Jumps != 0)) {
-        pCore->m_Vel.y = -tune_get(pCore->m_Tuning.m_GroundJumpImpulse);
+        pCore->m_Vel.y = -pCore->m_Tuning.m_GroundJumpImpulse;
         if (pCore->m_Jumps > 1) {
           pCore->m_Jumped |= 1;
         } else {
@@ -1301,7 +1294,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
         }
         pCore->m_JumpedTotal = 0;
       } else if (!(pCore->m_Jumped & 2)) {
-        pCore->m_Vel.y = -tune_get(pCore->m_Tuning.m_AirJumpImpulse);
+        pCore->m_Vel.y = -pCore->m_Tuning.m_AirJumpImpulse;
         pCore->m_Jumped |= 3;
         pCore->m_JumpedTotal++;
       }
@@ -1318,8 +1311,8 @@ void cc_pre_tick(SCharacterCore *pCore) {
           vvadd(pCore->m_Pos, vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
       pCore->m_HookDir = TargetDirection;
       pCore->m_HookedPlayer = -1;
-      pCore->m_HookTick = (float)SERVER_TICK_SPEED *
-                          (1.25f - tune_get(pCore->m_Tuning.m_HookDuration));
+      pCore->m_HookTick =
+          (float)SERVER_TICK_SPEED * (1.25f - pCore->m_Tuning.m_HookDuration);
     }
   } else {
     pCore->m_HookedPlayer = -1;
@@ -1358,13 +1351,13 @@ void cc_pre_tick(SCharacterCore *pCore) {
     if (pCore->m_NewHook) {
       HookBase = pCore->m_HookTeleBase;
     }
-    vec2 NewPos = vvadd(
-        pCore->m_HookPos,
-        vfmul(pCore->m_HookDir, tune_get(pCore->m_Tuning.m_HookFireSpeed)));
-    if (vdistance(HookBase, NewPos) > tune_get(pCore->m_Tuning.m_HookLength)) {
+    vec2 NewPos =
+        vvadd(pCore->m_HookPos,
+              vfmul(pCore->m_HookDir, pCore->m_Tuning.m_HookFireSpeed));
+    if (vdistance(HookBase, NewPos) > pCore->m_Tuning.m_HookLength) {
       pCore->m_HookState = HOOK_RETRACT_START;
       NewPos = vvadd(HookBase, vfmul(vnormalize(vvsub(NewPos, HookBase)),
-                                     tune_get(pCore->m_Tuning.m_HookLength)));
+                                     pCore->m_Tuning.m_HookLength));
     }
 
     // make sure that the hook doesn't go though the ground
@@ -1372,9 +1365,19 @@ void cc_pre_tick(SCharacterCore *pCore) {
     bool GoingToRetract = false;
     bool GoingThroughTele = false;
     int teleNr = 0;
-    int Hit = intersect_line_tele_hook(
-        pCore->m_pCollision, pCore->m_HookPos, NewPos, &NewPos, NULL, pCore->m_pCollision->m_TeleLayer.m_pType ? &teleNr : NULL,
+    int Hit;
+    // if (NewPos.x < 0 || NewPos.y < 0 || pCore->m_HookPos.x < 0 ||
+    //     pCore->m_HookPos.y < 0 ||
+    //     pCore->m_HookPos.x >= pCore->m_pCollision->m_Width * 32 ||
+    //     pCore->m_HookPos.y >= pCore->m_pCollision->m_Height * 32 ||
+    //     NewPos.x >= pCore->m_pCollision->m_Width * 32 ||
+    //     NewPos.y >= pCore->m_pCollision->m_Height * 32)
+    Hit = intersect_line_tele_hook(
+        pCore->m_pCollision, pCore->m_HookPos, NewPos, &NewPos,
+        pCore->m_pCollision->m_TeleLayer.m_pType ? &teleNr : NULL,
         pCore->m_pWorld->m_pConfig->m_SvOldTeleportHook);
+    // else
+    //   Hit = 0;
 
     if (Hit) {
       if (Hit == TILE_NOHOOK)
@@ -1387,7 +1390,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
     // Check against other players first
     if (!pCore->m_HookHitDisabled && pCore->m_pWorld &&
-        pCore->m_Tuning.m_PlayerHooking.m_Value &&
+        pCore->m_Tuning.m_PlayerHooking &&
         (pCore->m_HookState == HOOK_FLYING || !pCore->m_NewHook)) {
       float Distance = 0.0f;
 
@@ -1458,7 +1461,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
     if (pCore->m_HookedPlayer == -1 &&
         vdistance(pCore->m_HookPos, pCore->m_Pos) > 46.0f) {
       vec2 HookVel = vfmul(vnormalize(vvsub(pCore->m_HookPos, pCore->m_Pos)),
-                           tune_get(pCore->m_Tuning.m_HookDragAccel));
+                           pCore->m_Tuning.m_HookDragAccel);
       // the hook as more power to drag you up then down.
       // this makes it easier to get on top of an platform
       if (HookVel.y > 0)
@@ -1476,7 +1479,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
       // check if we are under the legal limit for the hook
       const float NewVelLength = vlength(NewVel);
-      if (NewVelLength < tune_get(pCore->m_Tuning.m_HookDragSpeed) ||
+      if (NewVelLength < pCore->m_Tuning.m_HookDragSpeed ||
           NewVelLength < vlength(pCore->m_Vel))
         pCore->m_Vel = NewVel; // no problem. apply
     }
@@ -1547,9 +1550,8 @@ void cc_handle_ninja(SCharacterCore *pCore) {
     // Set velocity
     pCore->m_Vel = vfmul(pCore->m_Ninja.m_ActivationDir, NINJA_VELOCITY);
     vec2 OldPos = pCore->m_Pos;
-    vec2 GroundElasticity =
-        vec2_init(tune_get(pCore->m_Tuning.m_GroundElasticityX),
-                  tune_get(pCore->m_Tuning.m_GroundElasticityY));
+    vec2 GroundElasticity = vec2_init(pCore->m_Tuning.m_GroundElasticityX,
+                                      pCore->m_Tuning.m_GroundElasticityY);
 
     move_box(pCore->m_pCollision, &pCore->m_Pos, &pCore->m_Vel, PHYSICALSIZEVEC,
              GroundElasticity, NULL);
@@ -1630,7 +1632,7 @@ void cc_handle_jetpack(SCharacterCore *pCore) {
   if (pCore->m_ActiveWeapon ==
       WEAPON_GUN) // put this up as weapon != gun: return
     if (pCore->m_Jetpack) {
-      float Strength = tune_get(pCore->m_Tuning.m_JetpackStrength);
+      float Strength = pCore->m_Tuning.m_JetpackStrength;
       cc_take_damage(pCore, vfmul(Direction, -(Strength / 100.f / 6.11f)));
     }
 }
@@ -1723,7 +1725,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
         else
           Dir = vec2_init(0.f, -1.f);
 
-        float Strength = tune_get(pCore->m_Tuning.m_HammerStrength);
+        float Strength = pCore->m_Tuning.m_HammerStrength;
 
         vec2 Temp =
             vvadd(pTarget->m_Vel,
@@ -1742,7 +1744,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 
     // if we Hit anything, we have to wait for the reload
     if (Hits) {
-      float FireDelay = tune_get(pCore->m_Tuning.m_HammerHitFireDelay);
+      float FireDelay = pCore->m_Tuning.m_HammerHitFireDelay;
       pCore->m_ReloadTimer = FireDelay * SERVER_TICK_SPEED / 1000;
     }
   } break;
@@ -1752,7 +1754,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
       // TODO: idk about this xd. bullets are useless in ddrace
       // int Lifetime =
       //     (int)(SERVER_TICK_SPEED *
-      //     tune_get(pCore->m_Tuning.m_GunLifetime));
+      //     pCore->m_Tuning.m_GunLifetime);
       // new CProjectile(GameWorld(),
       //                 WEAPON_GUN,   // Type
       //                 GetCid(),     // Owner
@@ -1768,15 +1770,14 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   } break;
 
   case WEAPON_SHOTGUN: {
-    // float LaserReach = tune_get(pCore->m_Tuning.m_LaserReach);
+    // float LaserReach = pCore->m_Tuning.m_LaserReach;
     // new CLaser(GameWorld(), m_Pos, Direction, LaserReach, GetCid(),
     //            WEAPON_SHOTGUN);
     break;
   }
 
   case WEAPON_GRENADE: {
-    int Lifetime =
-        (int)(SERVER_TICK_SPEED * tune_get(pCore->m_Tuning.m_GrenadeLifetime));
+    int Lifetime = (int)(SERVER_TICK_SPEED * pCore->m_Tuning.m_GrenadeLifetime);
     SProjectile *pNewProj = malloc(sizeof(SProjectile));
     prj_init(pNewProj, pCore->m_pWorld, WEAPON_GRENADE, pCore->m_Id,
              ProjStartPos, Direction, Lifetime, false, true, MouseTarget, 0, 0);
@@ -1784,7 +1785,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   } break;
 
   case WEAPON_LASER: {
-    // float LaserReach = tune_get(pCore->m_Tuning.m_LaserReach);
+    // float LaserReach = pCore->m_Tuning.m_LaserReach;
     // TODO:
     // new CLaser(GameWorld(), m_Pos, Direction, LaserReach, GetCid(),
     //            WEAPON_LASER);
@@ -1803,10 +1804,10 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 
   // reloadtimer can be changed earlier by hammer so check again
   if (!pCore->m_ReloadTimer) {
-    pCore->m_ReloadTimer = (tune_get(*(&pCore->m_Tuning.m_HammerFireDelay +
-                                       pCore->m_ActiveWeapon)) *
-                            SERVER_TICK_SPEED) /
-                           1000;
+    pCore->m_ReloadTimer =
+        (*(&pCore->m_Tuning.m_HammerFireDelay + pCore->m_ActiveWeapon) *
+         SERVER_TICK_SPEED) /
+        1000;
   }
 }
 
@@ -2118,13 +2119,13 @@ void wc_create_all_entities(SWorldCore *pCore) {
         if (GameIndex == TILE_OLDLASER) {
           pCore->m_pConfig->m_SvOldLaser = 1;
         } else if (GameIndex == TILE_NPC) {
-          pCore->m_pTuningList[0].m_PlayerCollision.m_Value = 0;
+          pCore->m_pTuningList[0].m_PlayerCollision = 0;
         } else if (GameIndex == TILE_EHOOK) {
           pCore->m_pConfig->m_SvEndlessDrag = 1;
         } else if (GameIndex == TILE_NOHIT) {
           pCore->m_pConfig->m_SvHit = 0;
         } else if (GameIndex == TILE_NPH) {
-          pCore->m_pTuningList[0].m_PlayerHooking.m_Value = 0;
+          pCore->m_pTuningList[0].m_PlayerHooking = 0;
         } else if (GameIndex >= ENTITY_OFFSET) {
           wc_on_entity(pCore, GameIndex - ENTITY_OFFSET, x, y, LAYER_GAME,
                        pCore->m_pCollision->m_GameLayer.m_pFlags[Index], 0);
@@ -2136,13 +2137,13 @@ void wc_create_all_entities(SWorldCore *pCore) {
         if (FrontIndex == TILE_OLDLASER) {
           pCore->m_pConfig->m_SvOldLaser = 1;
         } else if (FrontIndex == TILE_NPC) {
-          pCore->m_pTuningList[0].m_PlayerCollision.m_Value = 0;
+          pCore->m_pTuningList[0].m_PlayerCollision = 0;
         } else if (FrontIndex == TILE_EHOOK) {
           pCore->m_pConfig->m_SvEndlessDrag = 1;
         } else if (FrontIndex == TILE_NOHIT) {
           pCore->m_pConfig->m_SvHit = 0;
         } else if (FrontIndex == TILE_NPH) {
-          pCore->m_pTuningList[0].m_PlayerHooking.m_Value = 0;
+          pCore->m_pTuningList[0].m_PlayerHooking = 0;
         } else if (FrontIndex >= ENTITY_OFFSET) {
           wc_on_entity(pCore, FrontIndex - ENTITY_OFFSET, x, y, LAYER_FRONT,
                        pCore->m_pCollision->m_FrontLayer.m_pFlags[Index], 0);
@@ -2296,10 +2297,9 @@ void wc_create_explosion(SWorldCore *pWorld, vec2 Pos, int Owner) {
                    0.0f, 1.0f);
     float Strength;
     if (Owner != -1)
-      Strength =
-          tune_get(pWorld->m_pCharacters[Owner].m_Tuning.m_ExplosionStrength);
+      Strength = pWorld->m_pCharacters[Owner].m_Tuning.m_ExplosionStrength;
     else
-      Strength = tune_get(pWorld->m_pTuningList[0].m_ExplosionStrength);
+      Strength = pWorld->m_pTuningList[0].m_ExplosionStrength;
 
     float Dmg = Strength * l;
     if (!(int)Dmg)

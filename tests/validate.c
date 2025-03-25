@@ -16,10 +16,14 @@ typedef struct {
 } STest;
 
 static const STest s_aTests[] = {
-    (STest){"jump","simple jumping up and down on run_blue from spawn", &s_JumpTest},
-    (STest){"hook movement","just moving around with hook and jump on run_blue", &s_HookTest},
-    (STest){"grenade movement", "grenade+jump+hook movement on run_blue",&s_GrenadeTest},
-    (STest){"stopper physics", "tests the stoppers on a random stopper map", &s_StopperTest},
+    (STest){"jump", "simple jumping up and down on run_blue from spawn",
+            &s_JumpTest},
+    (STest){"hook movement",
+            "just moving around with hook and jump on run_blue", &s_HookTest},
+    (STest){"grenade movement", "grenade+jump+hook movement on run_blue",
+            &s_GrenadeTest},
+    (STest){"stopper physics", "tests the stoppers on a random stopper map",
+            &s_StopperTest},
 };
 
 int main(void) {
@@ -75,7 +79,7 @@ int main(void) {
       }
     }
     if (!Failed) {
-      printf("Test '%s' passed.\n", s_aTests[Test].m_Description);
+      printf("Test '%s' passed.\n", s_aTests[Test].m_Name);
     }
 
     wc_free(&World);

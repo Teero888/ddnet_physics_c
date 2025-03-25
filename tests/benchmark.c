@@ -111,7 +111,6 @@ int main(void) {
     cc_on_input(pChar, &Input);
     wc_tick(&World);
   }
-
   double elapsed_time = timer_end(start_time);
 
   char aBuf[32];
