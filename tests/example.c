@@ -1,11 +1,11 @@
 #include <stdio.h>
 
 #include "../src/gamecore.h"
-#include "map_loader.h"
+#include "collision.h"
 
 int main(void) {
-  SMapData Collision = load_map("tests/maps/run_blue.map", true);
-  if (!Collision.m_GameLayer.m_pData)
+  SCollision Collision;
+  if (!init_collision(&Collision, "tests/maps/ctf1.map"))
     return 1;
 
   SConfig Config;
@@ -26,7 +26,7 @@ int main(void) {
   }
 
   wc_free(&World);
-  free_map_data(&Collision);
+  free_collision(&Collision);
 
   return 0;
 }

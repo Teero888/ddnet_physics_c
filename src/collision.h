@@ -17,9 +17,22 @@ enum {
 #define HALFPHYSICALSIZE 14
 #define PHYSICALSIZEVEC vec2_init(28.f, 28.f)
 
-typedef SMapData SCollision;
+typedef struct Collision {
+  SMapData m_MapData;
+
+  int m_NumSpawnPoints;
+  vec2 *m_pSpawnPoints;
+  int m_aNumTeleOuts[256];
+  vec2 *m_apTeleOuts[256];
+  int m_aNumTeleCheckOuts[256];
+  vec2 *m_apTeleCheckOuts[256];
+
+} SCollision;
+
 typedef _Bool (*CALLBACK_SWITCHACTIVE)(int Number, void *pUser);
 
+bool init_collision(SCollision *pCollision, const char *pMap);
+void free_collision(SCollision *pCollision);
 int get_pure_map_index(SCollision *pCollision, vec2 Pos);
 int get_move_restrictions_raw(int Tile, int Flags);
 int move_restrictions(int Direction, int Tile, int Flags);

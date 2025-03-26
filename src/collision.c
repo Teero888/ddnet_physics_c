@@ -3,6 +3,7 @@
 #include "map_loader.h"
 #include "vmath.h"
 #include <stdio.h>
+#include <string.h>
 
 enum {
   MR_DIR_HERE = 0,
@@ -13,10 +14,85 @@ enum {
   NUM_MR_DIRS
 };
 
+bool init_collision(SCollision *pCollision, const char *pMap) {
+  pCollision->m_MapData = load_map(pMap);
+  if (!pCollision->m_MapData.m_GameLayer.m_pData)
+    return false;
+
+  SMapData *pMapData = &pCollision->m_MapData;
+  int Width = pMapData->m_Width;
+  int Height = pMapData->m_Height;
+
+  // Figure out important things
+  // Make lists of spawn points, tele outs and tele checkpoints outs
+  for (int i = 0; i < Width * Height; ++i) {
+    if (pMapData->m_GameLayer.m_pData[i] >= 192 &&
+        pMapData->m_GameLayer.m_pData[i] <= 194)
+      ++pCollision->m_NumSpawnPoints;
+    if (pMapData->m_TeleLayer.m_pType) {
+      if (pMapData->m_TeleLayer.m_pType[i] == TILE_TELEOUT)
+        ++pCollision->m_aNumTeleOuts[pMapData->m_TeleLayer.m_pNumber[i]];
+      if (pMapData->m_TeleLayer.m_pType[i] == TILE_TELECHECKOUT)
+        ++pCollision->m_aNumTeleCheckOuts[pMapData->m_TeleLayer.m_pNumber[i]];
+    }
+  }
+  if (pCollision->m_NumSpawnPoints > 0)
+    pCollision->m_pSpawnPoints =
+        malloc(pCollision->m_NumSpawnPoints * sizeof(float[4]));
+  if (pMapData->m_TeleLayer.m_pType) {
+    for (int i = 0; i < 256; ++i) {
+      if (pCollision->m_aNumTeleOuts[i] > 0)
+        pCollision->m_apTeleOuts[i] =
+            malloc(pCollision->m_aNumTeleOuts[i] * sizeof(float[4]));
+      if (pCollision->m_aNumTeleCheckOuts[i] > 0)
+        pCollision->m_apTeleCheckOuts[i] =
+            malloc(pCollision->m_aNumTeleCheckOuts[i] * sizeof(float[4]));
+    }
+  }
+
+  if (!pMapData->m_TeleLayer.m_pType && !pCollision->m_NumSpawnPoints)
+    return true;
+
+  int TeleIdx = 0, TeleCheckIdx = 0, SpawnPointIdx = 0;
+  for (int y = 0; y < Height; ++y) {
+    for (int x = 0; x < Width; ++x) {
+      int Idx = y * Width + x;
+      if (pCollision->m_NumSpawnPoints) {
+        if (pMapData->m_GameLayer.m_pData[Idx] >= 192 &&
+            pMapData->m_GameLayer.m_pData[Idx] <= 194)
+          pCollision->m_pSpawnPoints[SpawnPointIdx++] = vec2_init(x, y);
+      }
+      if (pMapData->m_TeleLayer.m_pType) {
+        if (pMapData->m_TeleLayer.m_pType[Idx] == TILE_TELEOUT)
+          pCollision
+              ->m_apTeleOuts[pMapData->m_TeleLayer.m_pNumber[Idx]][TeleIdx++] =
+              vec2_init(x, y);
+        if (pMapData->m_TeleLayer.m_pType[Idx] == TILE_TELECHECKOUT)
+          pCollision->m_apTeleCheckOuts[pMapData->m_TeleLayer.m_pNumber[Idx]]
+                                       [TeleCheckIdx++] = vec2_init(x, y);
+      }
+    }
+  }
+
+  return true;
+}
+
+void free_collision(SCollision *pCollision) {
+  free_map_data(&pCollision->m_MapData);
+  if (pCollision->m_NumSpawnPoints)
+    free(pCollision->m_pSpawnPoints);
+  if (pCollision->m_MapData.m_TeleLayer.m_pType)
+    for (int i = 0; i < 256; ++i) {
+      free(pCollision->m_apTeleOuts[i]);
+      free(pCollision->m_apTeleCheckOuts[i]);
+    }
+  memset(pCollision, 0, sizeof(SCollision));
+}
+
 int get_pure_map_index(SCollision *pCollision, vec2 Pos) {
   const int nx = (int)(Pos.x + 0.5f) >> 5;
   const int ny = (int)(Pos.y + 0.5f) >> 5;
-  return ny * pCollision->m_Width + nx;
+  return ny * pCollision->m_MapData.m_Width + nx;
 }
 
 int get_move_restrictions_raw(int Tile, int Flags) {
@@ -59,66 +135,67 @@ int move_restrictions(int Direction, int Tile, int Flags) {
 }
 
 int get_tile_index(SCollision *pCollision, int Index) {
-  return pCollision->m_GameLayer.m_pData[Index];
+  return pCollision->m_MapData.m_GameLayer.m_pData[Index];
 }
 int get_front_tile_index(SCollision *pCollision, int Index) {
-  return pCollision->m_FrontLayer.m_pData[Index];
+  return pCollision->m_MapData.m_FrontLayer.m_pData[Index];
 }
 int get_tile_flags(SCollision *pCollision, int Index) {
-  return pCollision->m_GameLayer.m_pFlags[Index];
+  return pCollision->m_MapData.m_GameLayer.m_pFlags[Index];
 }
 int get_front_tile_flags(SCollision *pCollision, int Index) {
-  return pCollision->m_FrontLayer.m_pFlags[Index];
+  return pCollision->m_MapData.m_FrontLayer.m_pFlags[Index];
 }
 int get_switch_number(SCollision *pCollision, int Index) {
-  return pCollision->m_SwitchLayer.m_pNumber[Index];
+  return pCollision->m_MapData.m_SwitchLayer.m_pNumber[Index];
 }
 int get_switch_type(SCollision *pCollision, int Index) {
-  return pCollision->m_SwitchLayer.m_pType[Index];
+  return pCollision->m_MapData.m_SwitchLayer.m_pType[Index];
 }
 int get_switch_delay(SCollision *pCollision, int Index) {
-  return pCollision->m_SwitchLayer.m_pDelay[Index];
+  return pCollision->m_MapData.m_SwitchLayer.m_pDelay[Index];
 }
 int is_teleport(SCollision *pCollision, int Index) {
-  return pCollision->m_TeleLayer.m_pType[Index] == TILE_TELEIN
-             ? pCollision->m_TeleLayer.m_pNumber[Index]
+  return pCollision->m_MapData.m_TeleLayer.m_pType[Index] == TILE_TELEIN
+             ? pCollision->m_MapData.m_TeleLayer.m_pNumber[Index]
              : 0;
 }
 int is_teleport_hook(SCollision *pCollision, int Index) {
-  return pCollision->m_TeleLayer.m_pType[Index] == TILE_TELEINHOOK
-             ? pCollision->m_TeleLayer.m_pNumber[Index]
+  return pCollision->m_MapData.m_TeleLayer.m_pType[Index] == TILE_TELEINHOOK
+             ? pCollision->m_MapData.m_TeleLayer.m_pNumber[Index]
              : 0;
 }
 int is_teleport_weapon(SCollision *pCollision, int Index) {
-  return pCollision->m_TeleLayer.m_pType[Index] == TILE_TELEINWEAPON
-             ? pCollision->m_TeleLayer.m_pNumber[Index]
+  return pCollision->m_MapData.m_TeleLayer.m_pType[Index] == TILE_TELEINWEAPON
+             ? pCollision->m_MapData.m_TeleLayer.m_pNumber[Index]
              : 0;
 }
 int is_evil_teleport(SCollision *pCollision, int Index) {
-  return pCollision->m_TeleLayer.m_pType[Index] == TILE_TELEINEVIL
-             ? pCollision->m_TeleLayer.m_pNumber[Index]
+  return pCollision->m_MapData.m_TeleLayer.m_pType[Index] == TILE_TELEINEVIL
+             ? pCollision->m_MapData.m_TeleLayer.m_pNumber[Index]
              : 0;
 }
 bool is_check_teleport(SCollision *pCollision, int Index) {
-  return pCollision->m_TeleLayer.m_pType[Index] == TILE_TELECHECKIN
-             ? pCollision->m_TeleLayer.m_pNumber[Index]
+  return pCollision->m_MapData.m_TeleLayer.m_pType[Index] == TILE_TELECHECKIN
+             ? pCollision->m_MapData.m_TeleLayer.m_pNumber[Index]
              : 0;
 }
 bool is_check_evil_teleport(SCollision *pCollision, int Index) {
-  return pCollision->m_TeleLayer.m_pType[Index] == TILE_TELECHECKINEVIL
-             ? pCollision->m_TeleLayer.m_pNumber[Index]
+  return pCollision->m_MapData.m_TeleLayer.m_pType[Index] ==
+                 TILE_TELECHECKINEVIL
+             ? pCollision->m_MapData.m_TeleLayer.m_pNumber[Index]
              : 0;
 }
 int is_tele_checkpoint(SCollision *pCollision, int Index) {
-  return pCollision->m_TeleLayer.m_pType[Index] == TILE_TELECHECK
-             ? pCollision->m_TeleLayer.m_pNumber[Index]
+  return pCollision->m_MapData.m_TeleLayer.m_pType[Index] == TILE_TELECHECK
+             ? pCollision->m_MapData.m_TeleLayer.m_pNumber[Index]
              : 0;
 }
 int get_collision_at(SCollision *pCollision, float x, float y) {
   int Nx = (int)x >> 5;
   int Ny = (int)y >> 5;
-  int pos = Ny * pCollision->m_Width + Nx;
-  int Idx = pCollision->m_GameLayer.m_pData[pos];
+  int pos = Ny * pCollision->m_MapData.m_Width + Nx;
+  int Idx = pCollision->m_MapData.m_GameLayer.m_pData[pos];
   if (Idx >= TILE_SOLID && Idx <= TILE_NOLASER)
     return Idx;
   return 0;
@@ -126,30 +203,33 @@ int get_collision_at(SCollision *pCollision, float x, float y) {
 int get_front_collision_at(SCollision *pCollision, float x, float y) {
   int Nx = (int)x >> 5;
   int Ny = (int)y >> 5;
-  int pos = Ny * pCollision->m_Width + Nx;
-  int Idx = pCollision->m_FrontLayer.m_pData[pos];
+  int pos = Ny * pCollision->m_MapData.m_Width + Nx;
+  int Idx = pCollision->m_MapData.m_FrontLayer.m_pData[pos];
   if (Idx >= TILE_SOLID && Idx <= TILE_NOLASER)
     return Idx;
   return 0;
 }
 
 bool tile_exists_next(SCollision *pCollision, int Index) {
-  const unsigned char *pTileIdx = pCollision->m_GameLayer.m_pData;
-  const unsigned char *pTileFlgs = pCollision->m_GameLayer.m_pFlags;
-  const unsigned char *pFrontIdx = pCollision->m_FrontLayer.m_pData;
-  const unsigned char *pFrontFlgs = pCollision->m_FrontLayer.m_pFlags;
-  const unsigned char *pDoorIdx = pCollision->m_DoorLayer.m_pIndex;
-  const unsigned char *pDoorFlgs = pCollision->m_DoorLayer.m_pFlags;
+  const unsigned char *pTileIdx = pCollision->m_MapData.m_GameLayer.m_pData;
+  const unsigned char *pTileFlgs = pCollision->m_MapData.m_GameLayer.m_pFlags;
+  const unsigned char *pFrontIdx = pCollision->m_MapData.m_FrontLayer.m_pData;
+  const unsigned char *pFrontFlgs = pCollision->m_MapData.m_FrontLayer.m_pFlags;
+  const unsigned char *pDoorIdx = pCollision->m_MapData.m_DoorLayer.m_pIndex;
+  const unsigned char *pDoorFlgs = pCollision->m_MapData.m_DoorLayer.m_pFlags;
   int TileOnTheLeft = (Index - 1 > 0) ? Index - 1 : Index;
-  int TileOnTheRight = (Index + 1 < pCollision->m_Width * pCollision->m_Height)
+  int TileOnTheRight = (Index + 1 < pCollision->m_MapData.m_Width *
+                                        pCollision->m_MapData.m_Height)
                            ? Index + 1
                            : Index;
   int TileBelow =
-      (Index + pCollision->m_Width < pCollision->m_Width * pCollision->m_Height)
-          ? Index + pCollision->m_Width
+      (Index + pCollision->m_MapData.m_Width <
+       pCollision->m_MapData.m_Width * pCollision->m_MapData.m_Height)
+          ? Index + pCollision->m_MapData.m_Width
           : Index;
-  int TileAbove =
-      (Index - pCollision->m_Width > 0) ? Index - pCollision->m_Width : Index;
+  int TileAbove = (Index - pCollision->m_MapData.m_Width > 0)
+                      ? Index - pCollision->m_MapData.m_Width
+                      : Index;
 
   if ((pTileIdx[TileOnTheRight] == TILE_STOP &&
        pTileFlgs[TileOnTheRight] == ROTATION_270) ||
@@ -222,13 +302,13 @@ bool tile_exists_next(SCollision *pCollision, int Index) {
 }
 
 bool tile_exists(SCollision *pCollision, int Index) {
-  const unsigned char *pTiles = pCollision->m_GameLayer.m_pData;
-  const unsigned char *pFront = pCollision->m_FrontLayer.m_pData;
-  const unsigned char *pDoor = pCollision->m_DoorLayer.m_pIndex;
-  const unsigned char *pTele = pCollision->m_TeleLayer.m_pType;
-  const unsigned char *pSpeedup = pCollision->m_SpeedupLayer.m_pForce;
-  const unsigned char *pSwitch = pCollision->m_SwitchLayer.m_pType;
-  const unsigned char *pTune = pCollision->m_TuneLayer.m_pType;
+  const unsigned char *pTiles = pCollision->m_MapData.m_GameLayer.m_pData;
+  const unsigned char *pFront = pCollision->m_MapData.m_FrontLayer.m_pData;
+  const unsigned char *pDoor = pCollision->m_MapData.m_DoorLayer.m_pIndex;
+  const unsigned char *pTele = pCollision->m_MapData.m_TeleLayer.m_pType;
+  const unsigned char *pSpeedup = pCollision->m_MapData.m_SpeedupLayer.m_pForce;
+  const unsigned char *pSwitch = pCollision->m_MapData.m_SwitchLayer.m_pType;
+  const unsigned char *pTune = pCollision->m_MapData.m_TuneLayer.m_pType;
 
   if ((pTiles[Index] >= TILE_FREEZE &&
        pTiles[Index] <= TILE_TELE_LASER_DISABLE) ||
@@ -268,8 +348,8 @@ int get_move_restrictions(SCollision *pCollision,
     if (d == MR_DIR_HERE && OverrideCenterTileIndex >= 0) {
       ModMapIndex = OverrideCenterTileIndex;
     }
-    for (int Front = 0; Front < 2 - !(pCollision->m_FrontLayer.m_pData);
-         Front++) {
+    for (int Front = 0;
+         Front < 2 - !(pCollision->m_MapData.m_FrontLayer.m_pData); Front++) {
       int Tile;
       int Flags;
       if (!Front) {
@@ -282,13 +362,14 @@ int get_move_restrictions(SCollision *pCollision,
       Restrictions |= move_restrictions(d, Tile, Flags);
     }
     if (pfnSwitchActive) {
-      if (pCollision->m_DoorLayer.m_pIndex && ModMapIndex >= 0 &&
-          pCollision->m_DoorLayer.m_pIndex[ModMapIndex]) {
-        if (pfnSwitchActive(pCollision->m_DoorLayer.m_pNumber[ModMapIndex],
-                            pUser)) {
+      if (pCollision->m_MapData.m_DoorLayer.m_pIndex && ModMapIndex >= 0 &&
+          pCollision->m_MapData.m_DoorLayer.m_pIndex[ModMapIndex]) {
+        if (pfnSwitchActive(
+                pCollision->m_MapData.m_DoorLayer.m_pNumber[ModMapIndex],
+                pUser)) {
           Restrictions |= move_restrictions(
-              d, pCollision->m_DoorLayer.m_pIndex[ModMapIndex],
-              pCollision->m_DoorLayer.m_pFlags[ModMapIndex]);
+              d, pCollision->m_MapData.m_DoorLayer.m_pIndex[ModMapIndex],
+              pCollision->m_MapData.m_DoorLayer.m_pFlags[ModMapIndex]);
         }
       }
     }
@@ -299,7 +380,7 @@ int get_move_restrictions(SCollision *pCollision,
 int get_map_index(SCollision *pCollision, vec2 Pos) {
   int Nx = (int)Pos.x >> 5;
   int Ny = (int)Pos.y >> 5;
-  int Index = Ny * pCollision->m_Width + Nx;
+  int Index = Ny * pCollision->m_MapData.m_Width + Nx;
 
   if (tile_exists(pCollision, Index))
     return Index;
@@ -310,14 +391,16 @@ int get_map_index(SCollision *pCollision, vec2 Pos) {
 inline bool check_point(SCollision *pCollision, vec2 Pos) {
   int Nx = (int)(Pos.x + 0.5f) >> 5;
   int Ny = (int)(Pos.y + 0.5f) >> 5;
-  int Idx = pCollision->m_GameLayer.m_pData[Ny * pCollision->m_Width + Nx];
+  int Idx = pCollision->m_MapData.m_GameLayer
+                .m_pData[Ny * pCollision->m_MapData.m_Width + Nx];
   return Idx == TILE_SOLID || Idx == TILE_NOHOOK;
 }
 
 static inline bool check_point_int(SCollision *pCollision, ivec2 Pos) {
   int Nx = Pos.x >> 5;
   int Ny = Pos.y >> 5;
-  int Idx = pCollision->m_GameLayer.m_pData[Ny * pCollision->m_Width + Nx];
+  int Idx = pCollision->m_MapData.m_GameLayer
+                .m_pData[Ny * pCollision->m_MapData.m_Width + Nx];
   return Idx == TILE_SOLID || Idx == TILE_NOHOOK;
 }
 
@@ -347,8 +430,8 @@ bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY,
                 vec2 Pos0, vec2 Pos1) {
   int pos = get_pure_map_index(pCollision, vec2_init(x, y));
 
-  unsigned char *pFrontIdx = pCollision->m_FrontLayer.m_pData;
-  unsigned char *pFrontFlgs = pCollision->m_FrontLayer.m_pFlags;
+  unsigned char *pFrontIdx = pCollision->m_MapData.m_FrontLayer.m_pData;
+  unsigned char *pFrontFlgs = pCollision->m_MapData.m_FrontLayer.m_pFlags;
   if (pFrontIdx && (pFrontIdx[pos] == TILE_THROUGH_ALL ||
                     pFrontIdx[pos] == TILE_THROUGH_CUT))
     return true;
@@ -360,7 +443,7 @@ bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY,
     return true;
   int offpos =
       get_pure_map_index(pCollision, vec2_init(x + OffsetX, y + OffsetY));
-  unsigned char *pTileIdx = pCollision->m_GameLayer.m_pData;
+  unsigned char *pTileIdx = pCollision->m_MapData.m_GameLayer.m_pData;
   return pTileIdx[offpos] == TILE_THROUGH ||
          (pFrontIdx && pFrontIdx[offpos] == TILE_THROUGH);
 }
@@ -368,11 +451,11 @@ bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY,
 bool is_hook_blocker(SCollision *pCollision, int x, int y, vec2 Pos0,
                      vec2 Pos1) {
   int pos = get_pure_map_index(pCollision, vec2_init(x, y));
-  unsigned char *pTileIdx = pCollision->m_GameLayer.m_pData;
-  unsigned char *pTileFlgs = pCollision->m_GameLayer.m_pData;
+  unsigned char *pTileIdx = pCollision->m_MapData.m_GameLayer.m_pData;
+  unsigned char *pTileFlgs = pCollision->m_MapData.m_GameLayer.m_pData;
 
-  unsigned char *pFrontIdx = pCollision->m_FrontLayer.m_pData;
-  unsigned char *pFrontFlgs = pCollision->m_FrontLayer.m_pFlags;
+  unsigned char *pFrontIdx = pCollision->m_MapData.m_FrontLayer.m_pData;
+  unsigned char *pFrontFlgs = pCollision->m_MapData.m_FrontLayer.m_pFlags;
   if (pTileIdx[pos] == TILE_THROUGH_ALL ||
       (pFrontIdx && pFrontIdx[pos] == TILE_THROUGH_ALL))
     return true;
@@ -399,7 +482,7 @@ int intersect_line_tele_hook(SCollision *pCollision, vec2 Pos0, vec2 Pos1,
   ThroughOffset(Pos0, Pos1, &dx, &dy);
   int LastIndex = 0;
   const float Step = 1.f / End;
-  const int Width = pCollision->m_Width;
+  const int Width = pCollision->m_MapData.m_Width;
   for (float a = 0; a <= 1.f; a += Step) {
     vec2 Pos = vvfmix(Pos0, Pos1, a);
     const int ix = (int)(Pos.x + 0.5f);
@@ -469,26 +552,27 @@ bool test_box(SCollision *pCollision, vec2 Pos, vec2 Size) {
 }
 
 int is_tune(SCollision *pCollision, int Index) {
-  if (!pCollision->m_TuneLayer.m_pType)
+  if (!pCollision->m_MapData.m_TuneLayer.m_pType)
     return 0;
-  if (pCollision->m_TuneLayer.m_pType[Index])
-    return pCollision->m_TuneLayer.m_pNumber[Index];
+  if (pCollision->m_MapData.m_TuneLayer.m_pType[Index])
+    return pCollision->m_MapData.m_TuneLayer.m_pNumber[Index];
   return 0;
 }
 
 bool is_speedup(SCollision *pCollision, int Index) {
-  return pCollision->m_SpeedupLayer.m_pType &&
-         pCollision->m_SpeedupLayer.m_pForce[Index] > 0;
+  return pCollision->m_MapData.m_SpeedupLayer.m_pType &&
+         pCollision->m_MapData.m_SpeedupLayer.m_pForce[Index] > 0;
 }
 
 void get_speedup(SCollision *pCollision, int Index, vec2 *pDir, int *pForce,
                  int *pMaxSpeed, int *pType) {
-  float Angle = pCollision->m_SpeedupLayer.m_pAngle[Index] * (PI / 180.0f);
-  *pForce = pCollision->m_SpeedupLayer.m_pForce[Index];
-  *pType = pCollision->m_SpeedupLayer.m_pType[Index];
+  float Angle =
+      pCollision->m_MapData.m_SpeedupLayer.m_pAngle[Index] * (PI / 180.0f);
+  *pForce = pCollision->m_MapData.m_SpeedupLayer.m_pForce[Index];
+  *pType = pCollision->m_MapData.m_SpeedupLayer.m_pType[Index];
   *pDir = vdirection(Angle);
   if (pMaxSpeed)
-    *pMaxSpeed = pCollision->m_SpeedupLayer.m_pMaxSpeed[Index];
+    *pMaxSpeed = pCollision->m_MapData.m_SpeedupLayer.m_pMaxSpeed[Index];
 }
 
 const vec2 *spawn_points(SCollision *pCollision, int *pOutNum) {
@@ -632,11 +716,11 @@ int get_index(SCollision *pCollision, vec2 PrevPos, vec2 Pos) {
     int Nx = (int)Pos.x >> 5;
     int Ny = (int)Pos.y >> 5;
 
-    if (pCollision->m_TeleLayer.m_pType ||
-        (pCollision->m_SpeedupLayer.m_pForce &&
-         pCollision->m_SpeedupLayer.m_pForce[Ny * pCollision->m_Width + Nx] >
-             0)) {
-      return Ny * pCollision->m_Width + Nx;
+    if (pCollision->m_MapData.m_TeleLayer.m_pType ||
+        (pCollision->m_MapData.m_SpeedupLayer.m_pForce &&
+         pCollision->m_MapData.m_SpeedupLayer
+                 .m_pForce[Ny * pCollision->m_MapData.m_Width + Nx] > 0)) {
+      return Ny * pCollision->m_MapData.m_Width + Nx;
     }
   }
 
@@ -645,11 +729,11 @@ int get_index(SCollision *pCollision, vec2 PrevPos, vec2 Pos) {
     vec2 Tmp = vvfmix(PrevPos, Pos, a);
     int Nx = (int)Tmp.x >> 5;
     int Ny = (int)Tmp.y >> 5;
-    if (pCollision->m_TeleLayer.m_pType ||
-        (pCollision->m_SpeedupLayer.m_pForce &&
-         pCollision->m_SpeedupLayer.m_pForce[Ny * pCollision->m_Width + Nx] >
-             0)) {
-      return Ny * pCollision->m_Width + Nx;
+    if (pCollision->m_MapData.m_TeleLayer.m_pType ||
+        (pCollision->m_MapData.m_SpeedupLayer.m_pForce &&
+         pCollision->m_MapData.m_SpeedupLayer
+                 .m_pForce[Ny * pCollision->m_MapData.m_Width + Nx] > 0)) {
+      return Ny * pCollision->m_MapData.m_Width + Nx;
     }
   }
 
@@ -659,14 +743,16 @@ int get_index(SCollision *pCollision, vec2 PrevPos, vec2 Pos) {
 int mover_speed(SCollision *pCollision, int x, int y, vec2 *pSpeed) {
   int Nx = x >> 5;
   int Ny = y >> 5;
-  int Index = pCollision->m_GameLayer.m_pData[Ny * pCollision->m_Width + Nx];
+  int Index = pCollision->m_MapData.m_GameLayer
+                  .m_pData[Ny * pCollision->m_MapData.m_Width + Nx];
 
   if (Index != TILE_CP && Index != TILE_CP_F) {
     return 0;
   }
 
   vec2 Target;
-  switch (pCollision->m_GameLayer.m_pFlags[Ny * pCollision->m_Width + Nx]) {
+  switch (pCollision->m_MapData.m_GameLayer
+              .m_pFlags[Ny * pCollision->m_MapData.m_Width + Nx]) {
   case ROTATION_0:
     Target.x = 0.0f;
     Target.y = -4.0f;
@@ -695,23 +781,24 @@ int mover_speed(SCollision *pCollision, int x, int y, vec2 *pSpeed) {
 }
 
 int entity(SCollision *pCollision, int x, int y, int Layer) {
-  if (x < 0 || x >= pCollision->m_Width || y < 0 || y >= pCollision->m_Height)
+  if (x < 0 || x >= pCollision->m_MapData.m_Width || y < 0 ||
+      y >= pCollision->m_MapData.m_Height)
     return 0;
 
-  const int Index = y * pCollision->m_Width + x;
+  const int Index = y * pCollision->m_MapData.m_Width + x;
   switch (Layer) {
   case LAYER_GAME:
-    return pCollision->m_GameLayer.m_pData[Index] - ENTITY_OFFSET;
+    return pCollision->m_MapData.m_GameLayer.m_pData[Index] - ENTITY_OFFSET;
   case LAYER_FRONT:
-    return pCollision->m_FrontLayer.m_pData[Index] - ENTITY_OFFSET;
+    return pCollision->m_MapData.m_FrontLayer.m_pData[Index] - ENTITY_OFFSET;
   case LAYER_SWITCH:
-    return pCollision->m_SwitchLayer.m_pType[Index] - ENTITY_OFFSET;
+    return pCollision->m_MapData.m_SwitchLayer.m_pType[Index] - ENTITY_OFFSET;
   case LAYER_TELE:
-    return pCollision->m_TeleLayer.m_pType[Index] - ENTITY_OFFSET;
+    return pCollision->m_MapData.m_TeleLayer.m_pType[Index] - ENTITY_OFFSET;
   case LAYER_SPEEDUP:
-    return pCollision->m_SpeedupLayer.m_pType[Index] - ENTITY_OFFSET;
+    return pCollision->m_MapData.m_SpeedupLayer.m_pType[Index] - ENTITY_OFFSET;
   case LAYER_TUNE:
-    return pCollision->m_TuneLayer.m_pType[Index] - ENTITY_OFFSET;
+    return pCollision->m_MapData.m_TuneLayer.m_pType[Index] - ENTITY_OFFSET;
   default:
     printf("Error while initializing gameworld: invalid layer found\n");
   }

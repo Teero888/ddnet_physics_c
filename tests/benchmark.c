@@ -1,4 +1,5 @@
 #include "../src/gamecore.h"
+#include "collision.h"
 #include "map_loader.h"
 #include <stdio.h>
 #include <string.h>
@@ -86,8 +87,8 @@ int aRandom[256] = {
 #define TICKS 1000000
 
 int main(void) {
-  SMapData Collision = load_map("tests/maps/ctf1.map", true);
-  if (!Collision.m_GameLayer.m_pData)
+  SCollision Collision;
+  if (!init_collision(&Collision, "tests/maps/ctf1.map"))
     return 1;
 
   SConfig Config;
@@ -120,7 +121,7 @@ int main(void) {
   printf("Resulting in %s TPS\n", aBuf);
 
   wc_free(&World);
-  free_map_data(&Collision);
+  free_collision(&Collision);
 
   return 0;
 }

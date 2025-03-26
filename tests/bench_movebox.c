@@ -33,8 +33,8 @@ void format_int(long long num, char *result) {
 #define ITERATIONS 1000000
 
 int main(void) {
-  SMapData Collision = load_map("tests/maps/ctf1.map", true);
-  if (!Collision.m_GameLayer.m_pData)
+  SCollision Collision;
+  if (!init_collision(&Collision, "tests/maps/ctf1.map"))
     return 1;
 
   vec2 Pos;
@@ -55,7 +55,7 @@ int main(void) {
   format_int((float)ITERATIONS / elapsed_time, aBuf);
   printf("Resulting in %s move_box calls per second\n", aBuf);
 
-  free_map_data(&Collision);
+  free_collision(&Collision);
 
   return 0;
 }

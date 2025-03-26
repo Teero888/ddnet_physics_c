@@ -1,4 +1,5 @@
 #include "../src/gamecore.h"
+#include "collision.h"
 #include "data.h"
 #include "map_loader.h"
 #include "vmath.h"
@@ -32,8 +33,8 @@ int main(void) {
     const SValidation *pData = s_aTests[Test].m_pValidationData;
     char aMapPath[64];
     snprintf(aMapPath, 64, "tests/maps/%s", pData->m_aMapName);
-    SMapData Collision = load_map(aMapPath, true);
-    if (!Collision.m_GameLayer.m_pData)
+    SCollision Collision;
+    if (!init_collision(&Collision, aMapPath))
       return 1;
 
     SConfig Config;
@@ -83,7 +84,7 @@ int main(void) {
     }
 
     wc_free(&World);
-    free_map_data(&Collision);
+    free_collision(&Collision);
   }
 
   return 0;
