@@ -9,6 +9,7 @@ extern inline vec2 vvsub(vec2 a, vec2 b);
 extern inline float vdot(vec2 a, vec2 b);
 extern inline float vlength(vec2 a);
 extern inline float vdistance(vec2 a, vec2 b);
+extern inline float vsqlength(vec2 a);
 extern inline vec2 vnormalize(vec2 a);
 extern inline bool vvcmp(vec2 a, vec2 b);
 extern inline int round_to_int(float f);

@@ -36,7 +36,7 @@ typedef struct {
   int m_WantedWeapon;
 } SPlayerInput;
 
-enum { ENTTYPE_PROJECTILE = 0, ENTTYPE_LASER, ENTTYPE_PICKUP, NUM_ENTTYPES };
+enum { ENTTYPE_PROJECTILE = 0, ENTTYPE_LASER, NUM_ENTTYPES };
 
 // Entities {{{
 
@@ -46,7 +46,6 @@ typedef struct Entity {
   struct Entity *m_pPrevTypeEntity;
   struct Entity *m_pNextTypeEntity;
   vec2 m_Pos;
-  float m_ProximityRadius;
   int m_ObjType;
   int m_Number;
   int m_Layer;
@@ -54,8 +53,12 @@ typedef struct Entity {
 } SEntity;
 
 typedef struct Pickup {
-  SEntity m_Base;
+  struct WorldCore *m_pWorld;
+  SCollision *m_pCollision;
+  vec2 m_Pos;
   vec2 m_Core;
+  int m_Number;
+  int m_Layer;
   int m_Type;
   int m_Subtype;
 } SPickup;
@@ -189,6 +192,11 @@ typedef struct WorldCore {
 
   SEntity *m_pNextTraverseEntity;
   SEntity *m_apFirstEntityTypes[NUM_ENTTYPES];
+
+  // Pickups can't be destroyed or created at runtime so don't use the linked
+  // list for them
+  int m_NumPickups;
+  SPickup *m_pPickups;
 
   // Store and tick characters seperately from other entities since
   // the amount of players mostly only gets set once for simulations

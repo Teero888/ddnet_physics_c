@@ -1,5 +1,6 @@
 CC = gcc
-OPT = -O3 -march=native -mavx2 -mfma -msse4.1 -funroll-loops -mfpmath=sse -fno-trapping-math -fno-signed-zeros -mtune=native
+LTO = -flto -march=native -mtune=native
+OPT = -O3 -mavx2 -mfma -msse4.1 -funroll-loops -mfpmath=sse -fno-trapping-math -fno-signed-zeros
 BASE_CFLAGS = -g -std=c99 -Wall -Wextra -I./src -I./libs/ddnet_maploader_c
 LDFLAGS = -lm -lz
 

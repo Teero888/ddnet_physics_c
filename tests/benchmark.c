@@ -1,6 +1,5 @@
 #include "../src/gamecore.h"
 #include "collision.h"
-#include "map_loader.h"
 #include <stdio.h>
 #include <string.h>
 #include <time.h>

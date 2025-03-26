@@ -14,6 +14,140 @@ enum {
   NUM_MR_DIRS
 };
 
+static bool tile_exists_next(SCollision *pCollision, int Index) {
+  const unsigned char *pTileIdx = pCollision->m_MapData.m_GameLayer.m_pData;
+  const unsigned char *pTileFlgs = pCollision->m_MapData.m_GameLayer.m_pFlags;
+  const unsigned char *pFrontIdx = pCollision->m_MapData.m_FrontLayer.m_pData;
+  const unsigned char *pFrontFlgs = pCollision->m_MapData.m_FrontLayer.m_pFlags;
+  const unsigned char *pDoorIdx = pCollision->m_MapData.m_DoorLayer.m_pIndex;
+  const unsigned char *pDoorFlgs = pCollision->m_MapData.m_DoorLayer.m_pFlags;
+  int TileOnTheLeft = (Index - 1 > 0) ? Index - 1 : Index;
+  int TileOnTheRight = (Index + 1 < pCollision->m_MapData.m_Width *
+                                        pCollision->m_MapData.m_Height)
+                           ? Index + 1
+                           : Index;
+  int TileBelow =
+      (Index + pCollision->m_MapData.m_Width <
+       pCollision->m_MapData.m_Width * pCollision->m_MapData.m_Height)
+          ? Index + pCollision->m_MapData.m_Width
+          : Index;
+  int TileAbove = (Index - pCollision->m_MapData.m_Width > 0)
+                      ? Index - pCollision->m_MapData.m_Width
+                      : Index;
+
+  if ((pTileIdx[TileOnTheRight] == TILE_STOP &&
+       pTileFlgs[TileOnTheRight] == ROTATION_270) ||
+      (pTileIdx[TileOnTheLeft] == TILE_STOP &&
+       pTileFlgs[TileOnTheLeft] == ROTATION_90))
+    return true;
+  if ((pTileIdx[TileBelow] == TILE_STOP &&
+       pTileFlgs[TileBelow] == ROTATION_0) ||
+      (pTileIdx[TileAbove] == TILE_STOP &&
+       pTileFlgs[TileAbove] == ROTATION_180))
+    return true;
+  if (pTileIdx[TileOnTheRight] == TILE_STOPA ||
+      pTileIdx[TileOnTheLeft] == TILE_STOPA ||
+      ((pTileIdx[TileOnTheRight] == TILE_STOPS ||
+        pTileIdx[TileOnTheLeft] == TILE_STOPS)))
+    return true;
+  if (pTileIdx[TileBelow] == TILE_STOPA || pTileIdx[TileAbove] == TILE_STOPA ||
+      ((pTileIdx[TileBelow] == TILE_STOPS ||
+        pTileIdx[TileAbove] == TILE_STOPS) &&
+       pTileFlgs[TileBelow] | ROTATION_180 | ROTATION_0))
+    return true;
+
+  if (pFrontIdx) {
+    if (pFrontIdx[TileOnTheRight] == TILE_STOPA ||
+        pFrontIdx[TileOnTheLeft] == TILE_STOPA ||
+        ((pFrontIdx[TileOnTheRight] == TILE_STOPS ||
+          pFrontIdx[TileOnTheLeft] == TILE_STOPS)))
+      return true;
+    if (pFrontIdx[TileBelow] == TILE_STOPA ||
+        pFrontIdx[TileAbove] == TILE_STOPA ||
+        ((pFrontIdx[TileBelow] == TILE_STOPS ||
+          pFrontIdx[TileAbove] == TILE_STOPS) &&
+         pFrontFlgs[TileBelow] | ROTATION_180 | ROTATION_0))
+      return true;
+    if ((pFrontIdx[TileOnTheRight] == TILE_STOP &&
+         pFrontFlgs[TileOnTheRight] == ROTATION_270) ||
+        (pFrontIdx[TileOnTheLeft] == TILE_STOP &&
+         pFrontFlgs[TileOnTheLeft] == ROTATION_90))
+      return true;
+    if ((pFrontIdx[TileBelow] == TILE_STOP &&
+         pFrontFlgs[TileBelow] == ROTATION_0) ||
+        (pFrontIdx[TileAbove] == TILE_STOP &&
+         pFrontFlgs[TileAbove] == ROTATION_180))
+      return true;
+  }
+  if (pDoorIdx) {
+    if (pDoorIdx[TileOnTheRight] == TILE_STOPA ||
+        pDoorIdx[TileOnTheLeft] == TILE_STOPA ||
+        ((pDoorIdx[TileOnTheRight] == TILE_STOPS ||
+          pDoorIdx[TileOnTheLeft] == TILE_STOPS)))
+      return true;
+    if (pDoorIdx[TileBelow] == TILE_STOPA ||
+        pDoorIdx[TileAbove] == TILE_STOPA ||
+        ((pDoorIdx[TileBelow] == TILE_STOPS ||
+          pDoorIdx[TileAbove] == TILE_STOPS) &&
+         pDoorFlgs[TileBelow] | ROTATION_180 | ROTATION_0))
+      return true;
+    if ((pDoorIdx[TileOnTheRight] == TILE_STOP &&
+         pDoorFlgs[TileOnTheRight] == ROTATION_270) ||
+        (pDoorIdx[TileOnTheLeft] == TILE_STOP &&
+         pDoorFlgs[TileOnTheLeft] == ROTATION_90))
+      return true;
+    if ((pDoorIdx[TileBelow] == TILE_STOP &&
+         pDoorFlgs[TileBelow] == ROTATION_0) ||
+        (pDoorIdx[TileAbove] == TILE_STOP &&
+         pDoorFlgs[TileAbove] == ROTATION_180))
+      return true;
+  }
+  return false;
+}
+
+static bool tile_exists(SCollision *pCollision, int Index) {
+  const unsigned char *pTiles = pCollision->m_MapData.m_GameLayer.m_pData;
+  const unsigned char *pFront = pCollision->m_MapData.m_FrontLayer.m_pData;
+  const unsigned char *pDoor = pCollision->m_MapData.m_DoorLayer.m_pIndex;
+  const unsigned char *pTele = pCollision->m_MapData.m_TeleLayer.m_pType;
+  const unsigned char *pSpeedup = pCollision->m_MapData.m_SpeedupLayer.m_pForce;
+  const unsigned char *pSwitch = pCollision->m_MapData.m_SwitchLayer.m_pType;
+  const unsigned char *pTune = pCollision->m_MapData.m_TuneLayer.m_pType;
+
+  if ((pTiles[Index] >= TILE_FREEZE &&
+       pTiles[Index] <= TILE_TELE_LASER_DISABLE) ||
+      (pTiles[Index] >= TILE_LFREEZE && pTiles[Index] <= TILE_LUNFREEZE))
+    return true;
+  if (pFront &&
+      ((pFront[Index] >= TILE_FREEZE &&
+        pFront[Index] <= TILE_TELE_LASER_DISABLE) ||
+       (pFront[Index] >= TILE_LFREEZE && pFront[Index] <= TILE_LUNFREEZE)))
+    return true;
+  if (pTele &&
+      (pTele[Index] == TILE_TELEIN || pTele[Index] == TILE_TELEINEVIL ||
+       pTele[Index] == TILE_TELECHECKINEVIL || pTele[Index] == TILE_TELECHECK ||
+       pTele[Index] == TILE_TELECHECKIN))
+    return true;
+  if (pSpeedup && pSpeedup[Index] > 0)
+    return true;
+  if (pDoor && pDoor[Index])
+    return true;
+  if (pSwitch && pSwitch[Index])
+    return true;
+  if (pTune && pTune[Index])
+    return true;
+  return tile_exists_next(pCollision, Index);
+}
+
+static void init_exists_map(SCollision *pCollision) {
+  for (int y = 0; y < pCollision->m_MapData.m_Height; ++y) {
+    for (int x = 0; x < pCollision->m_MapData.m_Width; ++x) {
+      const int Idx = y * pCollision->m_MapData.m_Width + x;
+      pCollision->m_pTileExists[Idx] = tile_exists(pCollision, Idx);
+    }
+  }
+}
+
 bool init_collision(SCollision *pCollision, const char *pMap) {
   pCollision->m_MapData = load_map(pMap);
   if (!pCollision->m_MapData.m_GameLayer.m_pData)
@@ -23,9 +157,16 @@ bool init_collision(SCollision *pCollision, const char *pMap) {
   int Width = pMapData->m_Width;
   int Height = pMapData->m_Height;
 
+  pCollision->m_pTileExists = malloc(Width * Height);
+  init_exists_map(pCollision);
+
   // Figure out important things
   // Make lists of spawn points, tele outs and tele checkpoints outs
   for (int i = 0; i < Width * Height; ++i) {
+    int EntIdx = pMapData->m_GameLayer.m_pData[i] - ENTITY_OFFSET;
+    if ((EntIdx >= ENTITY_ARMOR_SHOTGUN && EntIdx <= ENTITY_ARMOR_LASER) ||
+        (EntIdx >= ENTITY_ARMOR_1 && EntIdx <= ENTITY_WEAPON_LASER))
+      ++pCollision->m_NumPickupsTotal;
     if (pMapData->m_GameLayer.m_pData[i] >= 192 &&
         pMapData->m_GameLayer.m_pData[i] <= 194)
       ++pCollision->m_NumSpawnPoints;
@@ -210,131 +351,6 @@ int get_front_collision_at(SCollision *pCollision, float x, float y) {
   return 0;
 }
 
-bool tile_exists_next(SCollision *pCollision, int Index) {
-  const unsigned char *pTileIdx = pCollision->m_MapData.m_GameLayer.m_pData;
-  const unsigned char *pTileFlgs = pCollision->m_MapData.m_GameLayer.m_pFlags;
-  const unsigned char *pFrontIdx = pCollision->m_MapData.m_FrontLayer.m_pData;
-  const unsigned char *pFrontFlgs = pCollision->m_MapData.m_FrontLayer.m_pFlags;
-  const unsigned char *pDoorIdx = pCollision->m_MapData.m_DoorLayer.m_pIndex;
-  const unsigned char *pDoorFlgs = pCollision->m_MapData.m_DoorLayer.m_pFlags;
-  int TileOnTheLeft = (Index - 1 > 0) ? Index - 1 : Index;
-  int TileOnTheRight = (Index + 1 < pCollision->m_MapData.m_Width *
-                                        pCollision->m_MapData.m_Height)
-                           ? Index + 1
-                           : Index;
-  int TileBelow =
-      (Index + pCollision->m_MapData.m_Width <
-       pCollision->m_MapData.m_Width * pCollision->m_MapData.m_Height)
-          ? Index + pCollision->m_MapData.m_Width
-          : Index;
-  int TileAbove = (Index - pCollision->m_MapData.m_Width > 0)
-                      ? Index - pCollision->m_MapData.m_Width
-                      : Index;
-
-  if ((pTileIdx[TileOnTheRight] == TILE_STOP &&
-       pTileFlgs[TileOnTheRight] == ROTATION_270) ||
-      (pTileIdx[TileOnTheLeft] == TILE_STOP &&
-       pTileFlgs[TileOnTheLeft] == ROTATION_90))
-    return true;
-  if ((pTileIdx[TileBelow] == TILE_STOP &&
-       pTileFlgs[TileBelow] == ROTATION_0) ||
-      (pTileIdx[TileAbove] == TILE_STOP &&
-       pTileFlgs[TileAbove] == ROTATION_180))
-    return true;
-  if (pTileIdx[TileOnTheRight] == TILE_STOPA ||
-      pTileIdx[TileOnTheLeft] == TILE_STOPA ||
-      ((pTileIdx[TileOnTheRight] == TILE_STOPS ||
-        pTileIdx[TileOnTheLeft] == TILE_STOPS)))
-    return true;
-  if (pTileIdx[TileBelow] == TILE_STOPA || pTileIdx[TileAbove] == TILE_STOPA ||
-      ((pTileIdx[TileBelow] == TILE_STOPS ||
-        pTileIdx[TileAbove] == TILE_STOPS) &&
-       pTileFlgs[TileBelow] | ROTATION_180 | ROTATION_0))
-    return true;
-
-  if (pFrontIdx) {
-    if (pFrontIdx[TileOnTheRight] == TILE_STOPA ||
-        pFrontIdx[TileOnTheLeft] == TILE_STOPA ||
-        ((pFrontIdx[TileOnTheRight] == TILE_STOPS ||
-          pFrontIdx[TileOnTheLeft] == TILE_STOPS)))
-      return true;
-    if (pFrontIdx[TileBelow] == TILE_STOPA ||
-        pFrontIdx[TileAbove] == TILE_STOPA ||
-        ((pFrontIdx[TileBelow] == TILE_STOPS ||
-          pFrontIdx[TileAbove] == TILE_STOPS) &&
-         pFrontFlgs[TileBelow] | ROTATION_180 | ROTATION_0))
-      return true;
-    if ((pFrontIdx[TileOnTheRight] == TILE_STOP &&
-         pFrontFlgs[TileOnTheRight] == ROTATION_270) ||
-        (pFrontIdx[TileOnTheLeft] == TILE_STOP &&
-         pFrontFlgs[TileOnTheLeft] == ROTATION_90))
-      return true;
-    if ((pFrontIdx[TileBelow] == TILE_STOP &&
-         pFrontFlgs[TileBelow] == ROTATION_0) ||
-        (pFrontIdx[TileAbove] == TILE_STOP &&
-         pFrontFlgs[TileAbove] == ROTATION_180))
-      return true;
-  }
-  if (pDoorIdx) {
-    if (pDoorIdx[TileOnTheRight] == TILE_STOPA ||
-        pDoorIdx[TileOnTheLeft] == TILE_STOPA ||
-        ((pDoorIdx[TileOnTheRight] == TILE_STOPS ||
-          pDoorIdx[TileOnTheLeft] == TILE_STOPS)))
-      return true;
-    if (pDoorIdx[TileBelow] == TILE_STOPA ||
-        pDoorIdx[TileAbove] == TILE_STOPA ||
-        ((pDoorIdx[TileBelow] == TILE_STOPS ||
-          pDoorIdx[TileAbove] == TILE_STOPS) &&
-         pDoorFlgs[TileBelow] | ROTATION_180 | ROTATION_0))
-      return true;
-    if ((pDoorIdx[TileOnTheRight] == TILE_STOP &&
-         pDoorFlgs[TileOnTheRight] == ROTATION_270) ||
-        (pDoorIdx[TileOnTheLeft] == TILE_STOP &&
-         pDoorFlgs[TileOnTheLeft] == ROTATION_90))
-      return true;
-    if ((pDoorIdx[TileBelow] == TILE_STOP &&
-         pDoorFlgs[TileBelow] == ROTATION_0) ||
-        (pDoorIdx[TileAbove] == TILE_STOP &&
-         pDoorFlgs[TileAbove] == ROTATION_180))
-      return true;
-  }
-  return false;
-}
-
-bool tile_exists(SCollision *pCollision, int Index) {
-  const unsigned char *pTiles = pCollision->m_MapData.m_GameLayer.m_pData;
-  const unsigned char *pFront = pCollision->m_MapData.m_FrontLayer.m_pData;
-  const unsigned char *pDoor = pCollision->m_MapData.m_DoorLayer.m_pIndex;
-  const unsigned char *pTele = pCollision->m_MapData.m_TeleLayer.m_pType;
-  const unsigned char *pSpeedup = pCollision->m_MapData.m_SpeedupLayer.m_pForce;
-  const unsigned char *pSwitch = pCollision->m_MapData.m_SwitchLayer.m_pType;
-  const unsigned char *pTune = pCollision->m_MapData.m_TuneLayer.m_pType;
-
-  if ((pTiles[Index] >= TILE_FREEZE &&
-       pTiles[Index] <= TILE_TELE_LASER_DISABLE) ||
-      (pTiles[Index] >= TILE_LFREEZE && pTiles[Index] <= TILE_LUNFREEZE))
-    return true;
-  if (pFront &&
-      ((pFront[Index] >= TILE_FREEZE &&
-        pFront[Index] <= TILE_TELE_LASER_DISABLE) ||
-       (pFront[Index] >= TILE_LFREEZE && pFront[Index] <= TILE_LUNFREEZE)))
-    return true;
-  if (pTele &&
-      (pTele[Index] == TILE_TELEIN || pTele[Index] == TILE_TELEINEVIL ||
-       pTele[Index] == TILE_TELECHECKINEVIL || pTele[Index] == TILE_TELECHECK ||
-       pTele[Index] == TILE_TELECHECKIN))
-    return true;
-  if (pSpeedup && pSpeedup[Index] > 0)
-    return true;
-  if (pDoor && pDoor[Index])
-    return true;
-  if (pSwitch && pSwitch[Index])
-    return true;
-  if (pTune && pTune[Index])
-    return true;
-  return tile_exists_next(pCollision, Index);
-}
-
 int get_move_restrictions(SCollision *pCollision,
                           CALLBACK_SWITCHACTIVE pfnSwitchActive, void *pUser,
                           vec2 Pos, int OverrideCenterTileIndex) {
@@ -382,7 +398,7 @@ int get_map_index(SCollision *pCollision, vec2 Pos) {
   int Ny = (int)Pos.y >> 5;
   int Index = Ny * pCollision->m_MapData.m_Width + Nx;
 
-  if (tile_exists(pCollision, Index))
+  if (pCollision->m_pTileExists[Index])
     return Index;
   else
     return -1;

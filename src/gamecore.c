@@ -130,12 +130,10 @@ static inline SInputCount count_input(int Prev, int Cur) {
 
 // Entities {{{
 
-void ent_init(SEntity *pEnt, SWorldCore *pGameWorld, int ObjType, vec2 Pos,
-              int ProximityRadius) {
+void ent_init(SEntity *pEnt, SWorldCore *pGameWorld, int ObjType, vec2 Pos) {
   pEnt->m_pWorld = pGameWorld;
   pEnt->m_ObjType = ObjType;
   pEnt->m_Pos = Pos;
-  pEnt->m_ProximityRadius = ProximityRadius;
   pEnt->m_pCollision = pGameWorld->m_pCollision;
   pEnt->m_MarkedForDestroy = false;
   pEnt->m_pPrevTypeEntity = NULL;
@@ -146,7 +144,7 @@ void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner,
               vec2 Pos, vec2 Dir, int Span, bool Freeze, bool Explosive,
               vec2 InitDir, int Layer, int Number) {
   memset(pProj, 0, sizeof(SProjectile));
-  ent_init(&pProj->m_Base, pGameWorld, ENTTYPE_PROJECTILE, Pos, 0);
+  ent_init(&pProj->m_Base, pGameWorld, ENTTYPE_PROJECTILE, Pos);
   pProj->m_Type = Type;
   pProj->m_Direction = Dir;
   pProj->m_LifeSpan = Span;
@@ -379,42 +377,40 @@ bool cc_freeze(SCharacterCore *pCore, int Seconds);
 void pick_init(SPickup *pPickup, SWorldCore *pGameWorld, int Type, int SubType,
                int Layer, int Number) {
   memset(pPickup, 0, sizeof(SPickup));
-  pPickup->m_Base.m_pWorld = pGameWorld;
-  pPickup->m_Base.m_pCollision = pGameWorld->m_pCollision;
-  pPickup->m_Base.m_ObjType = ENTTYPE_PICKUP;
-  pPickup->m_Base.m_ProximityRadius = 14;
+  pPickup->m_pWorld = pGameWorld;
+  pPickup->m_pCollision = pGameWorld->m_pCollision;
   pPickup->m_Core = vec2_init(0.0f, 0.0f);
   pPickup->m_Type = Type;
   pPickup->m_Subtype = SubType;
 
-  pPickup->m_Base.m_Layer = Layer;
-  pPickup->m_Base.m_Number = Number;
+  pPickup->m_Layer = Layer;
+  pPickup->m_Number = Number;
 }
 
 void pick_tick(SPickup *pPickup) {
-  if (pPickup->m_Base.m_pWorld->m_GameTick % (int)(SERVER_TICK_SPEED * 0.15f) ==
-      0) {
-    mover_speed(pPickup->m_Base.m_pCollision, pPickup->m_Base.m_Pos.x,
-                pPickup->m_Base.m_Pos.y, &pPickup->m_Core);
-    pPickup->m_Base.m_Pos = vvadd(pPickup->m_Base.m_Pos, pPickup->m_Core);
+  if (pPickup->m_pWorld->m_GameTick % (int)(SERVER_TICK_SPEED * 0.15f) == 0) {
+    mover_speed(pPickup->m_pCollision, pPickup->m_Pos.x, pPickup->m_Pos.y,
+                &pPickup->m_Core);
+    pPickup->m_Pos = vvadd(pPickup->m_Pos, pPickup->m_Core);
   }
 
-  for (int i = 0; i < pPickup->m_Base.m_pWorld->m_NumCharacters; ++i) {
-    SCharacterCore *pChar = &pPickup->m_Base.m_pWorld->m_pCharacters[i];
-    if (vdistance(pChar->m_Pos, pPickup->m_Base.m_Pos) >=
-        pPickup->m_Base.m_ProximityRadius + 6 + PHYSICALSIZE) {
+  for (int i = 0; i < pPickup->m_pWorld->m_NumCharacters; ++i) {
+    SCharacterCore *pChar = &pPickup->m_pWorld->m_pCharacters[i];
+    vec2 Sub = vvsub(pChar->m_Pos, pPickup->m_Pos);
+    // Do cheap check first
+    if (vsqlength(Sub) >
+            (PICKUPSIZE + 6 + PHYSICALSIZE) * (PICKUPSIZE + 6 + PHYSICALSIZE) ||
+        vlength(Sub) >= PICKUPSIZE + 6 + PHYSICALSIZE) {
       continue;
     }
 
-    if (pPickup->m_Base.m_Layer == LAYER_SWITCH &&
-        pPickup->m_Base.m_Number > 0 &&
-        !pPickup->m_Base.m_pWorld->m_vSwitches[pPickup->m_Base.m_Number]
-             .m_Status)
+    if (pPickup->m_Layer == LAYER_SWITCH && pPickup->m_Number > 0 &&
+        !pPickup->m_pWorld->m_vSwitches[pPickup->m_Number].m_Status)
       continue;
 
     switch (pPickup->m_Type) {
     case POWERUP_HEALTH:
-      cc_freeze(pChar, pChar->m_pWorld->m_pConfig->m_SvFreezeDelay);
+      // cc_freeze(pChar, pChar->m_pWorld->m_pConfig->m_SvFreezeDelay);
       break;
 
     case POWERUP_ARMOR:
@@ -1212,7 +1208,7 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
     int Ny = (int)pCore->m_Pos.y >> 5;
     int Index = Ny * pCore->m_pCollision->m_MapData.m_Width + Nx;
 
-    if (tile_exists(pCore->m_pCollision, Index)) {
+    if (pCore->m_pCollision->m_pTileExists[Index]) {
       Handled = true;
       cc_handle_tiles(pCore, Index);
     }
@@ -1224,7 +1220,7 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
       int Nx = (int)Tmp.x >> 5;
       int Ny = (int)Tmp.y >> 5;
       int Index = Ny * pCore->m_pCollision->m_MapData.m_Width + Nx;
-      if (tile_exists(pCore->m_pCollision, Index) && LastIndex != Index) {
+      if (pCore->m_pCollision->m_pTileExists[Index] && LastIndex != Index) {
         cc_handle_tiles(pCore, Index);
         LastIndex = Index;
         Handled = true;
@@ -2050,7 +2046,8 @@ bool wc_on_entity(SWorldCore *pCore, int Index, int x, int y, int Layer,
     //   AngularSpeed = PI / 90;
     // AngularSpeed *= M;
     // for (int i = 0; i < 8; i++) {
-    //   if (aSides[i] >= ENTITY_LASER_SHORT && aSides[i] <= ENTITY_LASER_LONG)
+    //   if (aSides[i] >= ENTITY_LASER_SHORT && aSides[i] <=
+    //   ENTITY_LASER_LONG)
     //   {
     //     CLight *pLight = new CLight(
     //         &GameServer()->m_World, Pos, pi / 4 * i,
@@ -2089,10 +2086,9 @@ bool wc_on_entity(SWorldCore *pCore, int Index, int x, int y, int Layer,
   }
 
   if (Type != -1) {
-    SPickup *pPickup = malloc(sizeof(SPickup));
+    SPickup *pPickup = &pCore->m_pPickups[pCore->m_NumPickups++];
     pick_init(pPickup, pCore, Type, SubType, Layer, Number);
-    pPickup->m_Base.m_Pos = Pos;
-    wc_insert_entity(pCore, (SEntity *)pPickup);
+    pPickup->m_Pos = Pos;
     return true;
   }
 
@@ -2177,6 +2173,8 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig) {
   pCore->m_NoWeakHook = false;
   pCore->m_NoWeakHookAndBounce = false;
 
+  pCore->m_pPickups = malloc(pCollision->m_NumPickupsTotal * sizeof(SPickup));
+
   wc_create_all_entities(pCore);
 }
 
@@ -2218,11 +2216,8 @@ void wc_tick(SWorldCore *pCore) {
     // }
 
     // Tick pickups
-    pEntity = pCore->m_apFirstEntityTypes[ENTTYPE_PICKUP];
-    while (pEntity) {
-      pick_tick((SPickup *)pEntity);
-      pEntity = pEntity->m_pNextTypeEntity;
-    }
+    for (int i = 0; i < pCore->m_NumPickups; ++i)
+      pick_tick(&pCore->m_pPickups[i]);
 
     // Tick characters
     if (pCore->m_NoWeakHook) {

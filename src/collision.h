@@ -13,6 +13,7 @@ enum {
 };
 
 #define DEATH 9
+#define PICKUPSIZE 14
 #define PHYSICALSIZE 28.f
 #define HALFPHYSICALSIZE 14
 #define PHYSICALSIZEVEC vec2_init(28.f, 28.f)
@@ -20,12 +21,16 @@ enum {
 typedef struct Collision {
   SMapData m_MapData;
 
+  int m_NumPickupsTotal;
+
   int m_NumSpawnPoints;
   vec2 *m_pSpawnPoints;
   int m_aNumTeleOuts[256];
   vec2 *m_apTeleOuts[256];
   int m_aNumTeleCheckOuts[256];
   vec2 *m_apTeleCheckOuts[256];
+
+  bool *m_pTileExists;
 
 } SCollision;
 
@@ -52,8 +57,6 @@ bool is_check_evil_teleport(SCollision *pCollision, int Index);
 int is_tele_checkpoint(SCollision *pCollision, int Index);
 int get_collision_at(SCollision *pCollision, float x, float y);
 int get_front_collision_at(SCollision *pCollision, float x, float y);
-bool tile_exists_next(SCollision *pCollision, int Index);
-bool tile_exists(SCollision *pCollision, int Index);
 int get_move_restrictions(SCollision *pCollision,
                           CALLBACK_SWITCHACTIVE pfnSwitchActive, void *pUser,
                           vec2 Pos, int OverrideCenterTileIndex);
