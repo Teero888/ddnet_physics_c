@@ -345,6 +345,8 @@ void prj_tick(SProjectile *pProj) {
     return;
   }
 
+  if (!pProj->m_Base.m_pCollision->m_TeleLayer.m_pType)
+    return;
   int x = get_index(pProj->m_Base.m_pCollision, PrevPos, CurPos);
   int z;
   if (pProj->m_Base.m_pWorld->m_pConfig->m_SvOldTeleportWeapons)
@@ -512,17 +514,11 @@ bool is_switch_active_cb(int Number, void *pUser) {
 }
 
 void cc_quantize(SCharacterCore *pCore) {
-#ifdef NO_COLLISION_CLAMP
   pCore->m_Pos.x = (int)(pCore->m_Pos.x + 0.5f);
   pCore->m_Pos.y = (int)(pCore->m_Pos.y + 0.5f);
   pCore->m_HookPos.x = (int)(pCore->m_HookPos.x + 0.5f);
   pCore->m_HookPos.y = (int)(pCore->m_HookPos.y + 0.5f);
-#else
-  pCore->m_Pos.x = round_to_int(pCore->m_Pos.x);
-  pCore->m_Pos.y = round_to_int(pCore->m_Pos.y);
-  pCore->m_HookPos.x = round_to_int(pCore->m_HookPos.x);
-  pCore->m_HookPos.y = round_to_int(pCore->m_HookPos.y);
-#endif
+
   pCore->m_Vel.x = round_to_int(pCore->m_Vel.x * 256.0f) / 256.0f;
   pCore->m_Vel.y = round_to_int(pCore->m_Vel.y * 256.0f) / 256.0f;
   pCore->m_HookDir.x = round_to_int(pCore->m_HookDir.x * 256.0f) / 256.f;
@@ -1212,10 +1208,8 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
   int End = d + 1;
   bool Handled = false;
   if (!d) {
-    int Nx =
-        iclamp((int)pCore->m_Pos.x >> 5, 0, pCore->m_pCollision->m_Width - 1);
-    int Ny =
-        iclamp((int)pCore->m_Pos.y >> 5, 0, pCore->m_pCollision->m_Height - 1);
+    int Nx = (int)pCore->m_Pos.x >> 5;
+    int Ny = (int)pCore->m_Pos.y >> 5;
     int Index = Ny * pCore->m_pCollision->m_Width + Nx;
 
     if (tile_exists(pCore->m_pCollision, Index)) {
@@ -1227,8 +1221,8 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
     for (int i = 0; i < End; i++) {
       float a = i / d;
       vec2 Tmp = vvfmix(pCore->m_PrevPos, pCore->m_Pos, a);
-      int Nx = iclamp((int)Tmp.x >> 5, 0, pCore->m_pCollision->m_Width - 1);
-      int Ny = iclamp((int)Tmp.y >> 5, 0, pCore->m_pCollision->m_Height - 1);
+      int Nx = (int)Tmp.x >> 5;
+      int Ny = (int)Tmp.y >> 5;
       int Index = Ny * pCore->m_pCollision->m_Width + Nx;
       if (tile_exists(pCore->m_pCollision, Index) && LastIndex != Index) {
         cc_handle_tiles(pCore, Index);

@@ -46,7 +46,6 @@ int get_move_restrictions(SCollision *pCollision,
                           vec2 Pos, int OverrideCenterTileIndex);
 int get_map_index(SCollision *pCollision, vec2 Pos);
 bool check_point(SCollision *pCollision, vec2 Pos);
-bool check_point_int(SCollision *pCollision, ivec2 Pos);
 void ThroughOffset(vec2 Pos0, vec2 Pos1, int *pOffsetX, int *pOffsetY);
 bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY,
                 vec2 Pos0, vec2 Pos1);
@@ -55,7 +54,6 @@ bool is_hook_blocker(SCollision *pCollision, int x, int y, vec2 Pos0,
 int intersect_line_tele_hook(SCollision *pCollision, vec2 Pos0, vec2 Pos1,
                              vec2 *pOutCollision, int *pTeleNr,
                              bool OldTeleHook);
-bool test_box_character(SCollision *pCollision, ivec2 Pos);
 bool test_box(SCollision *pCollision, vec2 Pos, vec2 Size);
 int is_tune(SCollision *pCollision, int Index);
 bool is_speedup(SCollision *pCollision, int Index);

@@ -8,6 +8,9 @@
 #define ALIGN(x) __attribute__((aligned(x)))
 #endif
 
+// TODO: precalculate a tile_exists map
+// and a get_move_restrictions map
+
 typedef union vec2 {
   struct {
     float x, y;
@@ -16,6 +19,7 @@ typedef union vec2 {
   __m128 simd;
 } ALIGN(16) vec2;
 
+// Only use this when really needed
 typedef struct ivec2 {
   int x, y;
 } ivec2;
@@ -62,15 +66,6 @@ inline int round_to_int(float f) {
 inline float fclamp(float n, float a, float b) {
   return n > b ? b : n < a ? a : n;
 }
-
-inline int ___iclamp(int n, int a, int b) { return n > b ? b : n < a ? a : n; }
-
-#ifdef NO_COLLISION_CLAMP
-#define iclamp(n, a, b) (n)
-#warning "NO_COLLISION_CLAMP is activated. Do not let your tee go out of bounds"
-#else
-#define iclamp(n, a, b) ___iclamp(n, a, b)
-#endif
 
 // saves ~20ms on the benchmark compared to non-simd usage within ddnet physics
 inline vec2 vvfmix(vec2 a, vec2 b, float t) {
