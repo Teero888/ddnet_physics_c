@@ -5,7 +5,7 @@
 #include "vmath.h"
 
 typedef struct TuningParams {
-#define MACRO_TUNING_PARAM(Name, ScriptName, Value, Description) float m_##Name;
+#define MACRO_TUNING_PARAM(Name, Value) float m_##Name;
 #include "tuning.h"
 #undef MACRO_TUNING_PARAM
 } STuningParams;
@@ -43,8 +43,8 @@ enum { ENTTYPE_PROJECTILE = 0, ENTTYPE_LASER, NUM_ENTTYPES };
 typedef struct Entity {
   struct WorldCore *m_pWorld;
   SCollision *m_pCollision;
-  struct Entity *m_pPrevTypeEntity;
-  struct Entity *m_pNextTypeEntity;
+  struct Entity *restrict m_pPrevTypeEntity;
+  struct Entity *restrict m_pNextTypeEntity;
   vec2 m_Pos;
   int m_ObjType;
   int m_Number;
@@ -124,13 +124,12 @@ typedef struct CharacterCore {
   SPlayerInput m_SavedInput;
 
   int m_NumInputs;
-
   // DDRace
   int m_StartTime;
 
-  int m_Colliding;
+  unsigned char m_Colliding;
   bool m_LeftWall;
-  int m_TeleCheckpoint;
+  unsigned char m_TeleCheckpoint;
 
   // Last refers to the last tick
   bool m_LastRefillJumps;
@@ -155,10 +154,11 @@ typedef struct CharacterCore {
   bool m_DeepFrozen;
   bool m_LiveFrozen;
   bool m_FrozenLastTick;
-  int m_TuneZone;
+  unsigned char m_TuneZone;
   STuningParams m_Tuning;
 
-  int m_MoveRestrictions;
+  unsigned char m_MoveRestrictions;
+  // we might have more than 255 player ids
   int m_HookedPlayer;
 
   vec2 m_TeleGunPos;

@@ -1,7 +1,6 @@
 #include "../src/gamecore.h"
 #include "collision.h"
 #include "data.h"
-#include "map_loader.h"
 #include "vmath.h"
 #include <stdio.h>
 

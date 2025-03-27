@@ -11,8 +11,7 @@
 #define NINJA_VELOCITY 50
 
 static void init_tuning_params(STuningParams *pTunings) {
-#define MACRO_TUNING_PARAM(Name, ScriptName, Value, Description)               \
-  pTunings->m_##Name = Value;
+#define MACRO_TUNING_PARAM(Name, Value) pTunings->m_##Name = Value;
 #include "tuning.h"
 #undef MACRO_TUNING_PARAM
 }
@@ -977,9 +976,9 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
 
   SSwitch *pSwitches = pCore->m_pWorld->m_vSwitches;
   if (pSwitches) {
-    int Number = get_switch_number(pCore->m_pCollision, MapIndex);
-    int Type = get_switch_type(pCore->m_pCollision, MapIndex);
-    int Delay = get_switch_delay(pCore->m_pCollision, MapIndex);
+    unsigned char Number = get_switch_number(pCore->m_pCollision, MapIndex);
+    unsigned char Type = get_switch_type(pCore->m_pCollision, MapIndex);
+    unsigned char Delay = get_switch_delay(pCore->m_pCollision, MapIndex);
     int Tick = pCore->m_pWorld->m_GameTick;
 
     SSwitch *pSwitch = &pSwitches[Number];
@@ -1208,7 +1207,7 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
     int Ny = (int)pCore->m_Pos.y >> 5;
     int Index = Ny * pCore->m_pCollision->m_MapData.m_Width + Nx;
 
-    if (pCore->m_pCollision->m_pTileExists[Index]) {
+    if (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT) {
       Handled = true;
       cc_handle_tiles(pCore, Index);
     }
@@ -1220,7 +1219,8 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
       int Nx = (int)Tmp.x >> 5;
       int Ny = (int)Tmp.y >> 5;
       int Index = Ny * pCore->m_pCollision->m_MapData.m_Width + Nx;
-      if (pCore->m_pCollision->m_pTileExists[Index] && LastIndex != Index) {
+      if (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT &&
+          LastIndex != Index) {
         cc_handle_tiles(pCore, Index);
         LastIndex = Index;
         Handled = true;
@@ -1642,11 +1642,13 @@ void wc_remove_entity(SWorldCore *pWorld, SEntity *pEnt);
 void cc_fire_weapon(SCharacterCore *pCore) {
   if (pCore->m_NumInputs < 2)
     return;
-
   if (pCore->m_ReloadTimer)
     return;
-
   cc_do_weapon_switch(pCore);
+
+  if (pCore->m_FreezeTime)
+    return;
+
   vec2 MouseTarget =
       vec2_init(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY);
   vec2 Direction = vnormalize(MouseTarget);
@@ -1677,10 +1679,6 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 
   if (!WillFire)
     return;
-
-  if (pCore->m_FreezeTime) {
-    return;
-  }
 
   vec2 ProjStartPos =
       vvadd(pCore->m_Pos, vfmul(Direction, PHYSICALSIZE * 0.75f));
@@ -1827,7 +1825,6 @@ void cc_tick(SCharacterCore *pCore) {
 void cc_handle_weapon_switch(SCharacterCore *pCore) {
   if (pCore->m_NumInputs < 2)
     return;
-
   int WantedWeapon = pCore->m_ActiveWeapon;
   if (pCore->m_QueuedWeapon != -1)
     WantedWeapon = pCore->m_QueuedWeapon;
