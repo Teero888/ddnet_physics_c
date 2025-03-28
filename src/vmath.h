@@ -33,6 +33,7 @@ inline vec2 vec2_init(float x, float y) {
   return (vec2){.simd = _mm_set_ps(0.0f, 0.0f, y, x)};
 }
 
+inline vec2 vvadd(vec2 a, vec2 b) { return vec2_init(a.x + b.x, a.y + b.y); }
 inline vec2 vfmul(vec2 a, float b) { return vec2_init(a.x * b, a.y * b); }
 
 // saves ~30ms on the benchmark
@@ -42,7 +43,6 @@ inline vec2 vfdiv(vec2 a, float b) {
 }
 
 inline vec2 vfadd(vec2 a, float b) { return vec2_init(a.x + b, a.y + b); }
-inline vec2 vvadd(vec2 a, vec2 b) { return vec2_init(a.x + b.x, a.y + b.y); }
 inline vec2 vvsub(vec2 a, vec2 b) { return vec2_init(a.x - b.x, a.y - b.y); }
 inline float vdot(vec2 a, vec2 b) { return a.x * b.x + a.y * b.y; };
 
@@ -50,6 +50,7 @@ inline float vlength(vec2 a) { return sqrt(a.x * a.x + a.y * a.y); }
 inline float vdistance(vec2 a, vec2 b) { return vlength(vvsub(a, b)); }
 
 inline float vsqlength(vec2 a) { return a.x * a.x + a.y * a.y; }
+inline float vsqdistance(vec2 a, vec2 b) { return vsqlength(vvsub(a, b)); }
 
 // this has to be this exact else it will generate super small differences
 // between these physics and the ddnet ones

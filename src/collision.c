@@ -1,4 +1,5 @@
 #include "collision.h"
+#include "gamecore.h"
 #include "limits.h"
 #include "map_loader.h"
 #include "vmath.h"
@@ -150,6 +151,8 @@ bool init_collision(SCollision *restrict pCollision,
   int Height = pMapData->m_Height;
 
   pCollision->m_pTileInfos = calloc(Width * Height, 1);
+  pCollision->m_pMoveRestrictions = calloc(Width * Height, 5);
+  pCollision->m_MoveRestrictionsFound = false;
 
   // Figure out important things
   // Make lists of spawn points, tele outs and tele checkpoints outs
@@ -160,6 +163,23 @@ bool init_collision(SCollision *restrict pCollision,
     if (pCollision->m_MapData.m_GameLayer.m_pData[i] == TILE_SOLID ||
         pCollision->m_MapData.m_GameLayer.m_pData[i] == TILE_NOHOOK)
       pCollision->m_pTileInfos[i] |= INFO_ISSOLID;
+
+    for (int d = 0; d < NUM_MR_DIRS; d++) {
+      int Tile;
+      int Flags;
+      if (pCollision->m_MapData.m_FrontLayer.m_pData) {
+        Tile = get_front_tile_index(pCollision, i);
+        Flags = get_front_tile_flags(pCollision, i);
+        pCollision->m_pMoveRestrictions[i][d] |=
+            move_restrictions(d, Tile, Flags);
+      }
+      Tile = get_tile_index(pCollision, i);
+      Flags = get_tile_flags(pCollision, i);
+      pCollision->m_pMoveRestrictions[i][d] |=
+          move_restrictions(d, Tile, Flags);
+      if (pCollision->m_pMoveRestrictions[i][d])
+        pCollision->m_MoveRestrictionsFound = true;
+    }
 
     int EntIdx = pMapData->m_GameLayer.m_pData[i] - ENTITY_OFFSET;
     if ((EntIdx >= ENTITY_ARMOR_SHOTGUN && EntIdx <= ENTITY_ARMOR_LASER) ||
@@ -175,6 +195,11 @@ bool init_collision(SCollision *restrict pCollision,
         ++pCollision->m_aNumTeleCheckOuts[pMapData->m_TeleLayer.m_pNumber[i]];
     }
   }
+
+  // apparently freeing this makes program go slow
+  // if (!pCollision->m_MoveRestrictionsFound)
+  //   free(pCollision->m_pMoveRestrictions);
+
   if (pCollision->m_NumSpawnPoints > 0)
     pCollision->m_pSpawnPoints =
         malloc(pCollision->m_NumSpawnPoints * sizeof(float[4]));
@@ -220,6 +245,10 @@ void free_collision(SCollision *pCollision) {
   free_map_data(&pCollision->m_MapData);
   if (pCollision->m_NumSpawnPoints)
     free(pCollision->m_pSpawnPoints);
+  if (pCollision->m_MoveRestrictionsFound)
+    free(pCollision->m_pMoveRestrictions);
+  if (pCollision->m_pTileInfos)
+    free(pCollision->m_pTileInfos);
   if (pCollision->m_MapData.m_TeleLayer.m_pType)
     for (int i = 0; i < 256; ++i) {
       free(pCollision->m_apTeleOuts[i]);
@@ -355,43 +384,30 @@ inline unsigned char get_front_collision_at(SCollision *pCollision, float x,
   return 0;
 }
 
-unsigned char get_move_restrictions(SCollision *pCollision,
-                                    CALLBACK_SWITCHACTIVE pfnSwitchActive,
-                                    void *pUser, vec2 Pos,
-                                    int OverrideCenterTileIndex) {
-  const vec2 DIRECTIONS[NUM_MR_DIRS] = {vec2_init(0, 0), vec2_init(18, 0),
-                                        vec2_init(0, 18), vec2_init(-18, 0),
-                                        vec2_init(0, -18)};
+inline unsigned char get_move_restrictions(SCollision *pCollision, void *pUser,
+                                           vec2 Pos,
+                                           int OverrideCenterTileIndex) {
+
+  if (!pCollision->m_MoveRestrictionsFound &&
+      !pCollision->m_MapData.m_DoorLayer.m_pIndex)
+    return 0;
+  static const vec2 DIRECTIONS[NUM_MR_DIRS] = {CTVEC2(0, 0), CTVEC2(18, 0),
+                                               CTVEC2(0, 18), CTVEC2(-18, 0),
+                                               CTVEC2(0, -18)};
   unsigned char Restrictions = 0;
   for (int d = 0; d < NUM_MR_DIRS; d++) {
-    vec2 ModPos = vvadd(Pos, DIRECTIONS[d]);
-    int ModMapIndex = get_pure_map_index(pCollision, ModPos);
-    if (d == MR_DIR_HERE && OverrideCenterTileIndex >= 0) {
+    int ModMapIndex = get_pure_map_index(pCollision, vvadd(Pos, DIRECTIONS[d]));
+    if (d == MR_DIR_HERE && OverrideCenterTileIndex >= 0)
       ModMapIndex = OverrideCenterTileIndex;
-    }
-    for (int Front = 0;
-         Front < 2 - !(pCollision->m_MapData.m_FrontLayer.m_pData); Front++) {
-      int Tile;
-      int Flags;
-      if (!Front) {
-        Tile = get_tile_index(pCollision, ModMapIndex);
-        Flags = get_tile_flags(pCollision, ModMapIndex);
-      } else {
-        Tile = get_front_tile_index(pCollision, ModMapIndex);
-        Flags = get_front_tile_flags(pCollision, ModMapIndex);
-      }
-      Restrictions |= move_restrictions(d, Tile, Flags);
-    }
-    if (pfnSwitchActive) {
-      if (pCollision->m_MapData.m_DoorLayer.m_pIndex && ModMapIndex >= 0 &&
-          pCollision->m_MapData.m_DoorLayer.m_pIndex[ModMapIndex]) {
-        if (pfnSwitchActive(
-                pCollision->m_MapData.m_DoorLayer.m_pNumber[ModMapIndex],
-                pUser)) {
-          Restrictions |= move_restrictions(
-              d, pCollision->m_MapData.m_DoorLayer.m_pIndex[ModMapIndex],
-              pCollision->m_MapData.m_DoorLayer.m_pFlags[ModMapIndex]);
-        }
+    Restrictions |= pCollision->m_pMoveRestrictions[ModMapIndex][d];
+    if (pCollision->m_MapData.m_DoorLayer.m_pIndex &&
+        pCollision->m_MapData.m_DoorLayer.m_pIndex[ModMapIndex]) {
+      if (is_switch_active_cb(
+              pCollision->m_MapData.m_DoorLayer.m_pNumber[ModMapIndex],
+              pUser)) {
+        Restrictions |= move_restrictions(
+            d, pCollision->m_MapData.m_DoorLayer.m_pIndex[ModMapIndex],
+            pCollision->m_MapData.m_DoorLayer.m_pFlags[ModMapIndex]);
       }
     }
   }
@@ -493,22 +509,65 @@ bool is_hook_blocker(SCollision *pCollision, int x, int y, vec2 Pos0,
   return false;
 }
 
+static inline bool broad_check_char(SCollision *restrict pCollision, vec2 Start,
+                                    vec2 End) {
+  const int MinX = (int)(fmin(Start.x, End.x) - HALFPHYSICALSIZE - 1) >> 5;
+  const int MinY = (int)(fmin(Start.y, End.y) - HALFPHYSICALSIZE - 1) >> 5;
+  const int MaxX = (int)(fmax(Start.x, End.x) + HALFPHYSICALSIZE + 1) >> 5;
+  const int MaxY = (int)(fmax(Start.y, End.y) + HALFPHYSICALSIZE + 1) >> 5;
+  for (int y = MinY; y <= MaxY; ++y) {
+    for (int x = MinX; x <= MaxX; ++x) {
+      if (pCollision->m_pTileInfos[y * pCollision->m_MapData.m_Width + x] &
+          INFO_ISSOLID)
+        return true;
+    }
+  }
+  return false;
+}
+
+static inline bool broad_check(SCollision *restrict pCollision, vec2 Start,
+                               vec2 End) {
+  const int MinX = (int)fmin(Start.x, End.x) >> 5;
+  const int MinY = (int)fmin(Start.y, End.y) >> 5;
+  const int MaxX = (int)fmax(Start.x, End.x) >> 5;
+  const int MaxY = (int)fmax(Start.y, End.y) >> 5;
+  for (int y = MinY; y <= MaxY; ++y) {
+    for (int x = MinX; x <= MaxX; ++x) {
+      if (pCollision->m_pTileInfos[y * pCollision->m_MapData.m_Width + x] &
+          INFO_ISSOLID)
+        return true;
+    }
+  }
+  return false;
+}
+
 unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
                                        vec2 Pos0, vec2 Pos1,
                                        vec2 *restrict pOutCollision,
                                        int *restrict pTeleNr,
                                        bool OldTeleHook) {
+  // NOTE:another only 10ms save because the hook does many intersect lines
+  // which make the broad check overlap. still better than nothing
+  if (!broad_check(pCollision, Pos0, Pos1)) {
+    if (pOutCollision)
+      *pOutCollision = Pos1;
+    return 0;
+  }
   const int End = vdistance(Pos0, Pos1) + 1;
   int dx = 0, dy = 0;
   ThroughOffset(Pos0, Pos1, &dx, &dy);
-  int LastIndex = 0;
+  int LastIndex = -1;
   const float Step = 1.f / End;
   const int Width = pCollision->m_MapData.m_Width;
+  vec2 Pos;
+  int ix;
+  int iy;
+  int Index;
   for (float a = 0; a <= 1.f; a += Step) {
-    vec2 Pos = vvfmix(Pos0, Pos1, a);
-    const int ix = (int)(Pos.x + 0.5f) >> 5;
-    const int iy = (int)(Pos.y + 0.5f) >> 5;
-    const int Index = iy * Width + ix;
+    Pos = vvfmix(Pos0, Pos1, a);
+    ix = (int)(Pos.x + 0.5f) >> 5;
+    iy = (int)(Pos.y + 0.5f) >> 5;
+    Index = iy * Width + ix;
 
     // behind this is basically useless to optimize
     if (Index == LastIndex)
@@ -635,7 +694,8 @@ unsigned char intersect_line(SCollision *restrict pCollision, vec2 Pos0,
 static inline bool check_point_int(SCollision *restrict pCollision, ivec2 Pos) {
   int Nx = Pos.x >> 5;
   int Ny = Pos.y >> 5;
-  return pCollision->m_pTileInfos[Ny * pCollision->m_MapData.m_Width + Nx] & INFO_ISSOLID;
+  return pCollision->m_pTileInfos[Ny * pCollision->m_MapData.m_Width + Nx] &
+         INFO_ISSOLID;
 }
 
 static inline bool test_box_character(SCollision *restrict pCollision,
@@ -664,18 +724,30 @@ void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos,
     // printf("dist <= 0.00001f movebox\n");
     return;
   }
-
   vec2 Pos = *pInoutPos;
-  ivec2 IPos = (ivec2){(int)(Pos.x + 0.5f), (int)(Pos.y + 0.5f)};
-
+  vec2 NewPos = vvadd(Pos, Vel);
   int Max = (int)Distance;
   float Fraction = 1.0f / (float)(Max + 1);
+  if (!broad_check_char(pCollision, *pInoutPos, NewPos)) {
+    // NOTE: this stupid fking loop is needed to simulate accumulated
+    // fp-rounding errors
+    // thats why this bs only saves 10ms instead of 100
+    // if you can find a perfect rounding error approximation please submit a
+    // pr
+    for (int i = 0; i <= Max; i++)
+      Pos = vvadd(Pos, vfmul(Vel, Fraction));
+    *pInoutPos = Pos;
+    return;
+  }
+
+  ivec2 IPos = (ivec2){(int)(Pos.x + 0.5f), (int)(Pos.y + 0.5f)};
+  ivec2 INewPos;
+  int Hits;
   for (int i = 0; i <= Max; i++) {
-    // computing NewPos is not a bottleneck xd
-    vec2 NewPos = vvadd(Pos, vfmul(Vel, Fraction));
-    ivec2 INewPos = (ivec2){(int)(NewPos.x + 0.5f), (int)(NewPos.y + 0.5f)};
+    NewPos = vvadd(Pos, vfmul(Vel, Fraction));
+    INewPos = (ivec2){(int)(NewPos.x + 0.5f), (int)(NewPos.y + 0.5f)};
     if (test_box_character(pCollision, INewPos)) {
-      int Hits = 0;
+      Hits = 0;
       if (test_box_character(pCollision, (ivec2){IPos.x, INewPos.y})) {
         if (pGrounded && Elasticity.y > 0 && Vel.y > 0)
           *pGrounded = true;

@@ -33,9 +33,10 @@ typedef struct Collision {
   vec2 *m_apTeleCheckOuts[256];
 
   unsigned char *m_pTileInfos;
-} SCollision;
 
-typedef _Bool (*CALLBACK_SWITCHACTIVE)(int Number, void *pUser);
+  bool m_MoveRestrictionsFound;
+  unsigned char (*m_pMoveRestrictions)[5];
+} SCollision;
 
 bool init_collision(SCollision *restrict pCollision, const char *restrict pMap);
 void free_collision(SCollision *pCollision);
@@ -58,10 +59,8 @@ unsigned char is_check_evil_teleport(SCollision *pCollision, int Index);
 unsigned char is_tele_checkpoint(SCollision *pCollision, int Index);
 unsigned char get_collision_at(SCollision *pCollision, float x, float y);
 unsigned char get_front_collision_at(SCollision *pCollision, float x, float y);
-unsigned char get_move_restrictions(SCollision *pCollision,
-                                    CALLBACK_SWITCHACTIVE pfnSwitchActive,
-                                    void *pUser, vec2 Pos,
-                                    int OverrideCenterTileIndex);
+unsigned char get_move_restrictions(SCollision *pCollision, void *pUser,
+                                    vec2 Pos, int OverrideCenterTileIndex);
 int get_map_index(SCollision *pCollision, vec2 Pos);
 bool check_point(SCollision *pCollision, vec2 Pos);
 void ThroughOffset(vec2 Pos0, vec2 Pos1, int *restrict pOffsetX,

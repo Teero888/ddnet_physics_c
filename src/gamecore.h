@@ -38,6 +38,8 @@ typedef struct {
 
 enum { ENTTYPE_PROJECTILE = 0, ENTTYPE_LASER, NUM_ENTTYPES };
 
+bool is_switch_active_cb(int Number, void *pUser);
+
 // Entities {{{
 
 typedef struct Entity {

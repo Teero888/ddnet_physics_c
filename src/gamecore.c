@@ -409,7 +409,7 @@ void pick_tick(SPickup *pPickup) {
 
     switch (pPickup->m_Type) {
     case POWERUP_HEALTH:
-      // cc_freeze(pChar, pChar->m_pWorld->m_pConfig->m_SvFreezeDelay);
+      cc_freeze(pChar, pChar->m_pWorld->m_pConfig->m_SvFreezeDelay);
       break;
 
     case POWERUP_ARMOR:
@@ -830,8 +830,9 @@ bool wc_next_spawn(SWorldCore *pCore, vec2 *pOutPos);
 void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   int MapIndex = Index;
 
-  pCore->m_MoveRestrictions = get_move_restrictions(
-      pCore->m_pCollision, is_switch_active_cb, pCore, pCore->m_Pos, MapIndex);
+  pCore->m_MoveRestrictions =
+      get_move_restrictions(pCore->m_pCollision, pCore, pCore->m_Pos, MapIndex);
+
   if (Index < 0) {
     pCore->m_LastRefillJumps = false;
     pCore->m_LastPenalty = false;
@@ -1165,7 +1166,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   }
 }
 
-void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
+static inline void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
 
   if (pCore->m_EndlessHook)
     pCore->m_HookTick = 0;
@@ -1201,26 +1202,27 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
 
   float d = vdistance(pCore->m_PrevPos, pCore->m_Pos);
   int End = d + 1;
+  float fEnd = End;
   bool Handled = false;
+  int Index;
   if (!d) {
-    int Nx = (int)pCore->m_Pos.x >> 5;
-    int Ny = (int)pCore->m_Pos.y >> 5;
-    int Index = Ny * pCore->m_pCollision->m_MapData.m_Width + Nx;
-
+    Index =
+        ((int)pCore->m_Pos.y >> 5) * pCore->m_pCollision->m_MapData.m_Width +
+        ((int)pCore->m_Pos.x >> 5);
     if (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT) {
-      Handled = true;
       cc_handle_tiles(pCore, Index);
+      Handled = true;
     }
   } else {
-    int LastIndex = 0;
-    for (int i = 0; i < End; i++) {
-      float a = i / d;
-      vec2 Tmp = vvfmix(pCore->m_PrevPos, pCore->m_Pos, a);
-      int Nx = (int)Tmp.x >> 5;
-      int Ny = (int)Tmp.y >> 5;
-      int Index = Ny * pCore->m_pCollision->m_MapData.m_Width + Nx;
-      if (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT &&
-          LastIndex != Index) {
+    int LastIndex = -1;
+    const float Step = 1.f / fEnd;
+    vec2 Tmp;
+    for (float a = 0; a <= 1.f; a += Step) {
+      Tmp = vvfmix(pCore->m_PrevPos, pCore->m_Pos, a);
+      Index = ((int)Tmp.y >> 5) * pCore->m_pCollision->m_MapData.m_Width +
+              ((int)Tmp.x >> 5);
+      if (LastIndex != Index &&
+          (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT)) {
         cc_handle_tiles(pCore, Index);
         LastIndex = Index;
         Handled = true;
@@ -1244,20 +1246,17 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
 void cc_pre_tick(SCharacterCore *pCore) {
   cc_ddracetick(pCore);
 
-  pCore->m_MoveRestrictions = get_move_restrictions(
-      pCore->m_pCollision, is_switch_active_cb, pCore, pCore->m_Pos, -1);
+  pCore->m_MoveRestrictions =
+      get_move_restrictions(pCore->m_pCollision, pCore, pCore->m_Pos, -1);
 
   // get ground state
   const bool Grounded =
       check_point(pCore->m_pCollision,
-                  vec2_init(pCore->m_Pos.x + PHYSICALSIZE / 2,
-                            pCore->m_Pos.y + PHYSICALSIZE / 2 + 5)) ||
+                  vec2_init(pCore->m_Pos.x + HALFPHYSICALSIZE,
+                            pCore->m_Pos.y + HALFPHYSICALSIZE + 5)) ||
       check_point(pCore->m_pCollision,
-                  vec2_init(pCore->m_Pos.x - PHYSICALSIZE / 2,
-                            pCore->m_Pos.y + PHYSICALSIZE / 2 + 5));
-
-  vec2 TargetDirection =
-      vnormalize(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
+                  vec2_init(pCore->m_Pos.x - HALFPHYSICALSIZE,
+                            pCore->m_Pos.y + HALFPHYSICALSIZE + 5));
 
   pCore->m_Vel.y += pCore->m_Tuning.m_Gravity;
 
@@ -1302,6 +1301,10 @@ void cc_pre_tick(SCharacterCore *pCore) {
   // handle hook
   if (pCore->m_Input.m_Hook) {
     if (pCore->m_HookState == HOOK_IDLE) {
+
+      vec2 TargetDirection = vnormalize(
+          vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
+
       pCore->m_HookState = HOOK_FLYING;
       pCore->m_HookPos =
           vvadd(pCore->m_Pos, vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
@@ -1414,6 +1417,8 @@ void cc_pre_tick(SCharacterCore *pCore) {
       if (GoingThroughTele && NumOuts > 0) {
         pCore->m_HookedPlayer = -1;
 
+        vec2 TargetDirection = vnormalize(
+            vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
         pCore->m_NewHook = true;
         // TODO: add a proper system for this.
         // i don't want to use random number obviously since this is for
@@ -1446,7 +1451,8 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
     // don't do this hook routine when we are already hooked to a player
     if (pCore->m_HookedPlayer == -1 &&
-        vdistance(pCore->m_HookPos, pCore->m_Pos) > 46.0f) {
+        (vsqdistance(pCore->m_HookPos, pCore->m_Pos) > 46 * 46 ||
+         vdistance(pCore->m_HookPos, pCore->m_Pos) > 46.0f)) {
       vec2 HookVel = vfmul(vnormalize(vvsub(pCore->m_HookPos, pCore->m_Pos)),
                            pCore->m_Tuning.m_HookDragAccel);
       // the hook as more power to drag you up then down.
@@ -1486,7 +1492,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
     cc_tick_deferred(pCore);
 }
 
-void cc_set_weapon(SCharacterCore *pCore, int W) {
+static inline void cc_set_weapon(SCharacterCore *pCore, int W) {
 
   if (W == pCore->m_ActiveWeapon)
     return;
@@ -1624,7 +1630,7 @@ void cc_handle_jetpack(SCharacterCore *pCore) {
     }
 }
 
-void cc_do_weapon_switch(SCharacterCore *pCore) {
+static inline void cc_do_weapon_switch(SCharacterCore *pCore) {
 
   // make sure we can switch
   if (pCore->m_ReloadTimer != 0 || pCore->m_QueuedWeapon == -1 ||
@@ -1648,10 +1654,6 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 
   if (pCore->m_FreezeTime)
     return;
-
-  vec2 MouseTarget =
-      vec2_init(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY);
-  vec2 Direction = vnormalize(MouseTarget);
 
   bool FullAuto = false;
   if (pCore->m_ActiveWeapon == WEAPON_GRENADE ||
@@ -1680,6 +1682,9 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   if (!WillFire)
     return;
 
+  vec2 MouseTarget =
+      vec2_init(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY);
+  vec2 Direction = vnormalize(MouseTarget);
   vec2 ProjStartPos =
       vvadd(pCore->m_Pos, vfmul(Direction, PHYSICALSIZE * 0.75f));
 
@@ -1847,10 +1852,6 @@ void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
   pCore->m_LatestPrevInput = pCore->m_LatestInput;
   pCore->m_LatestInput = *pNewInput;
 
-  if (pCore->m_LatestInput.m_TargetX == 0 &&
-      pCore->m_LatestInput.m_TargetY == 0)
-    pCore->m_LatestInput.m_TargetY = -1;
-
   if (pCore->m_NumInputs > 1) {
     cc_handle_weapon_switch(pCore);
     cc_fire_weapon(pCore);
@@ -1861,9 +1862,6 @@ void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
 
 void cc_on_predicted_input(SCharacterCore *pCore, SPlayerInput *pNewInput) {
   pCore->m_Input = *pNewInput;
-  // it is not allowed to aim in the center
-  if (pCore->m_Input.m_TargetX == 0 && pCore->m_Input.m_TargetY == 0)
-    pCore->m_Input.m_TargetY = -1;
   pCore->m_SavedInput = pCore->m_Input;
 }
 
