@@ -1166,6 +1166,25 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   }
 }
 
+static inline bool broad_check_stopper(SCollision *restrict pCollision,
+                                       vec2 Start, vec2 End) {
+  const int MinX = (int)(fmin(Start.x, End.x)) >> 5;
+  const int MinY = (int)(fmin(Start.y, End.y)) >> 5;
+  const int MaxX = (int)(fmax(Start.x, End.x)) >> 5;
+  const int MaxY = (int)(fmax(Start.y, End.y)) >> 5;
+  for (int y = MinY; y <= MaxY; ++y) {
+    for (int x = MinX; x <= MaxX; ++x) {
+      int Idx = y * pCollision->m_MapData.m_Width + x;
+      if (pCollision->m_pTileInfos[Idx] & INFO_ISSOLID)
+        return true;
+      for (int i = 0; i < 5; ++i)
+        if (pCollision->m_pMoveRestrictions[Idx][i])
+          return true;
+    }
+  }
+  return false;
+}
+
 static inline void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
 
   if (pCore->m_EndlessHook)
@@ -1200,27 +1219,27 @@ static inline void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
   int CurrentIndex = get_map_index(pCore->m_pCollision, pCore->m_Pos);
   cc_handle_skippable_tiles(pCore, CurrentIndex);
 
-  float d = vdistance(pCore->m_PrevPos, pCore->m_Pos);
-  int End = d + 1;
-  float fEnd = End;
+  const vec2 PrevPos = pCore->m_PrevPos;
+  const vec2 Pos = pCore->m_Pos;
+  const float d = vdistance(pCore->m_PrevPos, pCore->m_Pos);
+  const int End = d + 1;
+  const float fEnd = End;
+  const int Width = pCore->m_pCollision->m_MapData.m_Width;
   bool Handled = false;
   int Index;
   if (!d) {
-    Index =
-        ((int)pCore->m_Pos.y >> 5) * pCore->m_pCollision->m_MapData.m_Width +
-        ((int)pCore->m_Pos.x >> 5);
+    Index = ((int)Pos.y >> 5) * Width + ((int)Pos.x >> 5);
     if (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT) {
       cc_handle_tiles(pCore, Index);
       Handled = true;
     }
-  } else {
+  } else if (broad_check_stopper(pCore->m_pCollision, PrevPos, Pos)) {
     int LastIndex = -1;
     const float Step = 1.f / fEnd;
     vec2 Tmp;
     for (float a = 0; a <= 1.f; a += Step) {
-      Tmp = vvfmix(pCore->m_PrevPos, pCore->m_Pos, a);
-      Index = ((int)Tmp.y >> 5) * pCore->m_pCollision->m_MapData.m_Width +
-              ((int)Tmp.x >> 5);
+      Tmp = vvfmix(PrevPos, Pos, a);
+      Index = ((int)Tmp.y >> 5) * Width + ((int)Tmp.x >> 5);
       if (LastIndex != Index &&
           (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT)) {
         cc_handle_tiles(pCore, Index);
@@ -1229,9 +1248,8 @@ static inline void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
       }
     }
   }
-  if (!Handled) {
+  if (!Handled)
     cc_handle_tiles(pCore, CurrentIndex);
-  }
 
   // teleport gun
   if (pCore->m_TeleGunTeleport) {
@@ -1301,7 +1319,6 @@ void cc_pre_tick(SCharacterCore *pCore) {
   // handle hook
   if (pCore->m_Input.m_Hook) {
     if (pCore->m_HookState == HOOK_IDLE) {
-
       vec2 TargetDirection = vnormalize(
           vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
 
@@ -1353,7 +1370,25 @@ void cc_pre_tick(SCharacterCore *pCore) {
     vec2 NewPos =
         vvadd(pCore->m_HookPos,
               vfmul(pCore->m_HookDir, pCore->m_Tuning.m_HookFireSpeed));
-    if (vdistance(HookBase, NewPos) > pCore->m_Tuning.m_HookLength) {
+
+    // NOTE:this is the optimized version of the thing below but it seems to be
+    // slower smh?? xd
+    //
+    // const vec2 Sub = vvsub(HookBase, NewPos);
+    // const float SubLength = vlength(Sub);
+    // if (SubLength > pCore->m_Tuning.m_HookLength) {
+    //   pCore->m_HookState = HOOK_RETRACT_START;
+    //   const float l = 1.0f / SubLength;
+    //   NewPos = vvadd(HookBase, vfmul(vec2_init(Sub.x * l, Sub.y * l),
+    //                                  pCore->m_Tuning.m_HookLength));
+    // }
+
+    // apparently doing 2 distance calls instead of precalcuating the minus and
+    // then doing vlength is faster...
+    if (vsqdistance(HookBase, NewPos) >
+            pCore->m_Tuning.m_HookLength * pCore->m_Tuning.m_HookLength ||
+        vdistance(HookBase, NewPos) > pCore->m_Tuning.m_HookLength) {
+      // NOTE: use this for cleaning runs LOL
       pCore->m_HookState = HOOK_RETRACT_START;
       NewPos = vvadd(HookBase, vfmul(vnormalize(vvsub(NewPos, HookBase)),
                                      pCore->m_Tuning.m_HookLength));

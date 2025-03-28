@@ -776,8 +776,8 @@ void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos,
   *pInoutVel = Vel;
 }
 
-bool get_nearest_air_pos_player(SCollision *pCollision, vec2 PlayerPos,
-                                vec2 *pOutPos) {
+bool get_nearest_air_pos_player(SCollision *restrict pCollision, vec2 PlayerPos,
+                                vec2 *restrict pOutPos) {
   for (int dist = 5; dist >= -1; dist--) {
     *pOutPos = vec2_init(PlayerPos.x, PlayerPos.y - dist);
     if (!test_box(pCollision, *pOutPos, PHYSICALSIZEVEC)) {
@@ -787,8 +787,8 @@ bool get_nearest_air_pos_player(SCollision *pCollision, vec2 PlayerPos,
   return false;
 }
 
-bool get_nearest_air_pos(SCollision *pCollision, vec2 Pos, vec2 PrevPos,
-                         vec2 *pOutPos) {
+bool get_nearest_air_pos(SCollision *restrict pCollision, vec2 Pos,
+                         vec2 PrevPos, vec2 *restrict pOutPos) {
   for (int k = 0; k < 16 && check_point(pCollision, Pos); k++) {
     Pos = vvsub(Pos, vnormalize(vvsub(PrevPos, Pos)));
   }
