@@ -158,6 +158,7 @@ bool init_collision(SCollision *restrict pCollision,
 
   pCollision->m_pTileInfos = calloc(Width * Height, 1);
   pCollision->m_pMoveRestrictions = calloc(Width * Height, 5);
+  pCollision->m_pPickups = calloc(Width * Height, sizeof(SPickup));
   pCollision->m_MoveRestrictionsFound = false;
 
   for (int i = 0; i < 256; ++i)
@@ -166,12 +167,20 @@ bool init_collision(SCollision *restrict pCollision,
   // Figure out important things
   // Make lists of spawn points, tele outs and tele checkpoints outs
   for (int i = 0; i < Width * Height; ++i) {
-
     if (tile_exists(pCollision, i))
       pCollision->m_pTileInfos[i] |= INFO_TILENEXT;
-    if (pCollision->m_MapData.m_GameLayer.m_pData[i] == TILE_SOLID ||
-        pCollision->m_MapData.m_GameLayer.m_pData[i] == TILE_NOHOOK)
+    int Tile = pCollision->m_MapData.m_GameLayer.m_pData[i];
+    if (Tile == TILE_SOLID || Tile == TILE_NOHOOK)
       pCollision->m_pTileInfos[i] |= INFO_ISSOLID;
+
+    if (Tile >= 192 && Tile <= 194)
+      ++pCollision->m_NumSpawnPoints;
+    if (pMapData->m_TeleLayer.m_pType) {
+      if (pMapData->m_TeleLayer.m_pType[i] == TILE_TELEOUT)
+        ++pCollision->m_aNumTeleOuts[pMapData->m_TeleLayer.m_pNumber[i]];
+      if (pMapData->m_TeleLayer.m_pType[i] == TILE_TELECHECKOUT)
+        ++pCollision->m_aNumTeleCheckOuts[pMapData->m_TeleLayer.m_pNumber[i]];
+    }
 
     for (int d = 0; d < NUM_MR_DIRS; d++) {
       int Tile;
@@ -190,24 +199,49 @@ bool init_collision(SCollision *restrict pCollision,
         pCollision->m_MoveRestrictionsFound = true;
     }
 
+    pCollision->m_pPickups[i].m_Type = -1;
     int EntIdx = pMapData->m_GameLayer.m_pData[i] - ENTITY_OFFSET;
     if ((EntIdx >= ENTITY_ARMOR_SHOTGUN && EntIdx <= ENTITY_ARMOR_LASER) ||
-        (EntIdx >= ENTITY_ARMOR_1 && EntIdx <= ENTITY_WEAPON_LASER))
-      ++pCollision->m_NumPickupsTotal;
-    if (pMapData->m_GameLayer.m_pData[i] >= 192 &&
-        pMapData->m_GameLayer.m_pData[i] <= 194)
-      ++pCollision->m_NumSpawnPoints;
-    if (pMapData->m_TeleLayer.m_pType) {
-      if (pMapData->m_TeleLayer.m_pType[i] == TILE_TELEOUT)
-        ++pCollision->m_aNumTeleOuts[pMapData->m_TeleLayer.m_pNumber[i]];
-      if (pMapData->m_TeleLayer.m_pType[i] == TILE_TELECHECKOUT)
-        ++pCollision->m_aNumTeleCheckOuts[pMapData->m_TeleLayer.m_pNumber[i]];
+        (EntIdx >= ENTITY_ARMOR_1 && EntIdx <= ENTITY_WEAPON_LASER)) {
+      int Type = -1;
+      int SubType = 0;
+      if (EntIdx == ENTITY_ARMOR_1)
+        Type = POWERUP_ARMOR;
+      else if (EntIdx == ENTITY_ARMOR_SHOTGUN)
+        Type = POWERUP_ARMOR_SHOTGUN;
+      else if (EntIdx == ENTITY_ARMOR_GRENADE)
+        Type = POWERUP_ARMOR_GRENADE;
+      else if (EntIdx == ENTITY_ARMOR_NINJA)
+        Type = POWERUP_ARMOR_NINJA;
+      else if (EntIdx == ENTITY_ARMOR_LASER)
+        Type = POWERUP_ARMOR_LASER;
+      else if (EntIdx == ENTITY_HEALTH_1)
+        Type = POWERUP_HEALTH;
+      else if (EntIdx == ENTITY_WEAPON_SHOTGUN) {
+        Type = POWERUP_WEAPON;
+        SubType = WEAPON_SHOTGUN;
+      } else if (EntIdx == ENTITY_WEAPON_GRENADE) {
+        Type = POWERUP_WEAPON;
+        SubType = WEAPON_GRENADE;
+      } else if (EntIdx == ENTITY_WEAPON_LASER) {
+        Type = POWERUP_WEAPON;
+        SubType = WEAPON_LASER;
+      } else if (EntIdx == ENTITY_POWERUP_NINJA) {
+        Type = POWERUP_NINJA;
+        SubType = WEAPON_NINJA;
+      }
+      pCollision->m_pPickups[i].m_Type = Type;
+      pCollision->m_pPickups[i].m_Subtype = SubType;
+      if (pCollision->m_MapData.m_SwitchLayer.m_pType) {
+        const int SwitchType = pCollision->m_MapData.m_SwitchLayer.m_pType[i];
+        if (SwitchType) {
+          pCollision->m_pPickups[i].m_Type = SwitchType;
+          pCollision->m_pPickups[i].m_Number =
+              pCollision->m_MapData.m_SwitchLayer.m_pNumber[i];
+        }
+      }
     }
   }
-
-  // apparently freeing this makes program go slow
-  // if (!pCollision->m_MoveRestrictionsFound)
-  //   free(pCollision->m_pMoveRestrictions);
 
   if (pCollision->m_NumSpawnPoints > 0)
     pCollision->m_pSpawnPoints =
@@ -750,11 +784,6 @@ void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos,
   int Max = (int)Distance;
   float Fraction = 1.0f / (float)(Max + 1);
   if (!broad_check_char(pCollision, *pInoutPos, NewPos)) {
-    // NOTE: this stupid fking loop is needed to simulate accumulated
-    // fp-rounding errors
-    // thats why this bs only saves 10ms instead of 100
-    // if you can find a perfect rounding error approximation please submit a
-    // pr
     for (int i = 0; i <= Max; i++)
       Pos = vvadd(Pos, vfmul(Vel, Fraction));
     *pInoutPos = Pos;

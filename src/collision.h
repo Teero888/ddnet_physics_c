@@ -26,10 +26,25 @@ typedef struct TuningParams {
 #undef MACRO_TUNING_PARAM
 } STuningParams;
 
+enum {
+  POWERUP_HEALTH,
+  POWERUP_ARMOR,
+  POWERUP_WEAPON,
+  POWERUP_NINJA,
+  POWERUP_ARMOR_SHOTGUN,
+  POWERUP_ARMOR_GRENADE,
+  POWERUP_ARMOR_NINJA,
+  POWERUP_ARMOR_LASER,
+  NUM_POWERUPS
+};
+typedef struct Pickup {
+  char m_Type;
+  unsigned char m_Number;
+  unsigned char m_Subtype;
+} SPickup;
+
 typedef struct Collision {
   SMapData m_MapData;
-
-  int m_NumPickupsTotal;
 
   int m_NumSpawnPoints;
   vec2 *m_pSpawnPoints;
@@ -39,6 +54,7 @@ typedef struct Collision {
   vec2 *m_apTeleCheckOuts[256];
 
   unsigned char *m_pTileInfos;
+  SPickup *m_pPickups;
 
   bool m_MoveRestrictionsFound;
   unsigned char (*m_pMoveRestrictions)[5];

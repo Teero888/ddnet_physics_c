@@ -348,108 +348,80 @@ void prj_tick(SProjectile *pProj) {
   }
 }
 
-enum {
-  POWERUP_HEALTH,
-  POWERUP_ARMOR,
-  POWERUP_WEAPON,
-  POWERUP_NINJA,
-  POWERUP_ARMOR_SHOTGUN,
-  POWERUP_ARMOR_GRENADE,
-  POWERUP_ARMOR_NINJA,
-  POWERUP_ARMOR_LASER,
-  NUM_POWERUPS
-};
-
 bool cc_freeze(SCharacterCore *pCore, int Seconds);
 
-void pick_init(SPickup *pPickup, SWorldCore *pGameWorld, int Type, int SubType,
-               int Layer, int Number) {
-  memset(pPickup, 0, sizeof(SPickup));
-  pPickup->m_pWorld = pGameWorld;
-  pPickup->m_pCollision = pGameWorld->m_pCollision;
-  pPickup->m_Core = vec2_init(0.0f, 0.0f);
-  pPickup->m_Type = Type;
-  pPickup->m_Subtype = SubType;
+void cc_do_pickup(SCharacterCore *pCore) {
+  int Width = pCore->m_pCollision->m_MapData.m_Width;
+  int ix = ((int)pCore->m_Pos.x >> 5), iy = ((int)pCore->m_Pos.y >> 5);
+  for (int dy = -1; dy <= 1; ++dy) {
+    int Idx = (iy + dy) * Width;
+    for (int dx = -1; dx <= 1; ++dx) {
+      SPickup Pickup = pCore->m_pCollision->m_pPickups[Idx + (ix + dx)];
+      if (Pickup.m_Type < 0)
+        continue;
+      if (vdistance(pCore->m_Pos,
+                    vvadd(pCore->m_Pos, vec2_init(dx * 32, dy * 32))) >=
+          PICKUPSIZE + 6 + PHYSICALSIZE)
+        continue;
+      if (Pickup.m_Number > 0 &&
+          !pCore->m_pWorld->m_pSwitches[Pickup.m_Number].m_Status)
+        continue;
 
-  pPickup->m_Layer = Layer;
-  pPickup->m_Number = Number;
-}
+      switch (Pickup.m_Type) {
+      case POWERUP_HEALTH:
+        cc_freeze(pCore, pCore->m_pWorld->m_pConfig->m_SvFreezeDelay);
+        break;
 
-void pick_tick(SPickup *pPickup) {
-  if (pPickup->m_pWorld->m_GameTick % (int)(SERVER_TICK_SPEED * 0.15f) == 0) {
-    mover_speed(pPickup->m_pCollision, pPickup->m_Pos.x, pPickup->m_Pos.y,
-                &pPickup->m_Core);
-    pPickup->m_Pos = vvadd(pPickup->m_Pos, pPickup->m_Core);
-  }
+      case POWERUP_ARMOR:
+        for (int j = WEAPON_SHOTGUN; j < NUM_WEAPONS; j++) {
+          pCore->m_aWeaponGot[j] = false;
+        }
+        pCore->m_Ninja.m_ActivationDir = vec2_init(0, 0);
+        pCore->m_Ninja.m_ActivationTick = -500;
+        pCore->m_Ninja.m_CurrentMoveTime = 0;
+        if (pCore->m_ActiveWeapon >= WEAPON_SHOTGUN)
+          pCore->m_ActiveWeapon = WEAPON_HAMMER;
+        break;
 
-  for (int i = 0; i < pPickup->m_pWorld->m_NumCharacters; ++i) {
-    SCharacterCore *pChar = &pPickup->m_pWorld->m_pCharacters[i];
-    vec2 Sub = vvsub(pChar->m_Pos, pPickup->m_Pos);
-    // Do cheap check first
-    if (vsqlength(Sub) >
-            (PICKUPSIZE + 6 + PHYSICALSIZE) * (PICKUPSIZE + 6 + PHYSICALSIZE) ||
-        vlength(Sub) >= PICKUPSIZE + 6 + PHYSICALSIZE) {
-      continue;
-    }
+      case POWERUP_ARMOR_SHOTGUN:
+        pCore->m_aWeaponGot[WEAPON_SHOTGUN] = false;
+        if (pCore->m_ActiveWeapon == WEAPON_SHOTGUN)
+          pCore->m_ActiveWeapon = WEAPON_HAMMER;
+        break;
 
-    if (pPickup->m_Layer == LAYER_SWITCH && pPickup->m_Number > 0 &&
-        !pPickup->m_pWorld->m_pSwitches[pPickup->m_Number].m_Status)
-      continue;
+      case POWERUP_ARMOR_GRENADE:
+        pCore->m_aWeaponGot[WEAPON_GRENADE] = false;
+        if (pCore->m_ActiveWeapon == WEAPON_GRENADE)
+          pCore->m_ActiveWeapon = WEAPON_HAMMER;
+        break;
 
-    switch (pPickup->m_Type) {
-    case POWERUP_HEALTH:
-      cc_freeze(pChar, pChar->m_pWorld->m_pConfig->m_SvFreezeDelay);
-      break;
+      case POWERUP_ARMOR_NINJA:
+        pCore->m_Ninja.m_ActivationDir = vec2_init(0, 0);
+        pCore->m_Ninja.m_ActivationTick = -500;
+        pCore->m_Ninja.m_CurrentMoveTime = 0;
+        break;
 
-    case POWERUP_ARMOR:
-      for (int j = WEAPON_SHOTGUN; j < NUM_WEAPONS; j++) {
-        pChar->m_aWeaponGot[j] = false;
+      case POWERUP_ARMOR_LASER:
+        pCore->m_aWeaponGot[WEAPON_LASER] = false;
+        if (pCore->m_ActiveWeapon == WEAPON_LASER)
+          pCore->m_ActiveWeapon = WEAPON_HAMMER;
+        break;
+
+      case POWERUP_WEAPON:
+        // we do checks for this somewhere else i hope
+        pCore->m_aWeaponGot[Pickup.m_Subtype] = true;
+        break;
+
+      case POWERUP_NINJA: {
+        pCore->m_Ninja.m_ActivationTick = pCore->m_pWorld->m_GameTick;
+        pCore->m_aWeaponGot[WEAPON_NINJA] = true;
+        pCore->m_ActiveWeapon = WEAPON_NINJA;
+        break;
       }
-      pChar->m_Ninja.m_ActivationDir = vec2_init(0, 0);
-      pChar->m_Ninja.m_ActivationTick = -500;
-      pChar->m_Ninja.m_CurrentMoveTime = 0;
-      if (pChar->m_ActiveWeapon >= WEAPON_SHOTGUN)
-        pChar->m_ActiveWeapon = WEAPON_HAMMER;
-      break;
-
-    case POWERUP_ARMOR_SHOTGUN:
-      pChar->m_aWeaponGot[WEAPON_SHOTGUN] = false;
-      if (pChar->m_ActiveWeapon == WEAPON_SHOTGUN)
-        pChar->m_ActiveWeapon = WEAPON_HAMMER;
-      break;
-
-    case POWERUP_ARMOR_GRENADE:
-      pChar->m_aWeaponGot[WEAPON_GRENADE] = false;
-      if (pChar->m_ActiveWeapon == WEAPON_GRENADE)
-        pChar->m_ActiveWeapon = WEAPON_HAMMER;
-      break;
-
-    case POWERUP_ARMOR_NINJA:
-      pChar->m_Ninja.m_ActivationDir = vec2_init(0, 0);
-      pChar->m_Ninja.m_ActivationTick = -500;
-      pChar->m_Ninja.m_CurrentMoveTime = 0;
-      break;
-
-    case POWERUP_ARMOR_LASER:
-      pChar->m_aWeaponGot[WEAPON_LASER] = false;
-      if (pChar->m_ActiveWeapon == WEAPON_LASER)
-        pChar->m_ActiveWeapon = WEAPON_HAMMER;
-      break;
-
-    case POWERUP_WEAPON:
-      // we do checks for this somewhere else i hope
-      pChar->m_aWeaponGot[pPickup->m_Subtype] = true;
-      break;
-
-    case POWERUP_NINJA: {
-      pChar->m_Ninja.m_ActivationTick = pChar->m_pWorld->m_GameTick;
-      pChar->m_aWeaponGot[WEAPON_NINJA] = true;
-      pChar->m_ActiveWeapon = WEAPON_NINJA;
-      break;
+      default:
+        break;
+      }
     }
-    default:
-      break;
-    };
   }
 }
 
@@ -1366,7 +1338,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
     // apparently doing 2 distance calls instead of precalcuating the minus and
     // then doing vlength is faster...
     if (vsqdistance(HookBase, NewPos) >
-            pCore->m_pTuning->m_HookLength * pCore->m_pTuning->m_HookLength ||
+            pCore->m_pTuning->m_HookLength * pCore->m_pTuning->m_HookLength &&
         vdistance(HookBase, NewPos) > pCore->m_pTuning->m_HookLength) {
       // NOTE: use this for cleaning runs LOL
       pCore->m_HookState = HOOK_RETRACT_START;
@@ -1465,7 +1437,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
     // don't do this hook routine when we are already hooked to a player
     if (pCore->m_HookedPlayer == -1 &&
-        (vsqdistance(pCore->m_HookPos, pCore->m_Pos) > 46 * 46 ||
+        (vsqdistance(pCore->m_HookPos, pCore->m_Pos) > 46 * 46 &&
          vdistance(pCore->m_HookPos, pCore->m_Pos) > 46.0f)) {
       vec2 HookVel = vfmul(vnormalize(vvsub(pCore->m_HookPos, pCore->m_Pos)),
                            pCore->m_pTuning->m_HookDragAccel);
@@ -1999,34 +1971,7 @@ bool wc_on_entity(SWorldCore *pCore, int Index, int x, int y, int Layer,
     wc_insert_entity(pCore, (SEntity *)pBullet);
   }
 
-  int Type = -1;
-  int SubType = 0;
-
-  if (Index == ENTITY_ARMOR_1)
-    Type = POWERUP_ARMOR;
-  else if (Index == ENTITY_ARMOR_SHOTGUN)
-    Type = POWERUP_ARMOR_SHOTGUN;
-  else if (Index == ENTITY_ARMOR_GRENADE)
-    Type = POWERUP_ARMOR_GRENADE;
-  else if (Index == ENTITY_ARMOR_NINJA)
-    Type = POWERUP_ARMOR_NINJA;
-  else if (Index == ENTITY_ARMOR_LASER)
-    Type = POWERUP_ARMOR_LASER;
-  else if (Index == ENTITY_HEALTH_1)
-    Type = POWERUP_HEALTH;
-  else if (Index == ENTITY_WEAPON_SHOTGUN) {
-    Type = POWERUP_WEAPON;
-    SubType = WEAPON_SHOTGUN;
-  } else if (Index == ENTITY_WEAPON_GRENADE) {
-    Type = POWERUP_WEAPON;
-    SubType = WEAPON_GRENADE;
-  } else if (Index == ENTITY_WEAPON_LASER) {
-    Type = POWERUP_WEAPON;
-    SubType = WEAPON_LASER;
-  } else if (Index == ENTITY_POWERUP_NINJA) {
-    Type = POWERUP_NINJA;
-    SubType = WEAPON_NINJA;
-  } else if (Index >= ENTITY_LASER_FAST_CCW && Index <= ENTITY_LASER_FAST_CW) {
+  if (Index >= ENTITY_LASER_FAST_CCW && Index <= ENTITY_LASER_FAST_CW) {
     // TODO: IMPLEMENT LIGHTS
     // int aSides2[8];
     // aSides2[0] = entity(pCore->m_pCollision, x, y + 2, Layer);
@@ -2094,13 +2039,6 @@ bool wc_on_entity(SWorldCore *pCore, int Index, int x, int y, int Layer,
     // new CGun(&GameServer()->m_World, Pos, true, true, Layer, Number);
   } else if (Index == ENTITY_PLASMAU) {
     // new CGun(&GameServer()->m_World, Pos, false, false, Layer, Number);
-  }
-
-  if (Type != -1) {
-    SPickup *pPickup = &pCore->m_pPickups[pCore->m_NumPickups++];
-    pick_init(pPickup, pCore, Type, SubType, Layer, Number);
-    pPickup->m_Pos = Pos;
-    return true;
   }
 
   return false;
@@ -2175,8 +2113,6 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig) {
   pCore->m_NoWeakHook = false;
   pCore->m_NoWeakHookAndBounce = false;
 
-  pCore->m_pPickups = malloc(pCollision->m_NumPickupsTotal * sizeof(SPickup));
-
   wc_create_all_entities(pCore);
 }
 
@@ -2190,7 +2126,6 @@ void wc_free(SWorldCore *pCore) {
     }
   }
   free(pCore->m_pCharacters);
-  free(pCore->m_pPickups);
 }
 
 void wc_tick(SWorldCore *pCore) {
@@ -2199,7 +2134,7 @@ void wc_tick(SWorldCore *pCore) {
     cc_on_predicted_input(&pCore->m_pCharacters[i],
                           &pCore->m_pCharacters[i].m_LatestInput);
 
-  // Do Tick
+  // Tick entities
   {
     // Tick projectiles
     SEntity *pEntity = pCore->m_apFirstEntityTypes[ENTTYPE_PROJECTILE];
@@ -2217,15 +2152,13 @@ void wc_tick(SWorldCore *pCore) {
     //   pEntity = pEntity->m_pNextTypeEntity;
     // }
 
-    // Tick pickups
-    for (int i = 0; i < pCore->m_NumPickups; ++i)
-      pick_tick(&pCore->m_pPickups[i]);
+    for (int i = 0; i < pCore->m_NumCharacters; ++i)
+      cc_do_pickup((SCharacterCore *)&pCore->m_pCharacters[i]);
 
     // Tick characters
-    if (pCore->m_NoWeakHook) {
+    if (pCore->m_NoWeakHook)
       for (int i = 0; i < pCore->m_NumCharacters; ++i)
         cc_pre_tick((SCharacterCore *)&pCore->m_pCharacters[i]);
-    }
     for (int i = 0; i < pCore->m_NumCharacters; ++i)
       cc_tick((SCharacterCore *)&pCore->m_pCharacters[i]);
   }
@@ -2404,18 +2337,6 @@ void wc_copy_world(SWorldCore *restrict pTo, SWorldCore *restrict pFrom) {
       }
       pEntity = pEntity->m_pNextTypeEntity;
     }
-  }
-
-  // copy pickups
-  if (pTo->m_NumPickups != pFrom->m_NumPickups) {
-    free(pTo->m_pPickups);
-    pTo->m_NumPickups = pFrom->m_NumPickups;
-    pTo->m_pPickups = malloc(pTo->m_NumPickups * sizeof(SPickup));
-  }
-  for (int i = 0; i < pTo->m_NumPickups; ++i) {
-    pTo->m_pPickups[i] = pFrom->m_pPickups[i];
-    pTo->m_pPickups[i].m_pCollision = pTo->m_pCollision;
-    pTo->m_pPickups[i].m_pWorld = pTo;
   }
 
   // copy characters

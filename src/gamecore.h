@@ -48,17 +48,6 @@ typedef struct Entity {
   bool m_MarkedForDestroy;
 } SEntity;
 
-typedef struct Pickup {
-  struct WorldCore *m_pWorld;
-  SCollision *m_pCollision;
-  vec2 m_Pos;
-  vec2 m_Core;
-  int m_Number;
-  int m_Layer;
-  int m_Type;
-  int m_Subtype;
-} SPickup;
-
 typedef struct Projectile {
   SEntity m_Base;
   vec2 m_Direction;
@@ -187,11 +176,6 @@ typedef struct WorldCore {
 
   SEntity *m_pNextTraverseEntity;
   SEntity *m_apFirstEntityTypes[NUM_ENTTYPES];
-
-  // Pickups can't be destroyed or created at runtime so don't use the linked
-  // list for them
-  int m_NumPickups;
-  SPickup *m_pPickups;
 
   // Store and tick characters seperately from other entities since
   // the amount of players mostly only gets set once for simulations
