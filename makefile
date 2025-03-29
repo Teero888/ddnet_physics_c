@@ -1,8 +1,11 @@
 CC = gcc
-LTO = -flto -march=native -mtune=native
-OPT = -O3 -mavx2 -mfma -msse4.1 -funroll-loops -mfpmath=sse -fomit-frame-pointer -fno-trapping-math -fno-signed-zeros $(LTO)
+JUPSTAR = -march=znver5 -mtune=generic
+GENERAL = -march=native -mtune=native
+LTO = -flto $(GENERAL)
+OPT = -O3 -mavx2 -mfma -msse4.1 -funroll-loops -mfpmath=sse -fomit-frame-pointer -fno-trapping-math -fno-signed-zeros
 BASE_CFLAGS = -g -std=c99 -Wall -Wextra -I./src -I./libs/ddnet_maploader_c
 LDFLAGS = -lm -lz
+# -fsanitize=address
 SRC_FILES = $(wildcard src/*.c)
 TARGETS = benchmark example validate bench_movebox bench_intersect
 

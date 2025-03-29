@@ -16,15 +16,16 @@ typedef struct {
 
 static const STest s_aTests[] = {
     (STest){"jump",
-            "simple jumping up and down on ctf1 from top left red spawn",
+            "simple jumping up and down on ctf0 from top left red spawn",
             &s_JumpTest},
     (STest){"hook", "moving using just hook and no other inputs", &s_HookTest},
     (STest){"grenade",
-            "moves to the first grenade on the left side of ctf1, picks it up "
+            "moves to the first grenade on the left side of ctf0, picks it up "
             "and shoots randomly without moving",
             &s_GrenadeTest},
     (STest){"stopper physics", "tests the stoppers on a random stopper map",
             &s_StopperTest},
+    (STest){"test run", "a simple real run example", &s_TestRun},
 };
 
 int main(void) {
@@ -46,7 +47,7 @@ int main(void) {
     vec2 PreviousVel;
 
     bool Failed = false;
-    for (int i = 0; i < pData->m_StartTick + 500; ++i) {
+    for (int i = 0; i < pData->m_StartTick + pData->m_Ticks; ++i) {
       if (i >= pData->m_StartTick) {
         cc_on_input(pChar,
                     &pData->m_vStates[0][i - pData->m_StartTick].m_Input);

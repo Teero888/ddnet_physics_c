@@ -1,0 +1,2 @@
+# Going out of bounds. Player pos < 0 or > mapsize
+# moving pickups

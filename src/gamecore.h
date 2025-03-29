@@ -4,12 +4,6 @@
 #include "stdbool.h"
 #include "vmath.h"
 
-typedef struct TuningParams {
-#define MACRO_TUNING_PARAM(Name, Value) float m_##Name;
-#include "tuning.h"
-#undef MACRO_TUNING_PARAM
-} STuningParams;
-
 typedef struct Config {
 #define MACRO_CONFIG_INT(Name, Def) int m_##Name;
 #include "config.h"
@@ -69,13 +63,12 @@ typedef struct Projectile {
   SEntity m_Base;
   vec2 m_Direction;
   vec2 m_InitDir;
+  STuningParams *m_pTuning;
   int m_LifeSpan;
   int m_Owner;
   int m_Type;
   int m_StartTick;
   int m_Bouncing;
-  int m_DDRaceTeam;
-  int m_TuneZone;
   bool m_Explosive;
   bool m_Freeze;
   bool m_IsSolo;
@@ -156,9 +149,7 @@ typedef struct CharacterCore {
   bool m_DeepFrozen;
   bool m_LiveFrozen;
   bool m_FrozenLastTick;
-  unsigned char m_TuneZone;
-  STuningParams m_Tuning;
-
+  STuningParams *m_pTuning;
   unsigned char m_MoveRestrictions;
   // we might have more than 255 player ids
   int m_HookedPlayer;
@@ -189,8 +180,10 @@ typedef struct {
 typedef struct WorldCore {
   SCollision *m_pCollision;
 
-  // Expects a config from outside so you can reuse it as many times as needed
+  // Expects confg/tunings from outside so you can reuse them as many times as
+  // needed
   SConfig *m_pConfig;
+  STuningParams *m_pTunings;
 
   SEntity *m_pNextTraverseEntity;
   SEntity *m_apFirstEntityTypes[NUM_ENTTYPES];
@@ -208,10 +201,7 @@ typedef struct WorldCore {
   SCharacterCore *m_pCharacters;
 
   int m_NumSwitches;
-  SSwitch *m_vSwitches;
-
-  int m_NumTuneZones;
-  STuningParams *m_pTuningList;
+  SSwitch *m_pSwitches;
 
   int m_GameTick;
 
@@ -223,6 +213,7 @@ typedef struct WorldCore {
 
 void init_config(SConfig *pConfig);
 void wc_init(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig);
+void wc_copy_world(SWorldCore *restrict pTo, SWorldCore *restrict pFrom);
 void wc_tick(SWorldCore *pCore);
 void wc_free(SWorldCore *pCore);
 

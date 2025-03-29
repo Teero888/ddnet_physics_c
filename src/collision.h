@@ -20,6 +20,12 @@ enum {
 
 enum { INFO_ISSOLID = 1 << 0, INFO_TILENEXT = 1 << 1 };
 
+typedef struct TuningParams {
+#define MACRO_TUNING_PARAM(Name, Value) float m_##Name;
+#include "tuning.h"
+#undef MACRO_TUNING_PARAM
+} STuningParams;
+
 typedef struct Collision {
   SMapData m_MapData;
 
@@ -36,6 +42,12 @@ typedef struct Collision {
 
   bool m_MoveRestrictionsFound;
   unsigned char (*m_pMoveRestrictions)[5];
+
+  // Could be made into a dynamic list based on the server settings so only tune
+  // zones that actually get modified get loaded
+  // this is 48KB xd
+  // TODO: do this better lol
+  STuningParams m_aTuningList[256];
 } SCollision;
 
 bool init_collision(SCollision *restrict pCollision, const char *restrict pMap);
@@ -72,7 +84,8 @@ bool is_hook_blocker(SCollision *pCollision, int x, int y, vec2 Pos0,
 unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
                                        vec2 Pos0, vec2 Pos1,
                                        vec2 *restrict pOutCollision,
-                                       int *restrict pTeleNr, bool OldTeleHook);
+                                       int *restrict pTeleNr);
+
 bool test_box(SCollision *pCollision, vec2 Pos, vec2 Size);
 unsigned char is_tune(SCollision *pCollision, int Index);
 bool is_speedup(SCollision *pCollision, int Index);

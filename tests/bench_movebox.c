@@ -7,7 +7,7 @@
 
 int main(void) {
   SCollision Collision;
-  if (!init_collision(&Collision, "tests/maps/ctf1.map"))
+  if (!init_collision(&Collision, "tests/maps/ctf0.map"))
     return 1;
 
   vec2 Pos;

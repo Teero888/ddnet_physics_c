@@ -140,6 +140,12 @@ static bool tile_exists(SCollision *pCollision, int Index) {
   return tile_exists_next(pCollision, Index);
 }
 
+static void init_tuning_params(STuningParams *pTunings) {
+#define MACRO_TUNING_PARAM(Name, Value) pTunings->m_##Name = Value;
+#include "tuning.h"
+#undef MACRO_TUNING_PARAM
+}
+
 bool init_collision(SCollision *restrict pCollision,
                     const char *restrict pMap) {
   pCollision->m_MapData = load_map(pMap);
@@ -153,6 +159,9 @@ bool init_collision(SCollision *restrict pCollision,
   pCollision->m_pTileInfos = calloc(Width * Height, 1);
   pCollision->m_pMoveRestrictions = calloc(Width * Height, 5);
   pCollision->m_MoveRestrictionsFound = false;
+
+  for (int i = 0; i < 256; ++i)
+    init_tuning_params(&pCollision->m_aTuningList[i]);
 
   // Figure out important things
   // Make lists of spawn points, tele outs and tele checkpoints outs
@@ -202,15 +211,15 @@ bool init_collision(SCollision *restrict pCollision,
 
   if (pCollision->m_NumSpawnPoints > 0)
     pCollision->m_pSpawnPoints =
-        malloc(pCollision->m_NumSpawnPoints * sizeof(float[4]));
+        malloc(pCollision->m_NumSpawnPoints * sizeof(vec2));
   if (pMapData->m_TeleLayer.m_pType) {
     for (int i = 0; i < 256; ++i) {
       if (pCollision->m_aNumTeleOuts[i] > 0)
         pCollision->m_apTeleOuts[i] =
-            malloc(pCollision->m_aNumTeleOuts[i] * sizeof(float[4]));
+            malloc(pCollision->m_aNumTeleOuts[i] * sizeof(vec2));
       if (pCollision->m_aNumTeleCheckOuts[i] > 0)
         pCollision->m_apTeleCheckOuts[i] =
-            malloc(pCollision->m_aNumTeleCheckOuts[i] * sizeof(float[4]));
+            malloc(pCollision->m_aNumTeleCheckOuts[i] * sizeof(vec2));
     }
   }
 
@@ -245,8 +254,7 @@ void free_collision(SCollision *pCollision) {
   free_map_data(&pCollision->m_MapData);
   if (pCollision->m_NumSpawnPoints)
     free(pCollision->m_pSpawnPoints);
-  if (pCollision->m_MoveRestrictionsFound)
-    free(pCollision->m_pMoveRestrictions);
+  free(pCollision->m_pMoveRestrictions);
   if (pCollision->m_pTileInfos)
     free(pCollision->m_pTileInfos);
   if (pCollision->m_MapData.m_TeleLayer.m_pType)
@@ -525,6 +533,21 @@ static inline bool broad_check_char(SCollision *restrict pCollision, vec2 Start,
   return false;
 }
 
+static inline bool broad_check_tele(SCollision *restrict pCollision, vec2 Start,
+                                    vec2 End) {
+  const int MinX = (int)fmin(Start.x, End.x) >> 5;
+  const int MinY = (int)fmin(Start.y, End.y) >> 5;
+  const int MaxX = (int)fmax(Start.x, End.x) >> 5;
+  const int MaxY = (int)fmax(Start.y, End.y) >> 5;
+  for (int y = MinY; y <= MaxY; ++y) {
+    for (int x = MinX; x <= MaxX; ++x) {
+      if (is_teleport_hook(pCollision, y * pCollision->m_MapData.m_Width + x))
+        return true;
+    }
+  }
+  return false;
+}
+
 static inline bool broad_check(SCollision *restrict pCollision, vec2 Start,
                                vec2 End) {
   const int MinX = (int)fmin(Start.x, End.x) >> 5;
@@ -533,8 +556,9 @@ static inline bool broad_check(SCollision *restrict pCollision, vec2 Start,
   const int MaxY = (int)fmax(Start.y, End.y) >> 5;
   for (int y = MinY; y <= MaxY; ++y) {
     for (int x = MinX; x <= MaxX; ++x) {
-      if (pCollision->m_pTileInfos[y * pCollision->m_MapData.m_Width + x] &
-          INFO_ISSOLID)
+      if ((unsigned char)(pCollision->m_MapData.m_GameLayer
+                              .m_pData[y * pCollision->m_MapData.m_Width + x] -
+                          1) < TILE_CREDITS_1)
         return true;
     }
   }
@@ -544,40 +568,40 @@ static inline bool broad_check(SCollision *restrict pCollision, vec2 Start,
 unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
                                        vec2 Pos0, vec2 Pos1,
                                        vec2 *restrict pOutCollision,
-                                       int *restrict pTeleNr,
-                                       bool OldTeleHook) {
-  // NOTE:another only 10ms save because the hook does many intersect lines
-  // which make the broad check overlap. still better than nothing
+                                       int *restrict pTeleNr) {
   if (!broad_check(pCollision, Pos0, Pos1)) {
-    if (pOutCollision)
-      *pOutCollision = Pos1;
-    return 0;
+    if (pTeleNr) {
+      if (!broad_check_tele(pCollision, Pos0, Pos1)) {
+        if (pOutCollision)
+          *pOutCollision = Pos1;
+        return 0;
+      }
+    } else {
+      if (pOutCollision)
+        *pOutCollision = Pos1;
+      return 0;
+    }
   }
+
   const int End = vdistance(Pos0, Pos1) + 1;
+  const float fEnd = End;
   int dx = 0, dy = 0;
   ThroughOffset(Pos0, Pos1, &dx, &dy);
   int LastIndex = -1;
-  const float Step = 1.f / End;
   const int Width = pCollision->m_MapData.m_Width;
-  vec2 Pos;
-  int ix;
-  int iy;
-  int Index;
-  for (float a = 0; a <= 1.f; a += Step) {
-    Pos = vvfmix(Pos0, Pos1, a);
-    ix = (int)(Pos.x + 0.5f) >> 5;
-    iy = (int)(Pos.y + 0.5f) >> 5;
-    Index = iy * Width + ix;
+  for (int i = 0; i <= End; i++) {
+    float a = i / fEnd;
+    vec2 Pos = vvfmix(Pos0, Pos1, a);
+    int ix = (int)(Pos.x + 0.5f) >> 5;
+    int iy = (int)(Pos.y + 0.5f) >> 5;
+    int Index = iy * Width + ix;
 
     // behind this is basically useless to optimize
     if (Index == LastIndex)
       continue;
     LastIndex = Index;
     if (pTeleNr) {
-      if (OldTeleHook)
-        *pTeleNr = is_teleport(pCollision, Index);
-      else
-        *pTeleNr = is_teleport_hook(pCollision, Index);
+      *pTeleNr = is_teleport_hook(pCollision, Index);
       if (*pTeleNr) {
         if (pOutCollision)
           *pOutCollision = Pos;
@@ -587,8 +611,7 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
 
     if (check_point_idx(pCollision, Index)) {
       if (!is_through(pCollision, ix, iy, dx, dy, Pos0, Pos1)) {
-        if (pOutCollision)
-          *pOutCollision = Pos;
+        *pOutCollision = Pos;
 
         int Idx = pCollision->m_MapData.m_GameLayer.m_pData[Index];
         if (Idx >= TILE_SOLID && Idx <= TILE_NOLASER)
@@ -596,13 +619,11 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
         return 0;
       }
     } else if (is_hook_blocker(pCollision, ix, iy, Pos0, Pos1)) {
-      if (pOutCollision)
-        *pOutCollision = Pos;
+      *pOutCollision = Pos;
       return TILE_NOHOOK;
     }
   }
-  if (pOutCollision)
-    *pOutCollision = Pos1;
+  *pOutCollision = Pos1;
   return 0;
 }
 

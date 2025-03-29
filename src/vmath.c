@@ -12,6 +12,7 @@ extern inline float vdistance(vec2 a, vec2 b);
 extern inline float vsqlength(vec2 a);
 extern inline float vsqdistance(vec2 a, vec2 b);
 extern inline vec2 vnormalize(vec2 a);
+extern inline vec2 vnormalize_nomask(vec2 a);
 extern inline bool vvcmp(vec2 a, vec2 b);
 extern inline int round_to_int(float f);
 extern inline float fclamp(float n, float a, float b);

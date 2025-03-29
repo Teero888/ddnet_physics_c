@@ -61,6 +61,11 @@ inline vec2 vnormalize(vec2 a) {
   return vec2_init(a.x * l, a.y * l);
 }
 
+inline vec2 vnormalize_nomask(vec2 a) {
+  const float l = 1.0f / vlength(a);
+  return vec2_init(a.x * l, a.y * l);
+}
+
 inline bool vvcmp(vec2 a, vec2 b) { return a.x == b.x && a.y == b.y; }
 
 inline int round_to_int(float f) {
