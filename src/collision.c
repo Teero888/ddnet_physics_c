@@ -623,11 +623,34 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
   ThroughOffset(Pos0, Pos1, &dx, &dy);
   int LastIndex = -1;
   const int Width = pCollision->m_MapData.m_Width;
+  const float InvDiv = (1.0 / fEnd);
+  const __m128 HALF_VEC =
+      _mm_set1_ps(0.5f); // or _mm_setr_ps(0.5f, 0.5f, 0.0f, 0.0f)
   for (int i = 0; i <= End; i++) {
-    float a = i / fEnd;
+    // NOTE: this here causes inaccuracies on the 8th digit. may cause issues
+    // with hooking. use the one below if that is the case. i haven't found any
+    // cases where it makes a difference.
+    // doing this inverse saves 50k tps on my machine (3,750,000 before,
+    // 3,800,000 after)
+    float a = i * InvDiv;
+    // float ab = i / fEnd;
+
+    // if (a == ab)
+    //   printf("its fine: a = %.9f, ab = %.9f\n", a, ab);
+    // else
+    //   printf("EROR    : a = %.9f, ab = %.9f\n", a, ab);
+
     vec2 Pos = vvfmix(Pos0, Pos1, a);
-    int ix = (int)(Pos.x + 0.5f) >> 5;
-    int iy = (int)(Pos.y + 0.5f) >> 5;
+
+    // This simd saves 40-50k tps
+    __m128 pos = Pos.simd;
+    __m128 pos_plus_half = _mm_add_ps(pos, HALF_VEC);
+    __m128i pos_int = _mm_cvttps_epi32(pos_plus_half);
+    pos_int = _mm_srai_epi32(pos_int, 5);
+    ALIGN(16) int indices[4];
+    _mm_storeu_si128((__m128i *)indices, pos_int);
+    int ix = indices[0];
+    int iy = indices[1];
     int Index = iy * Width + ix;
 
     // behind this is basically useless to optimize
@@ -781,12 +804,13 @@ void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos,
   int Max = (int)Distance;
   float Fraction = 1.0f / (float)(Max + 1);
   if (!broad_check_char(pCollision, *pInoutPos, NewPos)) {
+    // using simd here gives another 50k tps for me
     const vec2 Frac = vfmul(Vel, Fraction);
+    vec2 accum = {.simd = _mm_set_ps(0, 0, Pos.y, Pos.x)};
+    vec2 frac = {.simd = _mm_set_ps(0, 0, Frac.y, Frac.x)};
     for (int i = 0; i <= Max; i++)
-      Pos = vvadd(Pos, Frac);
-    // printf("NewPos:\t%f,%f,\nPos:\t%f,%f\n", NewPos.x, NewPos.y, Pos.x,
-    // Pos.y);
-    *pInoutPos = Pos;
+      accum.simd = _mm_add_ps(accum.simd, frac.simd);
+    _mm_storeu_ps((float *)pInoutPos, accum.simd);
     return;
   }
 
