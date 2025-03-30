@@ -1,7 +1,7 @@
+#include "../src/collision.h"
 #include "../src/gamecore.h"
-#include "collision.h"
+#include "../src/vmath.h"
 #include "data.h"
-#include "vmath.h"
 #include <stdio.h>
 
 #define TICKS 1000000
@@ -32,7 +32,7 @@ int main(void) {
   for (int Test = 0; (unsigned long)Test < SIZE(s_aTests); ++Test) {
     const SValidation *pData = s_aTests[Test].m_pValidationData;
     char aMapPath[64];
-    snprintf(aMapPath, 64, "tests/maps/%s", pData->m_aMapName);
+    snprintf(aMapPath, 64, "maps/%s", pData->m_aMapName);
     SCollision Collision;
     if (!init_collision(&Collision, aMapPath))
       return 1;

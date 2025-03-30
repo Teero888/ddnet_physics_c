@@ -1,11 +1,11 @@
 #include <stdio.h>
 
+#include "../src/collision.h"
 #include "../src/gamecore.h"
-#include "collision.h"
 
 int main(void) {
   SCollision Collision;
-  if (!init_collision(&Collision, "tests/maps/ctf0.map"))
+  if (!init_collision(&Collision, "maps/ctf0.map"))
     return 1;
 
   SConfig Config;

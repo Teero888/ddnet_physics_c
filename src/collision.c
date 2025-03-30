@@ -426,8 +426,8 @@ inline unsigned char get_front_collision_at(SCollision *pCollision, float x,
   return 0;
 }
 
-inline unsigned char get_move_restrictions(SCollision *pCollision, void *pUser,
-                                           vec2 Pos,
+inline unsigned char get_move_restrictions(SCollision *restrict pCollision,
+                                           void *restrict pUser, vec2 Pos,
                                            int OverrideCenterTileIndex) {
 
   if (!pCollision->m_MoveRestrictionsFound &&
@@ -746,26 +746,23 @@ unsigned char intersect_line(SCollision *restrict pCollision, vec2 Pos0,
   return 0;
 }
 
-static inline bool check_point_int(SCollision *restrict pCollision, ivec2 Pos) {
-  int Nx = Pos.x >> 5;
-  int Ny = Pos.y >> 5;
+static inline bool check_point_int(SCollision *restrict pCollision, int x,
+                                   int y) {
+  int Nx = x >> 5;
+  int Ny = y >> 5;
   return pCollision->m_pTileInfos[Ny * pCollision->m_MapData.m_Width + Nx] &
          INFO_ISSOLID;
 }
 
-static inline bool test_box_character(SCollision *restrict pCollision,
-                                      ivec2 Pos) {
-  if (check_point_int(pCollision, (ivec2){Pos.x - HALFPHYSICALSIZE,
-                                          Pos.y - HALFPHYSICALSIZE}))
+static inline bool test_box_character(SCollision *restrict pCollision, int x,
+                                      int y) {
+  if (check_point_int(pCollision, x - HALFPHYSICALSIZE, y - HALFPHYSICALSIZE))
     return true;
-  if (check_point_int(pCollision, (ivec2){Pos.x + HALFPHYSICALSIZE,
-                                          Pos.y - HALFPHYSICALSIZE}))
+  if (check_point_int(pCollision, x + HALFPHYSICALSIZE, y - HALFPHYSICALSIZE))
     return true;
-  if (check_point_int(pCollision, (ivec2){Pos.x - HALFPHYSICALSIZE,
-                                          Pos.y + HALFPHYSICALSIZE}))
+  if (check_point_int(pCollision, x - HALFPHYSICALSIZE, y + HALFPHYSICALSIZE))
     return true;
-  if (check_point_int(pCollision, (ivec2){Pos.x + HALFPHYSICALSIZE,
-                                          Pos.y + HALFPHYSICALSIZE}))
+  if (check_point_int(pCollision, x + HALFPHYSICALSIZE, y + HALFPHYSICALSIZE))
     return true;
   return false;
 }
@@ -784,8 +781,11 @@ void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos,
   int Max = (int)Distance;
   float Fraction = 1.0f / (float)(Max + 1);
   if (!broad_check_char(pCollision, *pInoutPos, NewPos)) {
+    const vec2 Frac = vfmul(Vel, Fraction);
     for (int i = 0; i <= Max; i++)
-      Pos = vvadd(Pos, vfmul(Vel, Fraction));
+      Pos = vvadd(Pos, Frac);
+    // printf("NewPos:\t%f,%f,\nPos:\t%f,%f\n", NewPos.x, NewPos.y, Pos.x,
+    // Pos.y);
     *pInoutPos = Pos;
     return;
   }
@@ -796,16 +796,16 @@ void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos,
   for (int i = 0; i <= Max; i++) {
     NewPos = vvadd(Pos, vfmul(Vel, Fraction));
     INewPos = (ivec2){(int)(NewPos.x + 0.5f), (int)(NewPos.y + 0.5f)};
-    if (test_box_character(pCollision, INewPos)) {
+    if (test_box_character(pCollision, INewPos.x, INewPos.y)) {
       Hits = 0;
-      if (test_box_character(pCollision, (ivec2){IPos.x, INewPos.y})) {
+      if (test_box_character(pCollision, IPos.x, INewPos.y)) {
         if (pGrounded && Elasticity.y > 0 && Vel.y > 0)
           *pGrounded = true;
         NewPos.y = Pos.y;
         Vel.y *= -Elasticity.y;
         Hits++;
       }
-      if (test_box_character(pCollision, (ivec2){INewPos.x, IPos.y})) {
+      if (test_box_character(pCollision, INewPos.x, IPos.y)) {
         NewPos.x = Pos.x;
         Vel.x *= -Elasticity.x;
         Hits++;

@@ -8,9 +8,6 @@
 #define ALIGN(x) __attribute__((aligned(x)))
 #endif
 
-// TODO: precalculate a tile_exists map
-// and a get_move_restrictions map
-
 typedef union vec2 {
   struct {
     float x, y;
@@ -32,18 +29,16 @@ typedef struct ivec2 {
 inline vec2 vec2_init(float x, float y) {
   return (vec2){.simd = _mm_set_ps(0.0f, 0.0f, y, x)};
 }
-
 inline vec2 vvadd(vec2 a, vec2 b) { return vec2_init(a.x + b.x, a.y + b.y); }
 inline vec2 vfmul(vec2 a, float b) { return vec2_init(a.x * b, a.y * b); }
+inline vec2 vvsub(vec2 a, vec2 b) { return vec2_init(a.x - b.x, a.y - b.y); }
+inline vec2 vfadd(vec2 a, float b) { return vec2_init(a.x + b, a.y + b); }
 
 // saves ~30ms on the benchmark
 inline vec2 vfdiv(vec2 a, float b) {
   __m128 scalar = _mm_set1_ps(b);
   return (vec2){.simd = _mm_div_ps(a.simd, scalar)};
 }
-
-inline vec2 vfadd(vec2 a, float b) { return vec2_init(a.x + b, a.y + b); }
-inline vec2 vvsub(vec2 a, vec2 b) { return vec2_init(a.x - b.x, a.y - b.y); }
 inline float vdot(vec2 a, vec2 b) { return a.x * b.x + a.y * b.y; };
 
 inline float vlength(vec2 a) { return sqrt(a.x * a.x + a.y * a.y); }
