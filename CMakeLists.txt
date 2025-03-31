@@ -26,12 +26,12 @@ function(configure_target target_name)
     target_include_directories(${target_name} PRIVATE ${COMMON_INCLUDES})
     target_link_libraries(${target_name} PRIVATE ZLIB::ZLIB)
 
-    # add debug symbols for all
+    # default options
     if(MSVC)
-        target_compile_options(${target_name} PRIVATE /Zi)
+        target_compile_options(${target_name} PRIVATE /Zi /arch:AVX2)
         target_link_options(${target_name} PRIVATE /DEBUG)
     else()
-        target_compile_options(${target_name} PRIVATE -g)
+        target_compile_options(${target_name} PRIVATE -g -mavx -mavx2 -mfma -msse4.2)
     endif()
 
     if(UNIX)
@@ -48,7 +48,7 @@ endfunction()
 # benchmark specific stuff
 configure_target(benchmark)
 target_compile_options(benchmark PRIVATE
-    $<$<C_COMPILER_ID:GNU,Clang,AppleClang>:-O3 -mavx2 -mfma -msse4.1 -funroll-loops -mfpmath=sse -fomit-frame-pointer -fno-trapping-math -fno-signed-zeros>
+    $<$<C_COMPILER_ID:GNU,Clang,AppleClang>:-O3 -funroll-loops -mfpmath=sse -fomit-frame-pointer -fno-trapping-math -fno-signed-zeros>
     $<$<C_COMPILER_ID:MSVC>:/O2 /arch:AVX2>
 )
 target_link_libraries(benchmark PRIVATE OpenMP::OpenMP_C)
@@ -56,10 +56,10 @@ target_link_libraries(benchmark PRIVATE OpenMP::OpenMP_C)
 # Add LTO flags if enabled
 if(DO_LTO)
     if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-        target_compile_options(benchmark PRIVATE -flto -g)
-        target_link_options(benchmark PRIVATE -flto)
+        target_compile_options(benchmark PRIVATE -flto -g -march=native -mtune=native)
+        target_link_options(benchmark PRIVATE -flto -g)
     elseif(MSVC)
-        target_compile_options(benchmark PRIVATE /GL /Zi)
+        target_compile_options(benchmark PRIVATE /GL /Zi /arch:AVX2)
         target_link_options(benchmark PRIVATE /LTCG /DEBUG)
     endif()
 endif()

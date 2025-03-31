@@ -3,8 +3,13 @@
 #include "limits.h"
 #include "map_loader.h"
 #include "vmath.h"
+#include <float.h>
+#include <immintrin.h>
 #include <stdio.h>
 #include <string.h>
+
+int NumSkips = 0;
+int NumIntersects = 0;
 
 enum {
   MR_DIR_HERE = 0,
@@ -146,6 +151,118 @@ static void init_tuning_params(STuningParams *pTunings) {
 #undef MACRO_TUNING_PARAM
 }
 
+// #define COLOR_RED "\033[31m"
+// #define COLOR_GREEN "\033[32m"
+// #define COLOR_YELLOW "\033[33m"
+// #define COLOR_BLUE "\033[34m"
+// #define COLOR_MAGENTA "\033[35m"
+// #define COLOR_CYAN "\033[36m"
+// #define COLOR_RESET "\033[0m"
+//
+// void print_distance_field(SCollision *pCollision) {
+//   int Width = pCollision->m_MapData.m_Width;
+//   int Height = pCollision->m_MapData.m_Height;
+//   unsigned char *pField = pCollision->m_pSolidDistanceField;
+//
+//   printf("Distance Field:\n");
+//   for (int y = 0; y < Height; ++y) {
+//     for (int x = 0; x < Width; ++x) {
+//       int Idx = y * Width + x;
+//       unsigned char dist = pField[Idx];
+//       if (dist == 0) {
+//         printf(COLOR_RED " 0 " COLOR_RESET);
+//       } else if (dist <= 85) {
+//         printf(COLOR_YELLOW "%3d" COLOR_RESET, dist);
+//       } else if (dist <= 170) {
+//         printf(COLOR_GREEN "%3d" COLOR_RESET, dist);
+//       } else {
+//         printf(COLOR_CYAN "%3d" COLOR_RESET, dist);
+//       }
+//     }
+//     printf("\n");
+//   }
+// }
+
+static void init_distance_field(SCollision *pCollision) {
+  int Width = pCollision->m_MapData.m_Width;
+  int Height = pCollision->m_MapData.m_Height;
+  unsigned char *pField = pCollision->m_pSolidDistanceField;
+  unsigned char *pInfos = pCollision->m_pTileInfos;
+  float *tmp = (float *)malloc(Width * Height * sizeof(float));
+
+  for (int y = 0; y < Height; ++y) {
+    for (int x = 0; x < Width; ++x) {
+      int Idx = y * Width + x;
+      if (pInfos[Idx] & INFO_ISSOLID) {
+        pField[Idx] = 0;
+        tmp[Idx] = 0.0f;
+      } else {
+        pField[Idx] = 255;
+        tmp[Idx] = FLT_MAX;
+      }
+    }
+  }
+
+  for (int y = 0; y < Height; ++y) {
+    for (int x = 0; x < Width; ++x) {
+      int Idx = y * Width + x;
+      if (tmp[Idx] == 0.0f)
+        continue;
+      float min = FLT_MAX;
+      if (x > 0) {
+        float dist = tmp[Idx - 1] + 1.0f;
+        min = fminf(min, dist);
+      }
+      if (y > 0) {
+        float dist = tmp[Idx - Width] + 1.0f;
+        min = fminf(min, dist);
+      }
+      if (x > 0 && y > 0) {
+        float dist = tmp[Idx - Width - 1] + sqrtf(2.0f);
+        min = fminf(min, dist);
+      }
+      if (x < Width - 1 && y > 0) {
+        float dist = tmp[Idx - Width + 1] + sqrtf(2.0f);
+        min = fminf(min, dist);
+      }
+      tmp[Idx] = fminf(tmp[Idx], min);
+    }
+  }
+  for (int y = Height - 1; y >= 0; --y) {
+    for (int x = Width - 1; x >= 0; --x) {
+      int Idx = y * Width + x;
+      if (tmp[Idx] == 0.0f)
+        continue;
+      float min = FLT_MAX;
+      if (x < Width - 1) {
+        float dist = tmp[Idx + 1] + 1.0f;
+        min = fminf(min, dist);
+      }
+      if (y < Height - 1) {
+        float dist = tmp[Idx + Width] + 1.0f;
+        min = fminf(min, dist);
+      }
+      if (x < Width - 1 && y < Height - 1) {
+        float dist = tmp[Idx + Width + 1] + sqrtf(2.0f);
+        min = fminf(min, dist);
+      }
+      if (x > 0 && y < Height - 1) {
+        float dist = tmp[Idx + Width - 1] + sqrtf(2.0f);
+        min = fminf(min, dist);
+      }
+      tmp[Idx] = fminf(tmp[Idx], min);
+      float scaled = tmp[Idx] * 32.0f;
+      if (scaled > 255.0f) {
+        scaled = 255.0f;
+      }
+      pField[Idx] = (unsigned char)scaled;
+    }
+  }
+
+  free(tmp);
+  // print_distance_field(pCollision);
+}
+
 bool init_collision(SCollision *restrict pCollision,
                     const char *restrict pMap) {
   pCollision->m_MapData = load_map(pMap);
@@ -156,6 +273,7 @@ bool init_collision(SCollision *restrict pCollision,
   int Width = pMapData->m_Width;
   int Height = pMapData->m_Height;
 
+  pCollision->m_pSolidDistanceField = calloc(Width * Height, 1);
   pCollision->m_pTileInfos = calloc(Width * Height, 1);
   pCollision->m_pMoveRestrictions = calloc(Width * Height, 5);
   pCollision->m_pPickups = calloc(Width * Height, sizeof(SPickup));
@@ -163,7 +281,6 @@ bool init_collision(SCollision *restrict pCollision,
 
   for (int i = 0; i < 256; ++i)
     init_tuning_params(&pCollision->m_aTuningList[i]);
-
   // Figure out important things
   // Make lists of spawn points, tele outs and tele checkpoints outs
   for (int i = 0; i < Width * Height; ++i) {
@@ -243,6 +360,8 @@ bool init_collision(SCollision *restrict pCollision,
     }
   }
 
+  init_distance_field(pCollision);
+
   if (pCollision->m_NumSpawnPoints > 0)
     pCollision->m_pSpawnPoints =
         malloc(pCollision->m_NumSpawnPoints * sizeof(vec2));
@@ -297,6 +416,8 @@ void free_collision(SCollision *pCollision) {
       free(pCollision->m_apTeleCheckOuts[i]);
     }
   memset(pCollision, 0, sizeof(SCollision));
+
+  printf("Skips:%d, Intersects:%d\nRatio:%f\n", NumSkips, NumIntersects,(float)NumIntersects / (float)NumSkips);
 }
 
 inline int get_pure_map_index(SCollision *pCollision, vec2 Pos) {
@@ -415,6 +536,14 @@ inline unsigned char get_collision_at(SCollision *pCollision, float x,
     return Idx;
   return 0;
 }
+static inline unsigned char get_collision_at_idx(SCollision *pCollision,
+                                                 int Idx) {
+  const int Tile = pCollision->m_MapData.m_GameLayer.m_pData[Idx];
+  if (Tile >= TILE_SOLID && Tile <= TILE_NOLASER)
+    return Idx;
+  return 0;
+}
+
 inline unsigned char get_front_collision_at(SCollision *pCollision, float x,
                                             float y) {
   int Nx = (int)x >> 5;
@@ -470,14 +599,12 @@ int get_map_index(SCollision *pCollision, vec2 Pos) {
 inline bool check_point(SCollision *pCollision, vec2 Pos) {
   int Nx = (int)(Pos.x + 0.5f) >> 5;
   int Ny = (int)(Pos.y + 0.5f) >> 5;
-  unsigned char Idx = pCollision->m_MapData.m_GameLayer
-                          .m_pData[Ny * pCollision->m_MapData.m_Width + Nx];
-  return Idx == TILE_SOLID || Idx == TILE_NOHOOK;
+  return pCollision->m_pTileInfos[Ny * pCollision->m_MapData.m_Width + Nx] &
+         INFO_ISSOLID;
 }
 
 static inline bool check_point_idx(SCollision *pCollision, int Idx) {
-  unsigned char Tile = pCollision->m_MapData.m_GameLayer.m_pData[Idx];
-  return Tile == TILE_SOLID || Tile == TILE_NOHOOK;
+  return pCollision->m_pTileInfos[Idx] & INFO_ISSOLID;
 }
 
 void ThroughOffset(vec2 Pos0, vec2 Pos1, int *restrict pOffsetX,
@@ -603,7 +730,13 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
                                        vec2 Pos0, vec2 Pos1,
                                        vec2 *restrict pOutCollision,
                                        int *restrict pTeleNr) {
-  if (!broad_check(pCollision, Pos0, Pos1)) {
+  const int End = vdistance(Pos0, Pos1) + 1;
+  if (pCollision->m_pSolidDistanceField[((int)Pos0.y >> 5) *
+                                            pCollision->m_MapData.m_Width +
+                                        ((int)Pos0.x >> 5)] -
+          30 >
+      End) {
+    // if (!broad_check(pCollision, Pos0, Pos1)) {
     if (pTeleNr) {
       if (!broad_check_tele(pCollision, Pos0, Pos1)) {
         if (pOutCollision)
@@ -613,11 +746,12 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
     } else {
       if (pOutCollision)
         *pOutCollision = Pos1;
+      ++NumSkips;
       return 0;
     }
   }
 
-  const int End = vdistance(Pos0, Pos1) + 1;
+  ++NumIntersects;
   const float fEnd = End;
   int dx = 0, dy = 0;
   ThroughOffset(Pos0, Pos1, &dx, &dy);
@@ -628,10 +762,9 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
       _mm_set1_ps(0.5f); // or _mm_setr_ps(0.5f, 0.5f, 0.0f, 0.0f)
   for (int i = 0; i <= End; i++) {
     // NOTE: this here causes inaccuracies on the 8th digit. may cause issues
-    // with hooking. use the one below if that is the case. i haven't found any
-    // cases where it makes a difference.
-    // doing this inverse saves 50k tps on my machine (3,750,000 before,
-    // 3,800,000 after)
+    // with hooking. use the one below if that is the case. i haven't found
+    // any cases where it makes a difference. doing this inverse saves 50k tps
+    // on my machine (3,750,000 before, 3,800,000 after)
     float a = i * InvDiv;
     // float ab = i / fEnd;
 
@@ -742,30 +875,34 @@ const vec2 *tele_check_outs(SCollision *restrict pCollision, int Number,
 unsigned char intersect_line(SCollision *restrict pCollision, vec2 Pos0,
                              vec2 Pos1, vec2 *restrict pOutCollision,
                              vec2 *restrict pOutBeforeCollision) {
+  // if (!broad_check(pCollision, Pos0, Pos1)) {
+  //   *pOutCollision = Pos1;
+  //   *pOutBeforeCollision = Pos1;
+  //   return 0;
+  // }
   float Distance = vdistance(Pos0, Pos1);
   int End = Distance + 1;
   vec2 Last = Pos0;
+  int LastIdx = -1;
   for (int i = 0; i <= End; i++) {
     float a = i / (float)End;
     vec2 Pos = vvfmix(Pos0, Pos1, a);
-    // Temporary position for checking collision
-    int ix = (int)(Pos.x + 0.5f);
-    int iy = (int)(Pos.y + 0.5f);
-
-    if (check_point(pCollision, vec2_init(ix, iy))) {
-      if (pOutCollision)
-        *pOutCollision = Pos;
-      if (pOutBeforeCollision)
-        *pOutBeforeCollision = Last;
-      return get_collision_at(pCollision, ix, iy);
+    int Nx = (int)(Pos.x + 0.5f) >> 5;
+    int Ny = (int)(Pos.y + 0.5f) >> 5;
+    int Idx = Ny * pCollision->m_MapData.m_Width + Nx;
+    if (LastIdx == Idx)
+      continue;
+    LastIdx = Idx;
+    if (check_point_idx(pCollision, Idx)) {
+      *pOutCollision = Pos;
+      *pOutBeforeCollision = Last;
+      return get_collision_at_idx(pCollision, Idx);
     }
 
     Last = Pos;
   }
-  if (pOutCollision)
-    *pOutCollision = Pos1;
-  if (pOutBeforeCollision)
-    *pOutBeforeCollision = Pos1;
+  *pOutCollision = Pos1;
+  *pOutBeforeCollision = Pos1;
   return 0;
 }
 
@@ -796,21 +933,29 @@ void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos,
   vec2 Vel = *pInoutVel;
   float Distance = vlength(Vel);
   if (Distance <= 0.00001f) {
-    // printf("dist <= 0.00001f movebox\n");
     return;
   }
   vec2 Pos = *pInoutPos;
   vec2 NewPos = vvadd(Pos, Vel);
   int Max = (int)Distance;
   float Fraction = 1.0f / (float)(Max + 1);
+  // if (pCollision->m_pSolidDistanceField[((int)Pos.y >> 5) *
+  //                                           pCollision->m_MapData.m_Width +
+  //                                       ((int)Pos.x >> 5)] -
+  //         1 >
+  //     Max >> 5) {
   if (!broad_check_char(pCollision, *pInoutPos, NewPos)) {
-    // using simd here gives another 50k tps for me
     const vec2 Frac = vfmul(Vel, Fraction);
-    vec2 accum = {.simd = _mm_set_ps(0, 0, Pos.y, Pos.x)};
-    vec2 frac = {.simd = _mm_set_ps(0, 0, Frac.y, Frac.x)};
+    __m256 accum =
+        _mm256_setr_ps(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, Pos.y, Pos.x);
+    __m256 frac =
+        _mm256_setr_ps(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, Frac.y, Frac.x);
     for (int i = 0; i <= Max; i++)
-      accum.simd = _mm_add_ps(accum.simd, frac.simd);
-    _mm_storeu_ps((float *)pInoutPos, accum.simd);
+      accum = _mm256_add_ps(accum, frac);
+    float result[8];
+    _mm256_storeu_ps(result, accum);
+    pInoutPos->x = result[7];
+    pInoutPos->y = result[6];
     return;
   }
 

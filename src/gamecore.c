@@ -1437,10 +1437,11 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
     // don't do this hook routine when we are already hooked to a player
     if (pCore->m_HookedPlayer == -1 &&
-        (vsqdistance(pCore->m_HookPos, pCore->m_Pos) > 46 * 46 &&
+        (vsqdistance(pCore->m_HookPos, pCore->m_Pos) > 46 * 46 ||
          vdistance(pCore->m_HookPos, pCore->m_Pos) > 46.0f)) {
-      vec2 HookVel = vfmul(vnormalize(vvsub(pCore->m_HookPos, pCore->m_Pos)),
-                           pCore->m_pTuning->m_HookDragAccel);
+      vec2 HookVel =
+          vfmul(vnormalize_nomask(vvsub(pCore->m_HookPos, pCore->m_Pos)),
+                pCore->m_pTuning->m_HookDragAccel);
       // the hook as more power to drag you up then down.
       // this makes it easier to get on top of an platform
       if (HookVel.y > 0)

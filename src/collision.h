@@ -53,6 +53,7 @@ typedef struct Collision {
   int m_aNumTeleCheckOuts[256];
   vec2 *m_apTeleCheckOuts[256];
 
+  unsigned char *m_pSolidDistanceField;
   unsigned char *m_pTileInfos;
   SPickup *m_pPickups;
 
