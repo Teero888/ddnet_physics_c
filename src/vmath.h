@@ -86,7 +86,7 @@ inline float vdot(vec2 a, vec2 b) {
 inline float vsqlength(vec2 a) { return vdot(a, a); }
 
 // Length
-inline float vlength(vec2 a) { return sqrtf(vsqlength(a)); }
+inline float vlength(vec2 a) { return sqrt(vsqlength(a)); }
 
 // Compare vectors
 inline bool vvcmp(vec2 a, vec2 b) {
@@ -101,23 +101,24 @@ inline float vsqdistance(vec2 a, vec2 b) {
 }
 
 // Distance
-inline float vdistance(vec2 a, vec2 b) { return sqrtf(vsqdistance(a, b)); }
+inline float vdistance(vec2 a, vec2 b) { return sqrt(vsqdistance(a, b)); }
 
-// Normalize vector
 inline vec2 vnormalize(vec2 a) {
-  float len = vlength(a);
-  if (len < 1e-6f)
-    return a; // Avoid division by zero
-  return vfdiv(a, len);
+  const float divisor = vlength(a);
+  const float mask = (float)(divisor != 0.0f);
+  const float l = mask * (1.0f / (divisor + (1.0f - mask)));
+  return vfmul(a, l);
 }
 
-// Normalize vector no check
-inline vec2 vnormalize_nomask(vec2 a) { return vfdiv(a, vlength(a)); }
+inline vec2 vnormalize_nomask(vec2 a) {
+  const float l = 1.0f / vlength(a);
+  return vfmul(a, l);
+}
 
 // Round to integer
 // this has to be the exact same
 inline int round_to_int(float f) {
-	return f > 0 ? (int)(f + 0.5f) : (int)(f - 0.5f);
+  return f > 0 ? (int)(f + 0.5f) : (int)(f - 0.5f);
 }
 
 // Clamp value

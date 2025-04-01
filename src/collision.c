@@ -386,8 +386,9 @@ void free_collision(SCollision *pCollision) {
     }
   memset(pCollision, 0, sizeof(SCollision));
 
-  printf("Skips:%d, Intersects:%d\nRatio:%f\n", NumSkips, NumIntersects,
-         (float)NumIntersects / (float)NumSkips);
+  if (NumSkips)
+    printf("Skips:%d, Intersects:%d, Ratio:%f\n", NumSkips, NumIntersects,
+           (float)NumIntersects / (float)NumSkips);
 }
 
 inline int get_pure_map_index(SCollision *pCollision, vec2 Pos) {
@@ -752,8 +753,6 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos
 				*pOutCollision = Pos;
 			return hit;
 		}
-
-		Last = Pos;
 	}
 	if(pOutCollision)
 		*pOutCollision = Pos1;
@@ -786,10 +785,9 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
   ThroughOffset(Pos0, Pos1, &dx, &dy);
   int LastIndex = -1;
   const int Width = pCollision->m_MapData.m_Width;
-  const float InvDiv = (1.0 / fEnd);
   const __m128 HALF_VEC = _mm_set1_ps(0.5f);
   for (int i = 0; i <= End; i++) {
-    float a = i * InvDiv;
+    float a = i / fEnd;
     vec2 Pos = vvfmix(Pos0, Pos1, a);
     __m128 pos = Pos;
     __m128 pos_plus_half = _mm_add_ps(pos, HALF_VEC);
