@@ -2,6 +2,7 @@
 
 #include "../src/collision.h"
 #include "../src/gamecore.h"
+#include "vmath.h"
 
 int main(void) {
   SCollision Collision;
@@ -21,8 +22,8 @@ int main(void) {
   for (int i = 0; i < 150; ++i) {
     cc_on_input(pChar, &Input);
     wc_tick(&World);
-    printf("Pos:%.2f, %.2f, Vel: %.2f, %.2f\n", pChar->m_Pos.x, pChar->m_Pos.y,
-           pChar->m_Vel.x, pChar->m_Vel.y);
+    printf("Pos:%.2f, %.2f, Vel: %.2f, %.2f\n", vgetx(pChar->m_Pos),
+           vgety(pChar->m_Pos), vgetx(pChar->m_Vel), vgety(pChar->m_Vel));
   }
 
   wc_free(&World);

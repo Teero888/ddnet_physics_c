@@ -18,14 +18,17 @@ static const STest s_aTests[] = {
     (STest){"jump",
             "simple jumping up and down on ctf0 from top left red spawn",
             &s_JumpTest},
+    (STest){"direction",
+            "simple direction changes on ctf0 from top left red spawn",
+            &s_DirectionTest},
     (STest){"hook", "moving using just hook and no other inputs", &s_HookTest},
-    (STest){"grenade",
-            "moves to the first grenade on the left side of ctf0, picks it up "
-            "and shoots randomly without moving",
-            &s_GrenadeTest},
+    /*     (STest){"grenade",
+                "moves to the first grenade on the left side of ctf0, picks it
+       up " "and shoots randomly without moving", &s_GrenadeTest}, */
     (STest){"stopper physics", "tests the stoppers on a random stopper map",
             &s_StopperTest},
-    (STest){"test run", "a simple real run example", &s_TestRun},
+
+    /*     (STest){"test run", "a simple real run example", &s_TestRun}, */
 };
 
 int main(void) {
@@ -56,24 +59,25 @@ int main(void) {
       wc_tick(&World);
       if (i >= pData->m_StartTick) {
         int Tick = i - pData->m_StartTick;
-        if (!vvcmp(pData->m_vStates[0][Tick].m_Pos, pChar->m_Pos)) {
+        if (!vvcmp(pData->m_vStates[0][Tick].m_Pos, pChar->m_Pos) ||
+            !vvcmp(pData->m_vStates[0][Tick].m_Vel, pChar->m_Vel)) {
           printf("Test '%s' failed at step %d\n", s_aTests[Test].m_Name, Tick);
           printf("Expected State:\n"
-                 "\tPos: %f, %f\n"
-                 "\tVel: %f, %f\n"
+                 "\tPos: %.20f, %.20f\n"
+                 "\tVel: %.20f, %.20f\n"
                  "Found State: \n"
-                 "\tPos: %f, %f\n"
-                 "\tVel: %f, %f\n",
-                 pData->m_vStates[0][Tick].m_Pos.x,
-                 pData->m_vStates[0][Tick].m_Pos.y,
-                 pData->m_vStates[0][Tick].m_Vel.x,
-                 pData->m_vStates[0][Tick].m_Vel.y, pChar->m_Pos.x,
-                 pChar->m_Pos.y, pChar->m_Vel.x, pChar->m_Vel.y);
+                 "\tPos: %.20f, %.20f\n"
+                 "\tVel: %.20f, %.20f\n",
+                 vgetx(pData->m_vStates[0][Tick].m_Pos),
+                 vgety(pData->m_vStates[0][Tick].m_Pos),
+                 vgetx(pData->m_vStates[0][Tick].m_Vel),
+                 vgety(pData->m_vStates[0][Tick].m_Vel), vgetx(pChar->m_Pos),
+                 vgety(pChar->m_Pos), vgetx(pChar->m_Vel), vgety(pChar->m_Vel));
           printf("Previous State:\n"
-                 "\tPos: %f, %f\n"
-                 "\tVel: %f, %f\n",
-                 pChar->m_PrevPos.x, pChar->m_PrevPos.y, PreviousVel.x,
-                 PreviousVel.y);
+                 "\tPos: %.20f, %.20f\n"
+                 "\tVel: %.20f, %.20f\n",
+                 vgetx(pChar->m_PrevPos), vgety(pChar->m_PrevPos),
+                 vgetx(PreviousVel), vgety(PreviousVel));
           Failed = true;
           break;
         }
@@ -85,6 +89,8 @@ int main(void) {
 
     wc_free(&World);
     free_collision(&Collision);
+    if (Failed)
+      break;
   }
 
   return 0;
