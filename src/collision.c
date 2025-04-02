@@ -8,8 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 
-int NumSkips = 0;
-int NumIntersects = 0;
+// int NumSkips = 0;
+// int NumIntersects = 0;
 
 enum {
   MR_DIR_HERE = 0,
@@ -151,74 +151,6 @@ static void init_tuning_params(STuningParams *pTunings) {
 #undef MACRO_TUNING_PARAM
 }
 
-static void init_distance_field(SCollision *pCollision) {
-  int Width = pCollision->m_MapData.m_Width;
-  int Height = pCollision->m_MapData.m_Height;
-  float *pField = pCollision->m_pSolidDistanceField;
-  unsigned char *pInfos = pCollision->m_pTileInfos;
-  for (int y = 0; y < Height; ++y) {
-    for (int x = 0; x < Width; ++x) {
-      int Idx = y * Width + x;
-      if (pInfos[Idx] & INFO_ISSOLID) {
-        pField[Idx] = 0.0f;
-      } else {
-        pField[Idx] = FLT_MAX;
-      }
-    }
-  }
-
-  for (int y = 0; y < Height; ++y) {
-    for (int x = 0; x < Width; ++x) {
-      int Idx = y * Width + x;
-      if (pField[Idx] == 0.0f)
-        continue;
-      float min = FLT_MAX;
-      if (x > 0) {
-        float dist = pField[Idx - 1] + 1.0f;
-        min = fminf(min, dist);
-      }
-      if (y > 0) {
-        float dist = pField[Idx - Width] + 1.0f;
-        min = fminf(min, dist);
-      }
-      if (x > 0 && y > 0) {
-        float dist = pField[Idx - Width - 1] + sqrtf(2.0f);
-        min = fminf(min, dist);
-      }
-      if (x < Width - 1 && y > 0) {
-        float dist = pField[Idx - Width + 1] + sqrtf(2.0f);
-        min = fminf(min, dist);
-      }
-      pField[Idx] = fminf(pField[Idx], min);
-    }
-  }
-  for (int y = Height - 1; y >= 0; --y) {
-    for (int x = Width - 1; x >= 0; --x) {
-      int Idx = y * Width + x;
-      if (pField[Idx] == 0.0f)
-        continue;
-      float min = FLT_MAX;
-      if (x < Width - 1) {
-        float dist = pField[Idx + 1] + 1.0f;
-        min = fminf(min, dist);
-      }
-      if (y < Height - 1) {
-        float dist = pField[Idx + Width] + 1.0f;
-        min = fminf(min, dist);
-      }
-      if (x < Width - 1 && y < Height - 1) {
-        float dist = pField[Idx + Width + 1] + sqrtf(2.0f);
-        min = fminf(min, dist);
-      }
-      if (x > 0 && y < Height - 1) {
-        float dist = pField[Idx + Width - 1] + sqrtf(2.0f);
-        min = fminf(min, dist);
-      }
-      pField[Idx] = fminf(pField[Idx], min);
-    }
-  }
-}
-
 bool init_collision(SCollision *restrict pCollision,
                     const char *restrict pMap) {
   pCollision->m_MapData = load_map(pMap);
@@ -229,7 +161,6 @@ bool init_collision(SCollision *restrict pCollision,
   int Width = pMapData->m_Width;
   int Height = pMapData->m_Height;
 
-  pCollision->m_pSolidDistanceField = calloc(Width * Height, sizeof(float));
   pCollision->m_pTileInfos = calloc(Width * Height, 1);
   pCollision->m_pMoveRestrictions = calloc(Width * Height, 5);
   pCollision->m_pPickups = calloc(Width * Height, sizeof(SPickup));
@@ -316,8 +247,6 @@ bool init_collision(SCollision *restrict pCollision,
     }
   }
 
-  init_distance_field(pCollision);
-
   if (pCollision->m_NumSpawnPoints > 0)
     pCollision->m_pSpawnPoints =
         malloc(pCollision->m_NumSpawnPoints * sizeof(vec2));
@@ -375,9 +304,9 @@ void free_collision(SCollision *pCollision) {
     }
   memset(pCollision, 0, sizeof(SCollision));
 
-  if (NumIntersects)
-    printf("Skips:%d, Intersects:%d, Ratio:%f\n", NumSkips, NumIntersects,
-           (float)NumSkips / (float)NumIntersects);
+  // if (NumIntersects)
+  //   printf("Skips:%d, Intersects:%d, Ratio:%f\n", NumSkips, NumIntersects,
+  //          (float)NumSkips / (float)NumIntersects);
 }
 
 inline int get_pure_map_index(SCollision *pCollision, vec2 Pos) {
@@ -646,13 +575,11 @@ static inline bool broad_check_char(SCollision *restrict pCollision, vec2 Start,
   const int MinY = (int)(fmin(StartY, EndY) - HALFPHYSICALSIZE - 1) >> 5;
   const int MaxX = (int)(ceil(fmax(StartX, EndX) + HALFPHYSICALSIZE + 1)) >> 5;
   const int MaxY = (int)(ceil(fmax(StartY, EndY) + HALFPHYSICALSIZE + 1)) >> 5;
-  for (int y = MinY; y <= MaxY; ++y) {
-    for (int x = MinX; x <= MaxX; ++x) {
+  for (int y = MinY; y <= MaxY; ++y)
+    for (int x = MinX; x <= MaxX; ++x)
       if (pCollision->m_pTileInfos[y * pCollision->m_MapData.m_Width + x] &
           INFO_ISSOLID)
         return true;
-    }
-  }
   return false;
 }
 
@@ -745,7 +672,6 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
                                        vec2 Pos0, vec2 Pos1,
                                        vec2 *restrict pOutCollision,
                                        int *restrict pTeleNr) {
-  const int End = vdistance(Pos0, Pos1) + 1;
   if (!broad_check(pCollision, Pos0, Pos1)) {
     if (pTeleNr) {
       if (!broad_check_tele(pCollision, Pos0, Pos1)) {
@@ -754,12 +680,14 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
       }
     } else {
       *pOutCollision = Pos1;
-      ++NumSkips;
+      // ++NumSkips;
       return 0;
     }
   }
 
-  ++NumIntersects;
+  // ++NumIntersects;
+
+  const int End = vdistance(Pos0, Pos1) + 1;
   const float fEnd = End;
   int dx = 0, dy = 0;
   ThroughOffset(Pos0, Pos1, &dx, &dy);
