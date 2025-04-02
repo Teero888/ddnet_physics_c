@@ -932,15 +932,9 @@ void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos,
   float Fraction = 1.0f / (float)(Max + 1);
   if (!broad_check_char(pCollision, *pInoutPos, NewPos)) {
     const vec2 Frac = vfmul(Vel, Fraction);
-    __m256 accum = _mm256_setr_ps(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                                  vgety(Pos), vgetx(Pos));
-    __m256 frac = _mm256_setr_ps(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                                 vgety(Frac), vgetx(Frac));
     for (int i = 0; i <= Max; i++)
-      accum = _mm256_add_ps(accum, frac);
-    float result[8];
-    _mm256_storeu_ps(result, accum);
-    *pInoutPos = vec2_init(result[7], result[6]);
+      Pos = vvadd(Pos, Frac);
+    *pInoutPos = Pos;
     return;
   }
 
