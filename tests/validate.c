@@ -28,7 +28,7 @@ static const STest s_aTests[] = {
     (STest){"stopper physics", "tests the stoppers on a random stopper map",
             &s_StopperTest},
 
-    /*     (STest){"test run", "a simple real run example", &s_TestRun}, */
+    (STest){"test run", "a simple real run example, grenade included", &s_TestRun},
 };
 
 int main(void) {

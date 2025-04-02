@@ -1087,10 +1087,10 @@ static inline bool broad_check_stopper(SCollision *restrict pCollision,
                                        vec2 Start, vec2 End) {
   float StartX = vgetx(Start), StartY = vgety(Start), EndX = vgetx(End),
         EndY = vgety(End);
-  const int MinX = (int)(fmin(StartX, EndX)) >> 5;
-  const int MinY = (int)(fmin(StartY, EndY)) >> 5;
-  const int MaxX = (int)(fmax(StartX, EndX)) >> 5;
-  const int MaxY = (int)(fmax(StartY, EndY)) >> 5;
+  const int MinX = (int)fmin(StartX, EndX) >> 5;
+  const int MinY = (int)fmin(StartY, EndY) >> 5;
+  const int MaxX = (int)ceil(fmax(StartX, EndX)) >> 5;
+  const int MaxY = (int)ceil(fmax(StartY, EndY)) >> 5;
   for (int y = MinY; y <= MaxY; ++y) {
     for (int x = MinX; x <= MaxX; ++x) {
       int Idx = y * pCollision->m_MapData.m_Width + x;

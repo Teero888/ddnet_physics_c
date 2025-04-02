@@ -53,7 +53,7 @@ typedef struct Collision {
   int m_aNumTeleCheckOuts[256];
   vec2 *m_apTeleCheckOuts[256];
 
-  unsigned char *m_pSolidDistanceField;
+  float *m_pSolidDistanceField;
   unsigned char *m_pTileInfos;
   SPickup *m_pPickups;
 
@@ -96,8 +96,7 @@ void ThroughOffset(vec2 Pos0, vec2 Pos1, int *restrict pOffsetX,
                    int *restrict pOffsetY);
 bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY,
                 vec2 Pos0, vec2 Pos1);
-bool is_hook_blocker(SCollision *pCollision, int Index, vec2 Pos0,
-                     vec2 Pos1);
+bool is_hook_blocker(SCollision *pCollision, int Index, vec2 Pos0, vec2 Pos1);
 unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
                                        vec2 Pos0, vec2 Pos1,
                                        vec2 *restrict pOutCollision,

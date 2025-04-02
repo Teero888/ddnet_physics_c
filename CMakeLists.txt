@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 project(ddnet_physics_c99 LANGUAGES C)
 
+set(CMAKE_C_COMPILER clang)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
@@ -122,8 +123,9 @@ configure_target(validate)
 
 # Benchmark specific stuff
 configure_target(benchmark)
+
 # Link OpenMP only to benchmark
-target_link_libraries(benchmark PRIVATE OpenMP::OpenMP_C)
+target_link_libraries(benchmark PRIVATE OpenMP::OpenMP_C -lomp)
 
 # Apply benchmark optimizations ONLY if sanitizers are OFF
 if(NOT SANITIZERS_ENABLED)
