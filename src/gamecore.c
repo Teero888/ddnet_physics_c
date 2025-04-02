@@ -1146,7 +1146,7 @@ static inline void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
   bool Handled = false;
   int Index;
   if (!d) {
-    Index = ((int)vgety(Pos) >> 5) * Width + ((int)vgety(Pos) >> 5);
+    Index = ((int)vgety(Pos) >> 5) * Width + ((int)vgetx(Pos) >> 5);
     if (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT) {
       cc_handle_tiles(pCore, Index);
       Handled = true;

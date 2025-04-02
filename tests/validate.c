@@ -63,19 +63,19 @@ int main(void) {
             !vvcmp(pData->m_vStates[0][Tick].m_Vel, pChar->m_Vel)) {
           printf("Test '%s' failed at step %d\n", s_aTests[Test].m_Name, Tick);
           printf("Expected State:\n"
-                 "\tPos: %.20f, %.20f\n"
-                 "\tVel: %.20f, %.20f\n"
+                 "\tPos: %a, %a\n"
+                 "\tVel: %a, %a\n"
                  "Found State: \n"
-                 "\tPos: %.20f, %.20f\n"
-                 "\tVel: %.20f, %.20f\n",
+                 "\tPos: %a, %a\n"
+                 "\tVel: %a, %a\n",
                  vgetx(pData->m_vStates[0][Tick].m_Pos),
                  vgety(pData->m_vStates[0][Tick].m_Pos),
                  vgetx(pData->m_vStates[0][Tick].m_Vel),
                  vgety(pData->m_vStates[0][Tick].m_Vel), vgetx(pChar->m_Pos),
                  vgety(pChar->m_Pos), vgetx(pChar->m_Vel), vgety(pChar->m_Vel));
           printf("Previous State:\n"
-                 "\tPos: %.20f, %.20f\n"
-                 "\tVel: %.20f, %.20f\n",
+                 "\tPos: %a, %a\n"
+                 "\tVel: %a, %a\n",
                  vgetx(pChar->m_PrevPos), vgety(pChar->m_PrevPos),
                  vgetx(PreviousVel), vgety(PreviousVel));
           Failed = true;

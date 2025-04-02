@@ -623,28 +623,26 @@ bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY,
          (pFrontIdx && pFrontIdx[offpos] == TILE_THROUGH);
 }
 
-bool is_hook_blocker(SCollision *pCollision, int x, int y, vec2 Pos0,
-                     vec2 Pos1) {
-  int pos = get_pure_map_index(pCollision, vec2_init(x, y));
+bool is_hook_blocker(SCollision *pCollision, int Index, vec2 Pos0, vec2 Pos1) {
   unsigned char *pTileIdx = pCollision->m_MapData.m_GameLayer.m_pData;
   unsigned char *pTileFlgs = pCollision->m_MapData.m_GameLayer.m_pFlags;
 
   unsigned char *pFrontIdx = pCollision->m_MapData.m_FrontLayer.m_pData;
   unsigned char *pFrontFlgs = pCollision->m_MapData.m_FrontLayer.m_pFlags;
-  if (pTileIdx[pos] == TILE_THROUGH_ALL ||
-      (pFrontIdx && pFrontIdx[pos] == TILE_THROUGH_ALL))
+  if (pTileIdx[Index] == TILE_THROUGH_ALL ||
+      (pFrontIdx && pFrontIdx[Index] == TILE_THROUGH_ALL))
     return true;
-  if (pTileIdx[pos] == TILE_THROUGH_DIR &&
-      ((pTileFlgs[pos] == ROTATION_0 && vgety(Pos0) < vgety(Pos1)) ||
-       (pTileFlgs[pos] == ROTATION_90 && vgetx(Pos0) > vgetx(Pos1)) ||
-       (pTileFlgs[pos] == ROTATION_180 && vgety(Pos0) > vgety(Pos1)) ||
-       (pTileFlgs[pos] == ROTATION_270 && vgetx(Pos0) < vgetx(Pos1))))
+  if (pTileIdx[Index] == TILE_THROUGH_DIR &&
+      ((pTileFlgs[Index] == ROTATION_0 && vgety(Pos0) < vgety(Pos1)) ||
+       (pTileFlgs[Index] == ROTATION_90 && vgetx(Pos0) > vgetx(Pos1)) ||
+       (pTileFlgs[Index] == ROTATION_180 && vgety(Pos0) > vgety(Pos1)) ||
+       (pTileFlgs[Index] == ROTATION_270 && vgetx(Pos0) < vgetx(Pos1))))
     return true;
-  if (pFrontIdx && pFrontIdx[pos] == TILE_THROUGH_DIR &&
-      ((pFrontFlgs[pos] == ROTATION_0 && vgety(Pos0) < vgety(Pos1)) ||
-       (pFrontFlgs[pos] == ROTATION_90 && vgetx(Pos0) > vgetx(Pos1)) ||
-       (pFrontFlgs[pos] == ROTATION_180 && vgety(Pos0) > vgety(Pos1)) ||
-       (pFrontFlgs[pos] == ROTATION_270 && vgetx(Pos0) < vgetx(Pos1))))
+  if (pFrontIdx && pFrontIdx[Index] == TILE_THROUGH_DIR &&
+      ((pFrontFlgs[Index] == ROTATION_0 && vgety(Pos0) < vgety(Pos1)) ||
+       (pFrontFlgs[Index] == ROTATION_90 && vgetx(Pos0) > vgetx(Pos1)) ||
+       (pFrontFlgs[Index] == ROTATION_180 && vgety(Pos0) > vgety(Pos1)) ||
+       (pFrontFlgs[Index] == ROTATION_270 && vgetx(Pos0) < vgetx(Pos1))))
     return true;
   return false;
 }
@@ -711,52 +709,47 @@ static inline bool broad_check(SCollision *restrict pCollision, vec2 Start,
 
 #if 0
 // Original intersect code
-unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos0, vec2 Pos1, vec2 *restrict pOutCollision, int *restrict pTeleNr)
-{
-	float Distance = vdistance(Pos0, Pos1);
-	int End = (Distance + 1);
-	int dx = 0, dy = 0; // Offset for checking the "through" tile
-	ThroughOffset(Pos0, Pos1, &dx, &dy);
-	for(int i = 0; i <= End; i++)
-	{
-		float a = i / (float)End;
-		vec2 Pos = vvfmix(Pos0, Pos1, a);
-		// Temporary position for checking collision
-		int ix = round_to_int(vgetx(Pos));
-		int iy = round_to_int(vgety(Pos));
+unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
+                                       vec2 Pos0, vec2 Pos1,
+                                       vec2 *restrict pOutCollision,
+                                       int *restrict pTeleNr) {
+  float Distance = vdistance(Pos0, Pos1);
+  int End = (Distance + 1);
+  int dx = 0, dy = 0; // Offset for checking the "through" tile
+  ThroughOffset(Pos0, Pos1, &dx, &dy);
+  for (int i = 0; i <= End; i++) {
+    float a = i / (float)End;
+    vec2 Pos = vvfmix(Pos0, Pos1, a);
+    // Temporary position for checking collision
+    int ix = round_to_int(vgetx(Pos));
+    int iy = round_to_int(vgety(Pos));
 
-		int Index = get_pure_map_index(pCollision, Pos);
-		if(pTeleNr)
-		{
-				*pTeleNr = is_teleport_hook(pCollision, Index);
-		}
-		if(pTeleNr && *pTeleNr)
-		{
-			if(pOutCollision)
-				*pOutCollision = Pos;
-			return TILE_TELEINHOOK;
-		}
+    int Index = get_pure_map_index(pCollision, Pos);
+    if (pTeleNr) {
+      *pTeleNr = is_teleport_hook(pCollision, Index);
+    }
+    if (pTeleNr && *pTeleNr) {
+      if (pOutCollision)
+        *pOutCollision = Pos;
+      return TILE_TELEINHOOK;
+    }
 
-		int hit = 0;
-		if(check_point_idx(pCollision, Index))
-		{
-			if(!is_through(pCollision, ix, iy, dx, dy, Pos0, Pos1))
-				hit = get_collision_at_idx(pCollision, Index);
-		}
-		else if(is_hook_blocker(pCollision, ix, iy, Pos0, Pos1))
-		{
-			hit = TILE_NOHOOK;
-		}
-		if(hit)
-		{
-			if(pOutCollision)
-				*pOutCollision = Pos;
-			return hit;
-		}
-	}
-	if(pOutCollision)
-		*pOutCollision = Pos1;
-	return 0;
+    int hit = 0;
+    if (check_point_idx(pCollision, Index)) {
+      if (!is_through(pCollision, ix, iy, dx, dy, Pos0, Pos1))
+        hit = get_collision_at_idx(pCollision, Index);
+    } else if (is_hook_blocker(pCollision, Index, Pos0, Pos1)) {
+      hit = TILE_NOHOOK;
+    }
+    if (hit) {
+      if (pOutCollision)
+        *pOutCollision = Pos;
+      return hit;
+    }
+  }
+  if (pOutCollision)
+    *pOutCollision = Pos1;
+  return 0;
 }
 #else
 unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
@@ -764,20 +757,20 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
                                        vec2 *restrict pOutCollision,
                                        int *restrict pTeleNr) {
   const int End = vdistance(Pos0, Pos1) + 1;
-  if (!broad_check(pCollision, Pos0, Pos1)) {
+
+  // SMH THIS CHECK CHANGES PHYSICS
+/*   if (!broad_check(pCollision, Pos0, Pos1)) {
     if (pTeleNr) {
       if (!broad_check_tele(pCollision, Pos0, Pos1)) {
-        if (pOutCollision)
-          *pOutCollision = Pos1;
+        *pOutCollision = Pos1;
         return 0;
       }
     } else {
-      if (pOutCollision)
-        *pOutCollision = Pos1;
+      *pOutCollision = Pos1;
       ++NumSkips;
       return 0;
     }
-  }
+  } */
 
   ++NumIntersects;
   const float fEnd = End;
@@ -785,19 +778,12 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
   ThroughOffset(Pos0, Pos1, &dx, &dy);
   int LastIndex = -1;
   const int Width = pCollision->m_MapData.m_Width;
-  const __m128 HALF_VEC = _mm_set1_ps(0.5f);
   for (int i = 0; i <= End; i++) {
     float a = i / fEnd;
     vec2 Pos = vvfmix(Pos0, Pos1, a);
-    __m128 pos = Pos;
-    __m128 pos_plus_half = _mm_add_ps(pos, HALF_VEC);
-    __m128i pos_int = _mm_cvttps_epi32(pos_plus_half);
-    pos_int = _mm_srai_epi32(pos_int, 5);
-    ALIGN(16) int indices[4];
-    _mm_storeu_si128((__m128i *)indices, pos_int);
-    int ix = indices[0];
-    int iy = indices[1];
-    int Index = iy * Width + ix;
+    int ix = (int)(vgetx(Pos) + 0.5);
+    int iy = (int)(vgety(Pos) + 0.5);
+    int Index = (iy >> 5) * Width + (ix >> 5);
 
     if (Index == LastIndex)
       continue;
@@ -820,7 +806,7 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
           return Idx;
         return 0;
       }
-    } else if (is_hook_blocker(pCollision, ix, iy, Pos0, Pos1)) {
+    } else if (is_hook_blocker(pCollision, Index, Pos0, Pos1)) {
       *pOutCollision = Pos;
       return TILE_NOHOOK;
     }
