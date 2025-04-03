@@ -80,7 +80,7 @@ function(configure_target target_name)
             target_compile_options(${target_name} PRIVATE /arch:AVX2)
         endif()
     else()
-        target_compile_options(${target_name} PRIVATE -g -msse4.1 -msse4.2 -mavx -mavx2 -mfma)
+        target_compile_options(${target_name} PRIVATE -g -msse4.2 -mavx -mavx2 -mfma)
     endif()
 
     if(UNIX AND NOT APPLE)

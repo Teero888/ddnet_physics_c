@@ -95,35 +95,6 @@ enum {
 
 // }}}
 
-// Fire input logic {{{
-
-#define INPUT_STATE_MASK 0x3f
-
-// input count
-typedef struct InputCount {
-  int m_Presses;
-  int m_Releases;
-} SInputCount;
-
-static inline SInputCount count_input(int Prev, int Cur) {
-  SInputCount c = {0, 0};
-  Prev &= INPUT_STATE_MASK;
-  Cur &= INPUT_STATE_MASK;
-  int i = Prev;
-
-  while (i != Cur) {
-    i = (i + 1) & INPUT_STATE_MASK;
-    if (i & 1)
-      c.m_Presses++;
-    else
-      c.m_Releases++;
-  }
-
-  return c;
-}
-
-// }}}
-
 // Entities {{{
 
 void ent_init(SEntity *pEnt, SWorldCore *pGameWorld, int ObjType, vec2 Pos) {
@@ -1096,9 +1067,8 @@ static inline bool broad_check_stopper(SCollision *restrict pCollision,
       int Idx = y * pCollision->m_MapData.m_Width + x;
       if (pCollision->m_MapData.m_GameLayer.m_pData[Idx])
         return true;
-      for (int i = 0; i < 5; ++i)
-        if (pCollision->m_pMoveRestrictions[Idx][i])
-          return true;
+      if (pCollision->m_pMoveRestrictionsCombined[Idx])
+        return true;
     }
   }
   return false;
@@ -1518,8 +1488,7 @@ void cc_handle_jetpack(SCharacterCore *pCore) {
 
   // check if we gonna fire
   bool WillFire = false;
-  if (count_input(pCore->m_LatestPrevInput.m_Fire, pCore->m_LatestInput.m_Fire)
-          .m_Presses)
+  if (pCore->m_LatestPrevInput.m_Fire != pCore->m_LatestInput.m_Fire)
     WillFire = true;
 
   if (FullAuto && (pCore->m_LatestInput.m_Fire & 1))
@@ -1564,6 +1533,15 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 
   if (pCore->m_FreezeTime)
     return;
+  // don't fire hammer when player is deep and sv_deepfly is disabled
+  if (!pCore->m_pWorld->m_pConfig->m_SvDeepfly &&
+      pCore->m_ActiveWeapon == WEAPON_HAMMER && pCore->m_DeepFrozen)
+    return;
+
+  // check if we gonna fire
+  bool WillFire = false;
+  if (pCore->m_LatestPrevInput.m_Fire != pCore->m_LatestInput.m_Fire)
+    WillFire = true;
 
   bool FullAuto = false;
   if (pCore->m_ActiveWeapon == WEAPON_GRENADE ||
@@ -1575,18 +1553,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   if (pCore->m_FrozenLastTick)
     FullAuto = true;
 
-  // don't fire hammer when player is deep and sv_deepfly is disabled
-  if (!pCore->m_pWorld->m_pConfig->m_SvDeepfly &&
-      pCore->m_ActiveWeapon == WEAPON_HAMMER && pCore->m_DeepFrozen)
-    return;
-
-  // check if we gonna fire
-  bool WillFire = false;
-  if (count_input(pCore->m_LatestPrevInput.m_Fire, pCore->m_LatestInput.m_Fire)
-          .m_Presses)
-    WillFire = true;
-
-  if (FullAuto && (pCore->m_LatestInput.m_Fire & 1))
+  if (FullAuto && pCore->m_LatestInput.m_Fire & 1)
     WillFire = true;
 
   if (!WillFire)
@@ -2062,33 +2029,32 @@ void wc_tick(SWorldCore *pCore) {
                           &pCore->m_pCharacters[i].m_LatestInput);
 
   // Tick entities
-  {
-    // Tick projectiles
-    SEntity *pEntity = pCore->m_apFirstEntityTypes[ENTTYPE_PROJECTILE];
-    while (pEntity) {
-      prj_tick((SProjectile *)pEntity);
-      pEntity = pEntity->m_pNextTypeEntity;
-    }
 
-    // TODO: do lasers!!! aka. like 10 different entities that all identify as
-    // lasers
-    // Tick lasers
-    // pEntity = pCore->m_apFirstEntityTypes[ENTTYPE_LASER];
-    // while (pEntity) {
-    //   laser_tick((SLaser *)pEntity);
-    //   pEntity = pEntity->m_pNextTypeEntity;
-    // }
-
-    for (int i = 0; i < pCore->m_NumCharacters; ++i)
-      cc_do_pickup((SCharacterCore *)&pCore->m_pCharacters[i]);
-
-    // Tick characters
-    if (pCore->m_NoWeakHook)
-      for (int i = 0; i < pCore->m_NumCharacters; ++i)
-        cc_pre_tick((SCharacterCore *)&pCore->m_pCharacters[i]);
-    for (int i = 0; i < pCore->m_NumCharacters; ++i)
-      cc_tick((SCharacterCore *)&pCore->m_pCharacters[i]);
+  // Tick projectiles
+  SEntity *pEntity = pCore->m_apFirstEntityTypes[ENTTYPE_PROJECTILE];
+  while (pEntity) {
+    prj_tick((SProjectile *)pEntity);
+    pEntity = pEntity->m_pNextTypeEntity;
   }
+
+  // TODO: do lasers!!! aka. like 10 different entities that all identify as
+  // lasers
+  // Tick lasers
+  // pEntity = pCore->m_apFirstEntityTypes[ENTTYPE_LASER];
+  // while (pEntity) {
+  //   laser_tick((SLaser *)pEntity);
+  //   pEntity = pEntity->m_pNextTypeEntity;
+  // }
+
+  for (int i = 0; i < pCore->m_NumCharacters; ++i)
+    cc_do_pickup((SCharacterCore *)&pCore->m_pCharacters[i]);
+
+  // Tick characters
+  if (pCore->m_NoWeakHook)
+    for (int i = 0; i < pCore->m_NumCharacters; ++i)
+      cc_pre_tick((SCharacterCore *)&pCore->m_pCharacters[i]);
+  for (int i = 0; i < pCore->m_NumCharacters; ++i)
+    cc_tick((SCharacterCore *)&pCore->m_pCharacters[i]);
 
   // Do tick deferred
   // funny thing no other entities than the character actually have a deferred

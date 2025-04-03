@@ -43,6 +43,8 @@ typedef struct Pickup {
   unsigned char m_Subtype;
 } SPickup;
 
+enum { NUM_TUNE_ZONES = 256 };
+
 typedef struct Collision {
   SMapData m_MapData;
 
@@ -59,12 +61,13 @@ typedef struct Collision {
 
   bool m_MoveRestrictionsFound;
   unsigned char (*m_pMoveRestrictions)[5];
+  unsigned char *m_pMoveRestrictionsCombined;
 
   // Could be made into a dynamic list based on the server settings so only tune
   // zones that actually get modified get loaded
   // this is 48KB xd
   // TODO: do this better lol
-  STuningParams m_aTuningList[256];
+  STuningParams m_aTuningList[NUM_TUNE_ZONES];
 } SCollision;
 
 bool init_collision(SCollision *restrict pCollision, const char *restrict pMap);

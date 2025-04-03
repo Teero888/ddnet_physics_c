@@ -163,10 +163,11 @@ bool init_collision(SCollision *restrict pCollision,
 
   pCollision->m_pTileInfos = calloc(Width * Height, 1);
   pCollision->m_pMoveRestrictions = calloc(Width * Height, 5);
+  pCollision->m_pMoveRestrictionsCombined = calloc(Width * Height, 1);
   pCollision->m_pPickups = calloc(Width * Height, sizeof(SPickup));
   pCollision->m_MoveRestrictionsFound = false;
 
-  for (int i = 0; i < 256; ++i)
+  for (int i = 0; i < NUM_TUNE_ZONES; ++i)
     init_tuning_params(&pCollision->m_aTuningList[i]);
   // Figure out important things
   // Make lists of spawn points, tele outs and tele checkpoints outs
@@ -199,8 +200,11 @@ bool init_collision(SCollision *restrict pCollision,
       Flags = get_tile_flags(pCollision, i);
       pCollision->m_pMoveRestrictions[i][d] |=
           move_restrictions(d, Tile, Flags);
-      if (pCollision->m_pMoveRestrictions[i][d])
+
+      if (pCollision->m_pMoveRestrictions[i][d]) {
         pCollision->m_MoveRestrictionsFound = true;
+        pCollision->m_pMoveRestrictionsCombined[i] = true;
+      }
     }
 
     pCollision->m_pPickups[i].m_Type = -1;
@@ -292,6 +296,7 @@ void free_collision(SCollision *pCollision) {
   free_map_data(&pCollision->m_MapData);
   free(pCollision->m_pPickups);
   free(pCollision->m_pMoveRestrictions);
+  free(pCollision->m_pMoveRestrictionsCombined);
   free(pCollision->m_pSolidDistanceField);
   if (pCollision->m_NumSpawnPoints)
     free(pCollision->m_pSpawnPoints);
@@ -620,6 +625,7 @@ static inline bool broad_check(SCollision *restrict pCollision, vec2 Start,
         return true;
     }
   }
+
   return false;
 }
 
@@ -692,21 +698,55 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
   int dx = 0, dy = 0;
   ThroughOffset(Pos0, Pos1, &dx, &dy);
   int LastIndex = -1;
-  const int Width = pCollision->m_MapData.m_Width;
-  const __m128 HALF_VEC = _mm_set1_ps(0.5f);
-  for (int i = 0; i <= End; i++) {
-    float a = i / fEnd;
-    vec2 Pos = vvfmix(Pos0, Pos1, a);
-    __m128 pos = Pos;
-    __m128 pos_plus_half = _mm_add_ps(pos, HALF_VEC);
-    __m128i pos_int = _mm_cvttps_epi32(pos_plus_half);
-    pos_int = _mm_srai_epi32(pos_int, 5);
-    ALIGN(16) int indices[4];
-    _mm_storeu_si128((__m128i *)indices, pos_int);
-    int Index = indices[1] * Width + indices[0];
 
+  const int Width = pCollision->m_MapData.m_Width;
+  int aIndices[84];
+
+  // Precompute constants outside the loop
+  const float inv_fEnd = 1.0f / fEnd;
+  const float Pos0_x = vgetx(Pos0);
+  const float Pos0_y = vgety(Pos0);
+  const float diff_x = vgetx(Pos1) - Pos0_x;
+  const float diff_y = vgety(Pos1) - Pos0_y;
+
+  // SSE constant vectors
+  const __m128 Pos0_x_vec = _mm_set1_ps(Pos0_x);
+  const __m128 Pos0_y_vec = _mm_set1_ps(Pos0_y);
+  const __m128 diff_x_vec = _mm_set1_ps(diff_x);
+  const __m128 diff_y_vec = _mm_set1_ps(diff_y);
+  const __m128 inv_fEnd_vec = _mm_set1_ps(inv_fEnd);
+  const __m128 half_vec = _mm_set1_ps(0.5f);
+  const __m128i width_vec = _mm_set1_epi32(Width);
+
+  // Vectorized loop: process 4 iterations at a time up to 80
+  int k = 0;
+  for (; k < 84; k += 4) {
+    // Set integer vector for indices k, k+1, k+2, k+3
+    __m128i i_vec = _mm_set_epi32(k + 3, k + 2, k + 1, k);
+    // Compute a_vec = i_vec / fEnd
+    __m128 a_vec = _mm_mul_ps(_mm_cvtepi32_ps(i_vec), inv_fEnd_vec);
+    // Interpolate x and y positions for 4 iterations
+    __m128 Pos_x_vec = _mm_add_ps(Pos0_x_vec, _mm_mul_ps(a_vec, diff_x_vec));
+    __m128 Pos_y_vec = _mm_add_ps(Pos0_y_vec, _mm_mul_ps(a_vec, diff_y_vec));
+    // Add 0.5 to all components
+    __m128 Pos_x_plus_half = _mm_add_ps(Pos_x_vec, half_vec);
+    __m128 Pos_y_plus_half = _mm_add_ps(Pos_y_vec, half_vec);
+    // Convert to integers (truncate towards zero) and shift right by 5
+    __m128i ix_vec = _mm_srai_epi32(_mm_cvttps_epi32(Pos_x_plus_half), 5);
+    __m128i iy_vec = _mm_srai_epi32(_mm_cvttps_epi32(Pos_y_plus_half), 5);
+    // Compute indices: iy * Width + ix
+    __m128i index_vec =
+        _mm_add_epi32(_mm_mullo_epi32(iy_vec, width_vec), ix_vec);
+    // Store 4 indices into aIndices[k] to aIndices[k+3]
+    _mm_storeu_si128((__m128i *)&aIndices[k], index_vec);
+  }
+
+  for (int i = 0; i <= End; i++) {
+    int Index = aIndices[i];
     if (Index == LastIndex)
       continue;
+
+    vec2 Pos = vvfmix(Pos0, Pos1, i / fEnd);
 
     LastIndex = Index;
     if (pTeleNr) {
@@ -799,6 +839,12 @@ const vec2 *tele_check_outs(SCollision *restrict pCollision, int Number,
 unsigned char intersect_line(SCollision *restrict pCollision, vec2 Pos0,
                              vec2 Pos1, vec2 *restrict pOutCollision,
                              vec2 *restrict pOutBeforeCollision) {
+  if (!broad_check(pCollision, Pos0, Pos1)) {
+    *pOutCollision = Pos1;
+    *pOutBeforeCollision = Pos1;
+    return 0;
+  }
+
   float Distance = vdistance(Pos0, Pos1);
   int End = Distance + 1;
   vec2 Last = Pos0;

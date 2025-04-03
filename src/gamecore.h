@@ -25,7 +25,7 @@ typedef struct {
   int m_TargetX;
   int m_TargetY;
   int m_Jump;
-  int m_Fire;
+  unsigned char m_Fire;
   int m_Hook;
   int m_WantedWeapon;
 } SPlayerInput;
