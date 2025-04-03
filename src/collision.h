@@ -61,7 +61,8 @@ typedef struct Collision {
 
   bool m_MoveRestrictionsFound;
   unsigned char (*m_pMoveRestrictions)[5];
-  unsigned char *m_pMoveRestrictionsCombined;
+
+  bool *m_pTileBroadCheck;
 
   // Could be made into a dynamic list based on the server settings so only tune
   // zones that actually get modified get loaded

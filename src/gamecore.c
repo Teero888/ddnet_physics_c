@@ -37,8 +37,7 @@ vec2 clamp_vel(int MoveRestriction, vec2 Vel) {
   return Vel;
 }
 
-static inline float saturate_add(float Min, float Max, float Current,
-                                 float Modifier) {
+float saturate_add(float Min, float Max, float Current, float Modifier) {
   if (Modifier < 0) {
     if (Current < Min)
       return Current;
@@ -56,8 +55,8 @@ static inline float saturate_add(float Min, float Max, float Current,
   }
 }
 
-static inline vec2 calc_pos(vec2 Pos, vec2 Velocity, float Curvature,
-                            float Speed, float Time) {
+vec2 calc_pos(vec2 Pos, vec2 Velocity, float Curvature, float Speed,
+              float Time) {
   vec2 n = Pos;
   Time *= Speed;
   n = vadd_x(n, vgetx(Velocity) * Time);
@@ -65,8 +64,7 @@ static inline vec2 calc_pos(vec2 Pos, vec2 Velocity, float Curvature,
   return n;
 }
 
-static inline float velocity_ramp(float Value, float Start, float Range,
-                                  float Curvature) {
+float velocity_ramp(float Value, float Start, float Range, float Curvature) {
   if (Value < Start)
     return 1.0f;
   return 1.0f / pow(Curvature, (Value - Start) / Range);
@@ -448,8 +446,8 @@ void cc_move(SCharacterCore *pCore) {
   const float RampValue = velocity_ramp(
       vlength(pCore->m_Vel) * 50, pCore->m_pTuning->m_VelrampStart,
       pCore->m_pTuning->m_VelrampRange, pCore->m_pTuning->m_VelrampCurvature);
-
-  pCore->m_Vel = vsetx(pCore->m_Vel, vgetx(pCore->m_Vel) * RampValue);
+  if (RampValue != 1.f)
+    pCore->m_Vel = vsetx(pCore->m_Vel, vgetx(pCore->m_Vel) * RampValue);
 
   vec2 NewPos = pCore->m_Pos;
   vec2 OldVel = pCore->m_Vel;
@@ -475,7 +473,8 @@ void cc_move(SCharacterCore *pCore) {
   } else
     pCore->m_LeftWall = true;
 
-  pCore->m_Vel = vsetx(pCore->m_Vel, vgetx(pCore->m_Vel) * (1.f / RampValue));
+  if (RampValue != 1.f)
+    pCore->m_Vel = vsetx(pCore->m_Vel, vgetx(pCore->m_Vel) * (1.f / RampValue));
 
   if (pCore->m_pTuning->m_PlayerCollision && !pCore->m_CollisionDisabled &&
       !pCore->m_Solo && pCore->m_pWorld->m_NumCharacters > 1) {
@@ -573,8 +572,11 @@ void cc_tick_deferred(SCharacterCore *pCore) {
     pCore->m_NewHook = false;
   }
 
-  if (vlength(pCore->m_Vel) > 6000)
-    pCore->m_Vel = vfmul(vnormalize_nomask(pCore->m_Vel), 6000);
+  // NOTE: tbh we are never going above 6000 units/tick. that would be 9375
+  // blocks per second
+  //
+  // if (vlength(pCore->m_Vel) > 6000)
+  //   pCore->m_Vel = vfmul(vnormalize_nomask(pCore->m_Vel), 6000);
 }
 
 void cc_ddracetick(SCharacterCore *pCore) {
@@ -1054,28 +1056,22 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   }
 }
 
-static inline bool broad_check_stopper(SCollision *restrict pCollision,
-                                       vec2 Start, vec2 End) {
-  float StartX = vgetx(Start), StartY = vgety(Start), EndX = vgetx(End),
-        EndY = vgety(End);
+bool broad_check_stopper(SCollision *restrict pCollision, vec2 Start,
+                         vec2 End) {
+  const float StartX = vgetx(Start), StartY = vgety(Start), EndX = vgetx(End),
+              EndY = vgety(End);
   const int MinX = (int)fmin(StartX, EndX) >> 5;
   const int MinY = (int)fmin(StartY, EndY) >> 5;
   const int MaxX = (int)ceil(fmax(StartX, EndX)) >> 5;
   const int MaxY = (int)ceil(fmax(StartY, EndY)) >> 5;
-  for (int y = MinY; y <= MaxY; ++y) {
-    for (int x = MinX; x <= MaxX; ++x) {
-      int Idx = y * pCollision->m_MapData.m_Width + x;
-      if (pCollision->m_MapData.m_GameLayer.m_pData[Idx])
+  for (int y = MinY; y <= MaxY; ++y)
+    for (int x = MinX; x <= MaxX; ++x)
+      if (pCollision->m_pTileBroadCheck[y * pCollision->m_MapData.m_Width + x])
         return true;
-      if (pCollision->m_pMoveRestrictionsCombined[Idx])
-        return true;
-    }
-  }
   return false;
 }
 
-static inline void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
-
+void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
   if (pCore->m_EndlessHook)
     pCore->m_HookTick = 0;
 
@@ -1110,35 +1106,36 @@ static inline void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
 
   const vec2 PrevPos = pCore->m_PrevPos;
   const vec2 Pos = pCore->m_Pos;
-  const float d = vdistance(pCore->m_PrevPos, pCore->m_Pos);
-  const int End = d + 1;
-  const int Width = pCore->m_pCollision->m_MapData.m_Width;
-  bool Handled = false;
-  int Index;
-  if (!d) {
-    Index = ((int)vgety(Pos) >> 5) * Width + ((int)vgetx(Pos) >> 5);
-    if (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT) {
-      cc_handle_tiles(pCore, Index);
-      Handled = true;
-    }
-  } else if (broad_check_stopper(pCore->m_pCollision, PrevPos, Pos)) {
-    int LastIndex = -1;
-    vec2 Tmp;
-    for (int i = 0; i < End; i++) {
-      float a = i / d;
-      Tmp = vvfmix(PrevPos, Pos, a);
-      Index = ((int)vgety(Tmp) >> 5) * Width + ((int)vgetx(Tmp) >> 5);
-      if (LastIndex != Index &&
-          (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT)) {
+  if (broad_check_stopper(pCore->m_pCollision, PrevPos, Pos)) {
+    bool Handled = false;
+    const float d = vdistance(pCore->m_PrevPos, pCore->m_Pos);
+    const int End = d + 1;
+    const int Width = pCore->m_pCollision->m_MapData.m_Width;
+    int Index;
+    if (!d) {
+      Index = ((int)vgety(Pos) >> 5) * Width + ((int)vgetx(Pos) >> 5);
+      if (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT) {
         cc_handle_tiles(pCore, Index);
-        LastIndex = Index;
         Handled = true;
       }
+    } else {
+      int LastIndex = -1;
+      vec2 Tmp;
+      for (int i = 0; i < End; i++) {
+        float a = i / d;
+        Tmp = vvfmix(PrevPos, Pos, a);
+        Index = ((int)vgety(Tmp) >> 5) * Width + ((int)vgetx(Tmp) >> 5);
+        if (LastIndex != Index &&
+            (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT)) {
+          cc_handle_tiles(pCore, Index);
+          LastIndex = Index;
+          Handled = true;
+        }
+      }
     }
+    if (!Handled)
+      cc_handle_tiles(pCore, CurrentIndex);
   }
-  if (!Handled)
-    cc_handle_tiles(pCore, CurrentIndex);
-
   // teleport gun
   if (pCore->m_TeleGunTeleport) {
     pCore->m_Pos = pCore->m_TeleGunPos;
@@ -1247,13 +1244,14 @@ void cc_pre_tick(SCharacterCore *pCore) {
         vvadd(pCore->m_HookPos,
               vfmul(pCore->m_HookDir, pCore->m_pTuning->m_HookFireSpeed));
 
-    if (vsqdistance(HookBase, NewPos) >
-            pCore->m_pTuning->m_HookLength * pCore->m_pTuning->m_HookLength &&
-        vdistance(HookBase, NewPos) > pCore->m_pTuning->m_HookLength) {
-      pCore->m_HookState = HOOK_RETRACT_START;
-      NewPos = vvadd(HookBase, vfmul(vnormalize_nomask(vvsub(NewPos, HookBase)),
-                                     pCore->m_pTuning->m_HookLength));
-    }
+    if (vsqdistance(HookBase, NewPos) >=
+        pCore->m_pTuning->m_HookLength * pCore->m_pTuning->m_HookLength)
+      if (vdistance(HookBase, NewPos) > pCore->m_pTuning->m_HookLength) {
+        pCore->m_HookState = HOOK_RETRACT_START;
+        NewPos =
+            vvadd(HookBase, vfmul(vnormalize_nomask(vvsub(NewPos, HookBase)),
+                                  pCore->m_pTuning->m_HookLength));
+      }
 
     bool GoingToHitGround = false;
     bool GoingToRetract = false;
@@ -1352,9 +1350,11 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
       vec2 NewVel = vvadd(pCore->m_Vel, HookVel);
 
-      const float NewVelLength = vlength(NewVel);
-      if (NewVelLength < pCore->m_pTuning->m_HookDragSpeed ||
-          NewVelLength < vlength(pCore->m_Vel))
+      // doing a square length compare doesn't change physics apparently
+      const float NewVelLength = vsqlength(NewVel);
+      if (NewVelLength < pCore->m_pTuning->m_HookDragSpeed *
+                             pCore->m_pTuning->m_HookDragSpeed ||
+          NewVelLength < vsqlength(pCore->m_Vel))
         pCore->m_Vel = NewVel;
     }
 
@@ -1372,26 +1372,12 @@ void cc_pre_tick(SCharacterCore *pCore) {
     cc_tick_deferred(pCore);
 }
 
-static inline void cc_set_weapon(SCharacterCore *pCore, int W) {
-
-  if (W == pCore->m_ActiveWeapon)
-    return;
-
-  pCore->m_QueuedWeapon = -1;
-  pCore->m_ActiveWeapon = W;
-
-  if (pCore->m_ActiveWeapon < 0 || pCore->m_ActiveWeapon >= NUM_WEAPONS)
-    pCore->m_ActiveWeapon = 0;
-}
-
 void cc_remove_ninja(SCharacterCore *pCore) {
   pCore->m_Ninja.m_ActivationDir = vec2_init(0, 0);
   pCore->m_Ninja.m_ActivationTick = 0;
   pCore->m_Ninja.m_CurrentMoveTime = 0;
   pCore->m_Ninja.m_OldVelAmount = 0;
   pCore->m_aWeaponGot[WEAPON_NINJA] = false;
-
-  cc_set_weapon(pCore, pCore->m_ActiveWeapon);
 }
 
 void cc_take_damage(SCharacterCore *pCore, vec2 Force) {
@@ -1409,7 +1395,7 @@ void cc_handle_ninja(SCharacterCore *pCore) {
   }
 
   // force ninja Weapon
-  cc_set_weapon(pCore, WEAPON_NINJA);
+  pCore->m_ActiveWeapon = WEAPON_NINJA;
 
   pCore->m_Ninja.m_CurrentMoveTime--;
 
@@ -1475,50 +1461,21 @@ void cc_handle_ninja(SCharacterCore *pCore) {
 }
 
 void cc_handle_jetpack(SCharacterCore *pCore) {
-  vec2 Direction = vnormalize(vec2_init(pCore->m_LatestInput.m_TargetX,
-                                        pCore->m_LatestInput.m_TargetY));
-
-  bool FullAuto = false;
-  if (pCore->m_ActiveWeapon == WEAPON_GRENADE ||
-      pCore->m_ActiveWeapon == WEAPON_SHOTGUN ||
-      pCore->m_ActiveWeapon == WEAPON_LASER)
-    FullAuto = true;
-  if (pCore->m_Jetpack && pCore->m_ActiveWeapon == WEAPON_GUN)
-    FullAuto = true;
-
-  // check if we gonna fire
-  bool WillFire = false;
-  if (pCore->m_LatestPrevInput.m_Fire != pCore->m_LatestInput.m_Fire)
-    WillFire = true;
-
-  if (FullAuto && (pCore->m_LatestInput.m_Fire & 1))
-    WillFire = true;
-
-  if (!WillFire)
+  if (!(pCore->m_LatestInput.m_Fire & 1) || pCore->m_FreezeTime)
     return;
 
-  if (pCore->m_FreezeTime) {
-    return;
-  }
-
-  if (pCore->m_ActiveWeapon ==
-      WEAPON_GUN) // put this up as weapon != gun: return
-    if (pCore->m_Jetpack) {
-      float Strength = pCore->m_pTuning->m_JetpackStrength;
-      cc_take_damage(pCore, vfmul(Direction, -(Strength / 100.f / 6.11f)));
-    }
+  const vec2 Direction = vnormalize(vec2_init(pCore->m_LatestInput.m_TargetX,
+                                              pCore->m_LatestInput.m_TargetY));
+  float Strength = pCore->m_pTuning->m_JetpackStrength;
+  cc_take_damage(pCore, vfmul(Direction, -(Strength / 100.f / 6.11f)));
 }
 
-static inline void cc_do_weapon_switch(SCharacterCore *pCore) {
-
-  // make sure we can switch
-  if (pCore->m_ReloadTimer != 0 || pCore->m_QueuedWeapon == -1 ||
-      pCore->m_aWeaponGot[WEAPON_NINJA] ||
-      !pCore->m_aWeaponGot[pCore->m_QueuedWeapon])
+void cc_do_weapon_switch(SCharacterCore *pCore) {
+  if (!pCore->m_aWeaponGot[pCore->m_Input.m_WantedWeapon] ||
+      pCore->m_ReloadTimer != 0 || pCore->m_aWeaponGot[WEAPON_NINJA])
     return;
 
-  // switch Weapon
-  cc_set_weapon(pCore, pCore->m_QueuedWeapon);
+  pCore->m_ActiveWeapon = pCore->m_Input.m_WantedWeapon;
 }
 
 void wc_insert_entity(SWorldCore *pWorld, SEntity *pEnt);
@@ -1683,7 +1640,8 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 void cc_handle_weapons(SCharacterCore *pCore) {
   if (pCore->m_ActiveWeapon == WEAPON_NINJA)
     cc_handle_ninja(pCore);
-  cc_handle_jetpack(pCore);
+  if (pCore->m_Jetpack && pCore->m_ActiveWeapon == WEAPON_GUN)
+    cc_handle_jetpack(pCore);
   if (pCore->m_ReloadTimer) {
     --pCore->m_ReloadTimer;
     return;
@@ -1706,26 +1664,6 @@ void cc_tick(SCharacterCore *pCore) {
   pCore->m_PrevPos = pCore->m_Pos;
 }
 
-void cc_handle_weapon_switch(SCharacterCore *pCore) {
-  if (pCore->m_NumInputs < 2)
-    return;
-  int WantedWeapon = pCore->m_ActiveWeapon;
-  if (pCore->m_QueuedWeapon != -1)
-    WantedWeapon = pCore->m_QueuedWeapon;
-
-  // Direct Weapon selection
-  if (pCore->m_LatestInput.m_WantedWeapon)
-    WantedWeapon = pCore->m_Input.m_WantedWeapon;
-
-  // check for insane values
-  if (WantedWeapon >= 0 && WantedWeapon < NUM_WEAPONS &&
-      WantedWeapon != pCore->m_ActiveWeapon &&
-      pCore->m_aWeaponGot[WantedWeapon])
-    pCore->m_QueuedWeapon = WantedWeapon;
-
-  cc_do_weapon_switch(pCore);
-}
-
 void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
   pCore->m_NumInputs++;
   pCore->m_LatestPrevInput = pCore->m_LatestInput;
@@ -1735,7 +1673,7 @@ void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
     pCore->m_LatestInput.m_TargetY = -1;
 
   if (pCore->m_NumInputs > 1) {
-    cc_handle_weapon_switch(pCore);
+    cc_do_weapon_switch(pCore);
     cc_fire_weapon(pCore);
   }
 

@@ -1,31 +1,22 @@
 /* CPU:
- * Intel(R) Xeon(R) E3-1240 v5 (8) @ 3.90 GHz
+ * Intel(R) Xeon(R) CPU E3-1240 v5 @ 3.50GHz
  * Commands:
- * taskset --cpu-list 0-32 hyperfine --warmup 10 --show-output ./benchmark
+ * taskset --cpu-list 0-32 hyperfine --warmup 10 --show-output "./benchmark"
+ * taskset --cpu-list 0-32 hyperfine --warmup 10 --show-output "./benchmark --multi"
  * Notes: this is with all compiler optimizations enabled except any that alter floating point behaviour e.g. -ffast-math/-Ofast
  */
 
-2025-03-27 Thursday W13 21:12:19.800973472:
-Time (mean ± σ):     283.4 ms ±   0.6 ms
-Range (min … max):   282.4 ms … 284.3 ms
+2025-04-03 Thursday W14 16:35:28.021977385
 
-2025-03-28 Friday W13 14:27:55.183177875
-Time (mean ± σ):     262.0 ms ±   0.8 ms
-Range (min … max):   261.1 ms … 263.6 ms
-/*
- * movebox and intersect benchmarks are slower
- * because we achieved this with a broad tile check 
- * to early return but on the benchmarks the early 
- * broad return check will always fail
- */
+Benchmarking in single-threaded mode...
+[==================================================] 100% (Run 10/10, 0.20s)
+TPS (mean ± σ):		4,938,344 ± 5,730 ticks/s
+Range (min … max):	4,933,552 … 4,954,521 ticks/s	10 runs
 
-2025-03-28 Friday W13 15:52:49.393897324
-Time (mean ± σ):     234.7 ms ±   1.3 ms
-Range (min … max):   233.0 ms … 238.0 ms
-/* i optimized get_move_restrictions */
+Benchmarking in multi-threaded mode...
+Using 8 threads with OpenMP.
+[==================================================] 100% (Run 10/10, 0.04s)
+TPS (mean ± σ):		24,598,397 ± 103,532 ticks/s
+Range (min … max):	24,323,203 … 24,687,930 ticks/s	10 runs
 
-2025-03-28 Friday W13 16:31:48.711722682
-Time (mean ± σ):     221.8 ms ±   0.9 ms
-Range (min … max):   220.6 ms … 223.7 ms
-/* i optimized some more stuff. This is 4.5m TPS for me. */
 

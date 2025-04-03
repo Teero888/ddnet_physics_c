@@ -160,18 +160,19 @@ bool init_collision(SCollision *restrict pCollision,
   SMapData *pMapData = &pCollision->m_MapData;
   int Width = pMapData->m_Width;
   int Height = pMapData->m_Height;
+  int MapSize = Width * Height;
 
-  pCollision->m_pTileInfos = calloc(Width * Height, 1);
-  pCollision->m_pMoveRestrictions = calloc(Width * Height, 5);
-  pCollision->m_pMoveRestrictionsCombined = calloc(Width * Height, 1);
-  pCollision->m_pPickups = calloc(Width * Height, sizeof(SPickup));
+  pCollision->m_pTileInfos = calloc(MapSize, 1);
+  pCollision->m_pTileBroadCheck = calloc(MapSize, 1);
+  pCollision->m_pMoveRestrictions = calloc(MapSize, NUM_MR_DIRS);
+  pCollision->m_pPickups = calloc(MapSize, sizeof(SPickup));
   pCollision->m_MoveRestrictionsFound = false;
 
   for (int i = 0; i < NUM_TUNE_ZONES; ++i)
     init_tuning_params(&pCollision->m_aTuningList[i]);
   // Figure out important things
   // Make lists of spawn points, tele outs and tele checkpoints outs
-  for (int i = 0; i < Width * Height; ++i) {
+  for (int i = 0; i < MapSize; ++i) {
     if (tile_exists(pCollision, i))
       pCollision->m_pTileInfos[i] |= INFO_TILENEXT;
     int Tile = pCollision->m_MapData.m_GameLayer.m_pData[i];
@@ -201,10 +202,8 @@ bool init_collision(SCollision *restrict pCollision,
       pCollision->m_pMoveRestrictions[i][d] |=
           move_restrictions(d, Tile, Flags);
 
-      if (pCollision->m_pMoveRestrictions[i][d]) {
+      if (pCollision->m_pMoveRestrictions[i][d])
         pCollision->m_MoveRestrictionsFound = true;
-        pCollision->m_pMoveRestrictionsCombined[i] = true;
-      }
     }
 
     pCollision->m_pPickups[i].m_Type = -1;
@@ -265,6 +264,22 @@ bool init_collision(SCollision *restrict pCollision,
     }
   }
 
+  for (int i = 0; i < MapSize; ++i) {
+    if (pCollision->m_MapData.m_GameLayer.m_pData[i])
+      pCollision->m_pTileBroadCheck[i] = true;
+    else if (pCollision->m_MapData.m_FrontLayer.m_pData &&
+             pCollision->m_MapData.m_FrontLayer.m_pData[i])
+      pCollision->m_pTileBroadCheck[i] = true;
+    else if (pCollision->m_MapData.m_TeleLayer.m_pType &&
+             pCollision->m_MapData.m_TeleLayer.m_pType[i])
+      pCollision->m_pTileBroadCheck[i] = true;
+    else if (pCollision->m_MapData.m_SwitchLayer.m_pType &&
+             pCollision->m_MapData.m_SwitchLayer.m_pType[i])
+      pCollision->m_pTileBroadCheck[i] = true;
+    else if (pCollision->m_pTileInfos[i] & INFO_TILENEXT)
+      pCollision->m_pTileBroadCheck[i] = true;
+  }
+
   if (!pMapData->m_TeleLayer.m_pType && !pCollision->m_NumSpawnPoints)
     return true;
 
@@ -296,7 +311,6 @@ void free_collision(SCollision *pCollision) {
   free_map_data(&pCollision->m_MapData);
   free(pCollision->m_pPickups);
   free(pCollision->m_pMoveRestrictions);
-  free(pCollision->m_pMoveRestrictionsCombined);
   free(pCollision->m_pSolidDistanceField);
   if (pCollision->m_NumSpawnPoints)
     free(pCollision->m_pSpawnPoints);
