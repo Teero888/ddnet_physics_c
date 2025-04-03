@@ -312,6 +312,8 @@ void cc_do_pickup(SCharacterCore *pCore) {
   int Width = pCore->m_pCollision->m_MapData.m_Width;
   int ix = ((int)vgetx(pCore->m_Pos) >> 5);
   int iy = ((int)vgety(pCore->m_Pos) >> 5);
+
+  // getting the memory could be done in parralel/non-sequential
   for (int dy = -1; dy <= 1; ++dy) {
     int Idx = (iy + dy) * Width;
     for (int dx = -1; dx <= 1; ++dx) {
@@ -428,18 +430,44 @@ bool is_switch_active_cb(int Number, void *pUser) {
 }
 
 void cc_quantize(SCharacterCore *pCore) {
-  pCore->m_Pos = vec2_init((int)(vgetx(pCore->m_Pos) + 0.5f),
-                           (int)(vgety(pCore->m_Pos) + 0.5f));
-  pCore->m_HookPos = vec2_init((int)(vgetx(pCore->m_HookPos) + 0.5f),
-                               (int)(vgety(pCore->m_HookPos) + 0.5f));
+  // Common constants
+  __m128 half = _mm_set1_ps(0.5f);
+  __m128 zero = _mm_setzero_ps();
+  __m128 scale = _mm_set1_ps(256.0f);
 
-  float velX = round_to_int(vgetx(pCore->m_Vel) * 256.0f) / 256.0f;
-  float velY = round_to_int(vgety(pCore->m_Vel) * 256.0f) / 256.0f;
-  pCore->m_Vel = vec2_init(velX, velY);
+  // Quantize m_Pos
+  __m128 pos = pCore->m_Pos;
+  __m128 pos_plus_half = _mm_add_ps(pos, half);
+  __m128i pos_int = _mm_cvttps_epi32(pos_plus_half);
+  __m128 pos_rounded = _mm_cvtepi32_ps(pos_int);
+  pCore->m_Pos = pos_rounded;
 
-  float hookDirX = round_to_int(vgetx(pCore->m_HookDir) * 256.0f) / 256.f;
-  float hookDirY = round_to_int(vgety(pCore->m_HookDir) * 256.0f) / 256.f;
-  pCore->m_HookDir = vec2_init(hookDirX, hookDirY);
+  // Quantize m_HookPos
+  __m128 hook_pos = pCore->m_HookPos;
+  __m128 hook_pos_plus_half = _mm_add_ps(hook_pos, half);
+  __m128i hook_pos_int = _mm_cvttps_epi32(hook_pos_plus_half);
+  __m128 hook_pos_rounded = _mm_cvtepi32_ps(hook_pos_int);
+  pCore->m_HookPos = hook_pos_rounded;
+
+  // Quantize m_Vel
+  __m128 vel = pCore->m_Vel;
+  __m128 vel_scaled = _mm_mul_ps(vel, scale);
+  __m128 adjusted_vel =
+      _mm_blendv_ps(_mm_sub_ps(vel_scaled, half), _mm_add_ps(vel_scaled, half),
+                    _mm_cmpge_ps(vel_scaled, zero));
+  __m128i vel_int = _mm_cvttps_epi32(adjusted_vel);
+  __m128 vel_rounded = _mm_cvtepi32_ps(vel_int);
+  pCore->m_Vel = _mm_div_ps(vel_rounded, scale);
+
+  // Quantize m_HookDir
+  __m128 hook_dir = pCore->m_HookDir;
+  __m128 hook_dir_scaled = _mm_mul_ps(hook_dir, scale);
+  __m128 adjusted_hook_dir = _mm_blendv_ps(_mm_sub_ps(hook_dir_scaled, half),
+                                           _mm_add_ps(hook_dir_scaled, half),
+                                           _mm_cmpge_ps(hook_dir_scaled, zero));
+  __m128i hook_dir_int = _mm_cvttps_epi32(adjusted_hook_dir);
+  __m128 hook_dir_rounded = _mm_cvtepi32_ps(hook_dir_int);
+  pCore->m_HookDir = _mm_div_ps(hook_dir_rounded, scale);
 }
 
 void cc_move(SCharacterCore *pCore) {

@@ -435,28 +435,28 @@ inline unsigned char is_tele_checkpoint(SCollision *pCollision, int Index) {
 }
 
 inline unsigned char get_collision_at(SCollision *pCollision, vec2 Pos) {
-  int Nx = (int)vgetx(Pos) >> 5;
-  int Ny = (int)vgety(Pos) >> 5;
-  int pos = Ny * pCollision->m_MapData.m_Width + Nx;
-  int Idx = pCollision->m_MapData.m_GameLayer.m_pData[pos];
-  if (Idx >= TILE_SOLID && Idx <= TILE_NOLASER)
+  const int Nx = (int)vgetx(Pos) >> 5;
+  const int Ny = (int)vgety(Pos) >> 5;
+  const int pos = Ny * pCollision->m_MapData.m_Width + Nx;
+  const unsigned char Idx = pCollision->m_MapData.m_GameLayer.m_pData[pos];
+  if (Idx - 1 <= TILE_NOLASER - 1)
     return Idx;
   return 0;
 }
 static inline unsigned char get_collision_at_idx(SCollision *pCollision,
                                                  int Idx) {
-  const int Tile = pCollision->m_MapData.m_GameLayer.m_pData[Idx];
-  if (Tile >= TILE_SOLID && Tile <= TILE_NOLASER)
-    return Idx;
+  const unsigned char Tile = pCollision->m_MapData.m_GameLayer.m_pData[Idx];
+  if (Tile - 1 <= TILE_NOLASER - 1)
+    return Tile;
   return 0;
 }
 
 inline unsigned char get_front_collision_at(SCollision *pCollision, vec2 Pos) {
-  int Nx = (int)vgetx(Pos) >> 5;
-  int Ny = (int)vgety(Pos) >> 5;
-  int pos = Ny * pCollision->m_MapData.m_Width + Nx;
-  int Idx = pCollision->m_MapData.m_FrontLayer.m_pData[pos];
-  if (Idx >= TILE_SOLID && Idx <= TILE_NOLASER)
+  const int Nx = (int)vgetx(Pos) >> 5;
+  const int Ny = (int)vgety(Pos) >> 5;
+  const int pos = Ny * pCollision->m_MapData.m_Width + Nx;
+  const unsigned char Idx = pCollision->m_MapData.m_FrontLayer.m_pData[pos];
+  if (Idx - 1 <= TILE_NOLASER - 1)
     return Idx;
   return 0;
 }
@@ -492,10 +492,9 @@ inline unsigned char get_move_restrictions(SCollision *restrict pCollision,
 }
 
 int get_map_index(SCollision *pCollision, vec2 Pos) {
-  int Nx = (int)vgetx(Pos) >> 5;
-  int Ny = (int)vgety(Pos) >> 5;
-  int Index = Ny * pCollision->m_MapData.m_Width + Nx;
-
+  const int Nx = (int)vgetx(Pos) >> 5;
+  const int Ny = (int)vgety(Pos) >> 5;
+  const int Index = Ny * pCollision->m_MapData.m_Width + Nx;
   if (pCollision->m_pTileInfos[Index] & INFO_TILENEXT)
     return Index;
   else
@@ -503,8 +502,8 @@ int get_map_index(SCollision *pCollision, vec2 Pos) {
 }
 
 inline bool check_point(SCollision *pCollision, vec2 Pos) {
-  int Nx = (int)(vgetx(Pos) + 0.5f) >> 5;
-  int Ny = (int)(vgety(Pos) + 0.5f) >> 5;
+  const int Nx = (int)(vgetx(Pos) + 0.5f) >> 5;
+  const int Ny = (int)(vgety(Pos) + 0.5f) >> 5;
   return pCollision->m_pTileInfos[Ny * pCollision->m_MapData.m_Width + Nx] &
          INFO_ISSOLID;
 }
@@ -515,8 +514,8 @@ static inline bool check_point_idx(SCollision *pCollision, int Idx) {
 
 void ThroughOffset(vec2 Pos0, vec2 Pos1, int *restrict pOffsetX,
                    int *restrict pOffsetY) {
-  float x = vgetx(Pos0) - vgetx(Pos1);
-  float y = vgety(Pos0) - vgety(Pos1);
+  const float x = vgetx(Pos0) - vgetx(Pos1);
+  const float y = vgety(Pos0) - vgety(Pos1);
   if (fabs(x) > fabs(y)) {
     if (x < 0) {
       *pOffsetX = -32;
@@ -612,12 +611,10 @@ static inline bool broad_check_tele(SCollision *restrict pCollision, vec2 Start,
   const int MinY = (int)fmin(StartY, EndY) >> 5;
   const int MaxX = (int)ceil(fmax(StartX, EndX)) >> 5;
   const int MaxY = (int)ceil(fmax(StartY, EndY)) >> 5;
-  for (int y = MinY; y <= MaxY; ++y) {
-    for (int x = MinX; x <= MaxX; ++x) {
+  for (int y = MinY; y <= MaxY; ++y)
+    for (int x = MinX; x <= MaxX; ++x)
       if (is_teleport_hook(pCollision, y * pCollision->m_MapData.m_Width + x))
         return true;
-    }
-  }
   return false;
 }
 
@@ -633,6 +630,8 @@ static inline bool broad_check(SCollision *restrict pCollision, vec2 Start,
   const int MaxY = (int)ceil(fmax(StartY, EndY)) >> 5;
   for (int y = MinY; y <= MaxY; ++y) {
     for (int x = MinX; x <= MaxX; ++x) {
+      // i don't think TILE_CREDITS_1 is right xd
+      // but i wrote this code someday so it must be right, right?
       if ((unsigned char)(pCollision->m_MapData.m_GameLayer
                               .m_pData[y * pCollision->m_MapData.m_Width + x] -
                           1) < TILE_CREDITS_1)
@@ -777,8 +776,8 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
                       (int)(vgety(Pos) + 0.5), dx, dy, Pos0, Pos1)) {
         *pOutCollision = Pos;
 
-        int Idx = pCollision->m_MapData.m_GameLayer.m_pData[Index];
-        if (Idx >= TILE_SOLID && Idx <= TILE_NOLASER)
+        unsigned char Idx = pCollision->m_MapData.m_GameLayer.m_pData[Index];
+        if (Idx - 1 <= TILE_NOLASER - 1)
           return Idx;
         return 0;
       }

@@ -21,13 +21,13 @@ enum {
 };
 
 typedef struct {
-  int m_Direction;
+  char m_Direction;
   int m_TargetX;
   int m_TargetY;
-  int m_Jump;
+  unsigned char m_Jump;
   unsigned char m_Fire;
-  int m_Hook;
-  int m_WantedWeapon;
+  unsigned char m_Hook;
+  unsigned char m_WantedWeapon;
 } SPlayerInput;
 
 enum { ENTTYPE_PROJECTILE = 0, ENTTYPE_LASER, NUM_ENTTYPES };
