@@ -6,17 +6,26 @@
  * Notes: this is with all compiler optimizations enabled except any that alter floating point behaviour e.g. -ffast-math/-Ofast
  */
 
-2025-04-03 Thursday W14 16:35:28.021977385
+2025-04-03 Thursday W14 16:35:28.021977385{{{
 
 Benchmarking in single-threaded mode...
-[==================================================] 100% (Run 10/10, 0.20s)
 TPS (mean ± σ):		4,938,344 ± 5,730 ticks/s
 Range (min … max):	4,933,552 … 4,954,521 ticks/s	10 runs
 
 Benchmarking in multi-threaded mode...
 Using 8 threads with OpenMP.
-[==================================================] 100% (Run 10/10, 0.04s)
 TPS (mean ± σ):		24,598,397 ± 103,532 ticks/s
 Range (min … max):	24,323,203 … 24,687,930 ticks/s	10 runs
+}}}
 
+2025-04-05 Saturday W14 15:17:00.516534548{{{
 
+Benchmarking in single-threaded mode...
+TPS (mean ± σ):		5,205,019 ± 6,972 ticks/s
+Range (min … max):	5,201,235 … 5,225,825 ticks/s	10 runs
+
+Benchmarking in multi-threaded mode...
+Using 8 threads with OpenMP.
+TPS (mean ± σ):		25,694,347 ± 1,375,989 ticks/s
+Range (min … max):	21,566,762 … 26,163,163 ticks/s	10 runs
+}}}
