@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <time.h>
 
-#define ITERATIONS 333
+#define ITERATIONS 1000
 #define TICKS_PER_ITERATION 3000
 #define TOTAL_TICKS ITERATIONS *TICKS_PER_ITERATION
 #define NUM_RUNS 10

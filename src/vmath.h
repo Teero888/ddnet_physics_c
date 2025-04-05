@@ -115,10 +115,8 @@ inline vec2 vnormalize_nomask(vec2 a) {
   return vfmul(a, l);
 }
 
-// Round to integer
-// this has to be the exact same
-inline int round_to_int(float f) {
-  return f > 0 ? (int)(f + 0.5f) : (int)(f - 0.5f);
+inline int iclamp(int num, int low, int high) {
+  return num < low ? low : num > high ? high : num;
 }
 
 // Clamp value

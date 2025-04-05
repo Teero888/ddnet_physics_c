@@ -145,6 +145,71 @@ static bool tile_exists(SCollision *pCollision, int Index) {
   return tile_exists_next(pCollision, Index);
 }
 
+#define SQRT2 1.4142135623730951
+static void init_distance_field(SCollision *pCollision) {
+  const int orig_width = pCollision->m_MapData.m_Width;
+  const int orig_height = pCollision->m_MapData.m_Height;
+  const unsigned char *pInfos = pCollision->m_pTileInfos;
+
+  const int hr_width = orig_width * DISTANCE_FIELD_RESOLUTION;
+  const int hr_height = orig_height * DISTANCE_FIELD_RESOLUTION;
+  float *hr_field = malloc(hr_width * hr_height * sizeof(float));
+  for (int y = 0; y < hr_height; ++y) {
+    for (int x = 0; x < hr_width; ++x) {
+      const int orig_x = x / DISTANCE_FIELD_RESOLUTION;
+      const int orig_y = y / DISTANCE_FIELD_RESOLUTION;
+      const int orig_idx = orig_y * orig_width + orig_x;
+      hr_field[y * hr_width + x] =
+          pInfos[orig_idx] & INFO_ISSOLID ? 0.0f : FLT_MAX;
+    }
+  }
+
+  // First pass: left-top to right-bottom
+  for (int y = 1; y < hr_height - 1; ++y) {
+    for (int x = 1; x < hr_width - 1; ++x) {
+      const int idx = y * hr_width + x;
+      if (hr_field[idx] == 0.0f)
+        continue;
+
+      float min_dist = FLT_MAX;
+      min_dist = fminf(min_dist, hr_field[idx - 1] + 1.0f);
+      min_dist = fminf(min_dist, hr_field[idx - hr_width] + 1.0f);
+      min_dist = fminf(min_dist, hr_field[idx - hr_width - 1] + (float)SQRT2);
+      min_dist = fminf(min_dist, hr_field[idx - hr_width + 1] + (float)SQRT2);
+
+      hr_field[idx] = fminf(hr_field[idx], min_dist);
+    }
+  }
+
+  // Second pass: right-bottom to left-top
+  for (int y = hr_height - 2; y > 0; --y) {
+    for (int x = hr_width - 2; x > 0; --x) {
+      const int idx = y * hr_width + x;
+      if (hr_field[idx] == 0.0f)
+        continue;
+
+      float min_dist = FLT_MAX;
+      min_dist = fminf(min_dist, hr_field[idx + 1] + 1.0f);
+      min_dist = fminf(min_dist, hr_field[idx + hr_width] + 1.0f);
+      min_dist = fminf(min_dist, hr_field[idx + hr_width + 1] + (float)SQRT2);
+      min_dist = fminf(min_dist, hr_field[idx + hr_width - 1] + (float)SQRT2);
+      hr_field[idx] = fminf(hr_field[idx], min_dist);
+    }
+  }
+
+  pCollision->m_pSolidDistanceField =
+      malloc(hr_width * hr_height * sizeof(short));
+
+  const float scale_to_world = 32.f / DISTANCE_FIELD_RESOLUTION;
+  for (int i = 0; i < hr_width * hr_height; ++i) {
+    hr_field[i] -= 1.5;
+    hr_field[i] *= scale_to_world;
+    hr_field[i] = fclamp(hr_field[i], 0, 65535);
+    pCollision->m_pSolidDistanceField[i] = hr_field[i];
+  }
+  free(hr_field);
+}
+
 static void init_tuning_params(STuningParams *pTunings) {
 #define MACRO_TUNING_PARAM(Name, Value) pTunings->m_##Name = Value;
 #include "tuning.h"
@@ -280,6 +345,8 @@ bool init_collision(SCollision *restrict pCollision,
       pCollision->m_pTileBroadCheck[i] = true;
   }
 
+  init_distance_field(pCollision);
+
   if (!pMapData->m_TeleLayer.m_pType && !pCollision->m_NumSpawnPoints)
     return true;
 
@@ -312,6 +379,7 @@ void free_collision(SCollision *pCollision) {
   free(pCollision->m_pPickups);
   free(pCollision->m_pMoveRestrictions);
   free(pCollision->m_pSolidDistanceField);
+  free(pCollision->m_pTileBroadCheck);
   if (pCollision->m_NumSpawnPoints)
     free(pCollision->m_pSpawnPoints);
   if (pCollision->m_pTileInfos)
@@ -699,21 +767,34 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
       }
     } else {
       *pOutCollision = Pos1;
-      // ++NumSkips;
       return 0;
     }
   }
+  /* if (vgetx(Pos0) < 0 || vgety(Pos0) < 0 || vgetx(Pos1) < 0 || vgety(Pos1) <
+    0) printf("PANIC, HOOK POS IS NEGATIVE: %.2f, %.2f, %.2f, %.2f\n",
+    vgetx(Pos0), vgety(Pos0), vgetx(Pos1), vgety(Pos1)); */
 
-  // ++NumIntersects;
+  const int Width = pCollision->m_MapData.m_Width;
+  int Idx = ((int)vgety(Pos0) / (32 / DISTANCE_FIELD_RESOLUTION)) * Width *
+                DISTANCE_FIELD_RESOLUTION +
+            ((int)vgetx(Pos0) / (32 / DISTANCE_FIELD_RESOLUTION));
+  int Start = pCollision->m_pSolidDistanceField[Idx];
+
+  // NOTE: doing this check to skip is slower apparently
+  // if (Start > 81 /* todo: replace with hook tune length later*/) {
+  //   *pOutCollision = Pos1;
+  //   return 0;
+  // }
 
   const int End = vdistance(Pos0, Pos1) + 1;
+  Start = iclamp(Start, 0, End);
+  Start -= Start % 4;
   const float fEnd = End;
   int dx = 0, dy = 0;
   ThroughOffset(Pos0, Pos1, &dx, &dy);
   int LastIndex = -1;
 
-  const int Width = pCollision->m_MapData.m_Width;
-  int aIndices[84];
+  int aIndices[84 /* todo: replace with hook tune length + length%4 later*/];
 
   // Precompute constants outside the loop
   const float inv_fEnd = 1.0f / fEnd;
@@ -732,8 +813,8 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
   const __m128i width_vec = _mm_set1_epi32(Width);
 
   // Vectorized loop: process 4 iterations at a time up to 80
-  int k = 0;
-  for (; k < 84; k += 4) {
+  for (int k = Start; k < 84 /* todo: replace with hook tune length later*/;
+       k += 4) {
     // Set integer vector for indices k, k+1, k+2, k+3
     __m128i i_vec = _mm_set_epi32(k + 3, k + 2, k + 1, k);
     // Compute a_vec = i_vec / fEnd
@@ -754,35 +835,28 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
     _mm_storeu_si128((__m128i *)&aIndices[k], index_vec);
   }
 
-  for (int i = 0; i <= End; i++) {
+  for (int i = Start; i <= End; i++) {
     int Index = aIndices[i];
     if (Index == LastIndex)
       continue;
-
-    vec2 Pos = vvfmix(Pos0, Pos1, i / fEnd);
-
     LastIndex = Index;
     if (pTeleNr) {
       *pTeleNr = is_teleport_hook(pCollision, Index);
       if (*pTeleNr) {
-        if (pOutCollision)
-          *pOutCollision = Pos;
+        *pOutCollision = vvfmix(Pos0, Pos1, i / fEnd);
         return TILE_TELEINHOOK;
       }
     }
 
     if (check_point_idx(pCollision, Index)) {
+      const vec2 Pos = vvfmix(Pos0, Pos1, i / fEnd);
       if (!is_through(pCollision, (int)(vgetx(Pos) + 0.5),
                       (int)(vgety(Pos) + 0.5), dx, dy, Pos0, Pos1)) {
         *pOutCollision = Pos;
-
-        unsigned char Idx = pCollision->m_MapData.m_GameLayer.m_pData[Index];
-        if (Idx - 1 <= TILE_NOLASER - 1)
-          return Idx;
-        return 0;
+        return pCollision->m_MapData.m_GameLayer.m_pData[Index];
       }
     } else if (is_hook_blocker(pCollision, Index, Pos0, Pos1)) {
-      *pOutCollision = Pos;
+      *pOutCollision = vvfmix(Pos0, Pos1, i / fEnd);
       return TILE_NOHOOK;
     }
   }

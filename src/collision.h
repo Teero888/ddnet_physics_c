@@ -43,7 +43,10 @@ typedef struct Pickup {
   unsigned char m_Subtype;
 } SPickup;
 
-enum { NUM_TUNE_ZONES = 256 };
+enum {
+  NUM_TUNE_ZONES = 256,
+  DISTANCE_FIELD_RESOLUTION = 32, // will always be a power of 2
+};
 
 typedef struct Collision {
   SMapData m_MapData;
@@ -55,7 +58,6 @@ typedef struct Collision {
   int m_aNumTeleCheckOuts[256];
   vec2 *m_apTeleCheckOuts[256];
 
-  float *m_pSolidDistanceField;
   unsigned char *m_pTileInfos;
   SPickup *m_pPickups;
 
@@ -63,6 +65,8 @@ typedef struct Collision {
   unsigned char (*m_pMoveRestrictions)[5];
 
   bool *m_pTileBroadCheck;
+
+  unsigned short *m_pSolidDistanceField;
 
   // Could be made into a dynamic list based on the server settings so only tune
   // zones that actually get modified get loaded

@@ -389,15 +389,10 @@ void cc_do_pickup(SCharacterCore *pCore) {
 
 // CharacterCore functions {{{
 
-void cc_reset(SCharacterCore *pCore) {
+void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   memset(pCore, 0, sizeof(SCharacterCore));
   pCore->m_HookedPlayer = -1;
   pCore->m_Jumps = 2;
-  pCore->m_Input.m_TargetY = -1;
-}
-
-void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
-  cc_reset(pCore);
   pCore->m_pWorld = pWorld;
   pCore->m_pCollision = pWorld->m_pCollision;
   pCore->m_aWeaponGot[0] = true;
@@ -1499,6 +1494,8 @@ void cc_handle_jetpack(SCharacterCore *pCore) {
 }
 
 void cc_do_weapon_switch(SCharacterCore *pCore) {
+  pCore->m_Input.m_WantedWeapon =
+      iclamp(pCore->m_Input.m_WantedWeapon, 0, NUM_WEAPONS - 1);
   if (!pCore->m_aWeaponGot[pCore->m_Input.m_WantedWeapon] ||
       pCore->m_ReloadTimer != 0 || pCore->m_aWeaponGot[WEAPON_NINJA])
     return;
