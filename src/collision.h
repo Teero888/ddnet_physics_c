@@ -114,7 +114,7 @@ bool is_hook_blocker(SCollision *pCollision, int Index, vec2 Pos0, vec2 Pos1);
 unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
                                        vec2 Pos0, vec2 Pos1,
                                        vec2 *restrict pOutCollision,
-                                       int *restrict pTeleNr);
+                                       unsigned char *restrict pTeleNr);
 
 bool test_box(SCollision *pCollision, vec2 Pos, vec2 Size);
 unsigned char is_tune(SCollision *pCollision, int Index);

@@ -64,10 +64,11 @@ vec2 calc_pos(vec2 Pos, vec2 Velocity, float Curvature, float Speed,
   return n;
 }
 
+// WARNING: This might change physics in some scenarios maybe?? xd
 float velocity_ramp(float Value, float Start, float Range, float Curvature) {
   if (Value < Start)
     return 1.0f;
-  return 1.0f / pow(Curvature, (Value - Start) / Range);
+  return expf((-(Value - Start) / Range) * Curvature);
 }
 
 // }}}
@@ -775,11 +776,9 @@ void cc_reset_hook(SCharacterCore *pCore) {
 }
 
 void cc_reset_pickups(SCharacterCore *pCore) {
-  for (int i = WEAPON_SHOTGUN; i < NUM_WEAPONS - 1; i++) {
-    pCore->m_aWeaponGot[i] = false;
-    if (pCore->m_ActiveWeapon == i)
-      pCore->m_ActiveWeapon = WEAPON_GUN;
-  }
+  memset(pCore->m_aWeaponGot + WEAPON_SHOTGUN, 0, 4);
+  if (pCore->m_ActiveWeapon > WEAPON_SHOTGUN)
+    pCore->m_ActiveWeapon = WEAPON_GUN;
 }
 
 void wc_release_hooked(SWorldCore *pCore, int Id);
@@ -1267,11 +1266,11 @@ void cc_pre_tick(SCharacterCore *pCore) {
     pCore->m_Vel =
         vsetx(pCore->m_Vel,
               saturate_add(-MaxSpeed, MaxSpeed, vgetx(pCore->m_Vel), -Accel));
-  if (pCore->m_Direction > 0)
+  else if (pCore->m_Direction > 0)
     pCore->m_Vel =
         vsetx(pCore->m_Vel,
               saturate_add(-MaxSpeed, MaxSpeed, vgetx(pCore->m_Vel), Accel));
-  if (pCore->m_Direction == 0)
+  else
     pCore->m_Vel = vsetx(pCore->m_Vel, vgetx(pCore->m_Vel) * Friction);
 
   if (pCore->m_HookState == HOOK_IDLE) {
@@ -1303,8 +1302,8 @@ void cc_pre_tick(SCharacterCore *pCore) {
     bool GoingToHitGround = false;
     bool GoingToRetract = false;
     bool GoingThroughTele = false;
-    int teleNr = 0;
-    int Hit = intersect_line_tele_hook(
+    unsigned char teleNr = 0;
+    unsigned char Hit = intersect_line_tele_hook(
         pCore->m_pCollision, pCore->m_HookPos, NewPos, &NewPos,
         pCore->m_pCollision->m_MapData.m_TeleLayer.m_pType ? &teleNr : NULL);
 

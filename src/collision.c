@@ -777,7 +777,7 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
 unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
                                        vec2 Pos0, vec2 Pos1,
                                        vec2 *restrict pOutCollision,
-                                       int *restrict pTeleNr) {
+                                       unsigned char *restrict pTeleNr) {
   if (!broad_check(pCollision, Pos0, Pos1)) {
     if (pTeleNr) {
       if (!broad_check_tele(pCollision, Pos0, Pos1)) {
@@ -816,6 +816,8 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
   int aIndices[84 /* todo: replace with hook tune length + length%4 later*/];
 
   // Precompute constants outside the loop
+  // WARNING: using this inverse might lead to floating point errors changing
+  // physics
   const float inv_fEnd = 1.0f / fEnd;
   const float Pos0_x = vgetx(Pos0);
   const float Pos0_y = vgety(Pos0);
@@ -844,11 +846,11 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
     // Add 0.5 to all components
     __m128 Pos_x_plus_half = _mm_add_ps(Pos_x_vec, half_vec);
     __m128 Pos_y_plus_half = _mm_add_ps(Pos_y_vec, half_vec);
-    // Convert to integers (truncate towards zero) and shift right by 5
+    // Truncate and shift right by 5
     __m128i ix_vec = _mm_srai_epi32(_mm_cvttps_epi32(Pos_x_plus_half), 5);
     __m128i iy_vec = _mm_srai_epi32(_mm_cvttps_epi32(Pos_y_plus_half), 5);
     // Compute indices: iy * Width + ix
-    // NOTE: use width lookup maybe, i tried and it was slower
+    // NOTE: Use width lookup maybe, i tried and it was slower
     __m128i index_vec =
         _mm_add_epi32(_mm_mullo_epi32(iy_vec, width_vec), ix_vec);
     // Store 4 indices into aIndices[k] to aIndices[k+3]
