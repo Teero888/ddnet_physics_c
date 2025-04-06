@@ -70,7 +70,7 @@ typedef struct Collision {
 
   bool *m_pTileBroadCheck;
 
-  unsigned short *m_pSolidDistanceField;
+  unsigned char *m_pSolidDistanceField;
 
   unsigned int *m_pWidthLookup;
 

@@ -197,14 +197,13 @@ static void init_distance_field(SCollision *pCollision) {
     }
   }
 
-  pCollision->m_pSolidDistanceField =
-      malloc(hr_width * hr_height * sizeof(short));
+  pCollision->m_pSolidDistanceField = malloc(hr_width * hr_height);
 
   const float scale_to_world = 32.f / DISTANCE_FIELD_RESOLUTION;
   for (int i = 0; i < hr_width * hr_height; ++i) {
     hr_field[i] -= 1.5;
     hr_field[i] *= scale_to_world;
-    hr_field[i] = fclamp(hr_field[i], 0, 65535);
+    hr_field[i] = fclamp(hr_field[i], 0, 255);
     pCollision->m_pSolidDistanceField[i] = hr_field[i];
   }
   free(hr_field);
@@ -795,10 +794,10 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
     vgetx(Pos0), vgety(Pos0), vgetx(Pos1), vgety(Pos1)); */
 
   const int Width = pCollision->m_MapData.m_Width;
-  int Idx = ((int)vgety(Pos0) / (32 / DISTANCE_FIELD_RESOLUTION)) * Width *
-                DISTANCE_FIELD_RESOLUTION +
-            ((int)vgetx(Pos0) / (32 / DISTANCE_FIELD_RESOLUTION));
-  int Start = pCollision->m_pSolidDistanceField[Idx];
+  const int Scale = (32 / DISTANCE_FIELD_RESOLUTION);
+  int Idx = ((int)vgety(Pos0) / Scale) * Width * DISTANCE_FIELD_RESOLUTION +
+            ((int)vgetx(Pos0) / Scale);
+  unsigned char Start = pCollision->m_pSolidDistanceField[Idx];
 
   // NOTE: doing this check to skip is slower apparently
   // if (Start > 81 /* todo: replace with hook tune length later*/) {
