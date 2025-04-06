@@ -18,7 +18,11 @@ enum {
 #define HALFPHYSICALSIZE 14
 #define PHYSICALSIZEVEC vec2_init(28.f, 28.f)
 
-enum { INFO_ISSOLID = 1 << 0, INFO_TILENEXT = 1 << 1 };
+enum {
+  INFO_ISSOLID = 1 << 0,
+  INFO_TILENEXT = 1 << 1,
+  INFO_PICKUPNEXT = 1 << 2
+};
 
 typedef struct TuningParams {
 #define MACRO_TUNING_PARAM(Name, Value) float m_##Name;
@@ -67,6 +71,8 @@ typedef struct Collision {
   bool *m_pTileBroadCheck;
 
   unsigned short *m_pSolidDistanceField;
+
+  unsigned int *m_pWidthLookup;
 
   // Could be made into a dynamic list based on the server settings so only tune
   // zones that actually get modified get loaded
@@ -122,9 +128,9 @@ const vec2 *tele_outs(SCollision *restrict pCollision, int Number,
                       int *restrict pOutNum);
 const vec2 *tele_check_outs(SCollision *restrict pCollision, int Number,
                             int *restrict pOutNum);
-unsigned char intersect_line(SCollision *restrict pCollision, vec2 Pos0,
-                             vec2 Pos1, vec2 *restrict pOutCollision,
-                             vec2 *restrict pOutBeforeCollision);
+bool intersect_line(SCollision *restrict pCollision, vec2 Pos0, vec2 Pos1,
+                    vec2 *restrict pOutCollision,
+                    vec2 *restrict pOutBeforeCollision);
 void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos,
               vec2 *restrict pInoutVel, vec2 Elasticity,
               bool *restrict pGrounded);

@@ -166,8 +166,8 @@ void prj_tick(SProjectile *pProj) {
   vec2 CurPos = prj_get_pos(pProj, Ct);
   vec2 ColPos;
   vec2 NewPos;
-  int Collide = intersect_line(pProj->m_Base.m_pCollision, PrevPos, CurPos,
-                               &ColPos, &NewPos);
+  bool Collide = intersect_line(pProj->m_Base.m_pCollision, PrevPos, CurPos,
+                                &ColPos, &NewPos);
   SCharacterCore *pOwnerChar = NULL;
 
   if (pProj->m_Owner >= 0)
@@ -183,11 +183,11 @@ void prj_tick(SProjectile *pProj) {
   if (pProj->m_LifeSpan > -1)
     pProj->m_LifeSpan--;
 
-  if ((pTargetChr &&
+  if (Collide ||
+      (pTargetChr &&
        (pOwnerChar ? !pOwnerChar->m_GrenadeHitDisabled
                    : pProj->m_Base.m_pWorld->m_pConfig->m_SvHit ||
-                         pProj->m_Owner == -1 || pTargetChr == pOwnerChar)) ||
-      Collide) {
+                         pProj->m_Owner == -1 || pTargetChr == pOwnerChar))) {
     if (pProj->m_Explosive &&
         (!pTargetChr ||
          (pTargetChr && (pProj->m_Type == WEAPON_SHOTGUN && Collide)))) {
@@ -308,16 +308,30 @@ void prj_tick(SProjectile *pProj) {
 
 bool cc_freeze(SCharacterCore *pCore, int Seconds);
 
+// This must be called every time the tee positions is updated
+void cc_calc_indices(SCharacterCore *pCore) {
+  pCore->m_BlockPos.x = ((int)vgetx(pCore->m_Pos) >> 5);
+  pCore->m_BlockPos.y = ((int)vgety(pCore->m_Pos) >> 5);
+  pCore->m_BlockIdx = pCore->m_pCollision->m_pWidthLookup[pCore->m_BlockPos.y] +
+                      pCore->m_BlockPos.x;
+}
+
 void cc_do_pickup(SCharacterCore *pCore) {
-  int Width = pCore->m_pCollision->m_MapData.m_Width;
-  int ix = ((int)vgetx(pCore->m_Pos) >> 5);
-  int iy = ((int)vgety(pCore->m_Pos) >> 5);
+  if (!(pCore->m_pCollision->m_pTileInfos[pCore->m_BlockIdx] & INFO_PICKUPNEXT))
+    return;
+
+  const int Width = pCore->m_pCollision->m_MapData.m_Width;
+  const int Height = pCore->m_pCollision->m_MapData.m_Width;
+  const int ix = pCore->m_BlockPos.x;
+  const int iy = pCore->m_BlockPos.y;
 
   // getting the memory could be done in parralel/non-sequential
   for (int dy = -1; dy <= 1; ++dy) {
-    int Idx = (iy + dy) * Width;
+    int Idx = pCore->m_pCollision->m_pWidthLookup[iclamp(iy + dy, 0, Height)];
     for (int dx = -1; dx <= 1; ++dx) {
-      SPickup Pickup = pCore->m_pCollision->m_pPickups[Idx + (ix + dx)];
+      // NOTE: doing a copy here should be faster since it is only 3 bytes
+      SPickup Pickup =
+          pCore->m_pCollision->m_pPickups[Idx + iclamp(ix + dx, 0, Width)];
       if (Pickup.m_Type < 0)
         continue;
       vec2 Offset = vec2_init(dx * 32, dy * 32);
@@ -463,6 +477,8 @@ void cc_quantize(SCharacterCore *pCore) {
   __m128i hook_dir_int = _mm_cvttps_epi32(adjusted_hook_dir);
   __m128 hook_dir_rounded = _mm_cvtepi32_ps(hook_dir_int);
   pCore->m_HookDir = _mm_div_ps(hook_dir_rounded, scale);
+
+  cc_calc_indices(pCore);
 }
 
 void cc_move(SCharacterCore *pCore) {
@@ -528,6 +544,7 @@ void cc_move(SCharacterCore *pCore) {
   }
 
   pCore->m_Pos = NewPos;
+  cc_calc_indices(pCore);
 }
 
 void cc_world_tick_deferred(SCharacterCore *pCore) {
@@ -618,11 +635,9 @@ void cc_ddracetick(SCharacterCore *pCore) {
       cc_unfreeze(pCore);
   }
 
-  const int Idx =
-      ((int)vgety(pCore->m_Pos) >> 5) * pCore->m_pCollision->m_MapData.m_Width +
-      ((int)vgetx(pCore->m_Pos) >> 5);
   pCore->m_pTuning =
-      &pCore->m_pWorld->m_pTunings[is_tune(pCore->m_pCollision, Idx)];
+      &pCore->m_pWorld
+           ->m_pTunings[is_tune(pCore->m_pCollision, pCore->m_BlockIdx)];
 }
 
 void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
@@ -1005,6 +1020,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   if (z && tele_outs(pCore->m_pCollision, z - 1, &Num) && Num > 0) {
     pCore->m_Pos = tele_outs(pCore->m_pCollision, z - 1,
                              &Num)[pCore->m_pWorld->m_GameTick % Num];
+    cc_calc_indices(pCore);
     if (!pConfig->m_SvTeleportHoldHook) {
       cc_reset_hook(pCore);
     }
@@ -1016,6 +1032,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   if (evilz && tele_outs(pCore->m_pCollision, evilz, &Num) && Num > 0) {
     pCore->m_Pos = tele_outs(pCore->m_pCollision, evilz - 1,
                              &Num)[pCore->m_pWorld->m_GameTick % Num];
+    cc_calc_indices(pCore);
     pCore->m_Vel = vec2_init(0, 0);
 
     if (!pConfig->m_SvTeleportHoldHook) {
@@ -1032,6 +1049,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
       if (tele_check_outs(pCore->m_pCollision, k, &Num)) {
         pCore->m_Pos = tele_check_outs(pCore->m_pCollision, k,
                                        &Num)[pCore->m_pWorld->m_GameTick % Num];
+        cc_calc_indices(pCore);
         pCore->m_Vel = vec2_init(0, 0);
 
         if (!pConfig->m_SvTeleportHoldHook) {
@@ -1045,6 +1063,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
     vec2 SpawnPos;
     if (wc_next_spawn(pCore->m_pWorld, &SpawnPos)) {
       pCore->m_Pos = SpawnPos;
+      cc_calc_indices(pCore);
       pCore->m_Vel = vec2_init(0, 0);
 
       if (!pConfig->m_SvTeleportHoldHook) {
@@ -1059,6 +1078,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
       if (tele_check_outs(pCore->m_pCollision, k, &Num)) {
         pCore->m_Pos = tele_check_outs(pCore->m_pCollision, k,
                                        &Num)[pCore->m_pWorld->m_GameTick % Num];
+        cc_calc_indices(pCore);
 
         if (!pConfig->m_SvTeleportHoldHook) {
           cc_reset_hook(pCore);
@@ -1070,6 +1090,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
     vec2 SpawnPos;
     if (wc_next_spawn(pCore->m_pWorld, &SpawnPos)) {
       pCore->m_Pos = SpawnPos;
+      cc_calc_indices(pCore);
 
       if (!pConfig->m_SvTeleportHoldHook) {
         cc_reset_hook(pCore);
@@ -1087,10 +1108,12 @@ bool broad_check_stopper(SCollision *restrict pCollision, vec2 Start,
   const int MinY = (int)fmin(StartY, EndY) >> 5;
   const int MaxX = (int)ceil(fmax(StartX, EndX)) >> 5;
   const int MaxY = (int)ceil(fmax(StartY, EndY)) >> 5;
-  for (int y = MinY; y <= MaxY; ++y)
+  for (int y = MinY; y <= MaxY; ++y) {
+    const int yw = pCollision->m_pWidthLookup[y];
     for (int x = MinX; x <= MaxX; ++x)
-      if (pCollision->m_pTileBroadCheck[y * pCollision->m_MapData.m_Width + x])
+      if (pCollision->m_pTileBroadCheck[yw + x])
         return true;
+  }
   return false;
 }
 
@@ -1124,8 +1147,7 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
     pCore->m_Jumped = 1;
   }
 
-  int CurrentIndex = get_map_index(pCore->m_pCollision, pCore->m_Pos);
-  cc_handle_skippable_tiles(pCore, CurrentIndex);
+  cc_handle_skippable_tiles(pCore, pCore->m_BlockIdx);
 
   const vec2 PrevPos = pCore->m_PrevPos;
   const vec2 Pos = pCore->m_Pos;
@@ -1136,7 +1158,8 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
     const int Width = pCore->m_pCollision->m_MapData.m_Width;
     int Index;
     if (!d) {
-      Index = ((int)vgety(Pos) >> 5) * Width + ((int)vgetx(Pos) >> 5);
+      Index = pCore->m_pCollision->m_pWidthLookup[((int)vgety(Pos) >> 5)] +
+              ((int)vgetx(Pos) >> 5);
       if (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT) {
         cc_handle_tiles(pCore, Index);
         Handled = true;
@@ -1147,7 +1170,8 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
       for (int i = 0; i < End; i++) {
         float a = i / d;
         Tmp = vvfmix(PrevPos, Pos, a);
-        Index = ((int)vgety(Tmp) >> 5) * Width + ((int)vgetx(Tmp) >> 5);
+        Index = pCore->m_pCollision->m_pWidthLookup[((int)vgety(Tmp) >> 5)] +
+                ((int)vgetx(Tmp) >> 5);
         if (LastIndex != Index &&
             (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT)) {
           cc_handle_tiles(pCore, Index);
@@ -1157,7 +1181,7 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
       }
     }
     if (!Handled)
-      cc_handle_tiles(pCore, CurrentIndex);
+      cc_handle_tiles(pCore, pCore->m_BlockIdx);
   }
   // teleport gun
   if (pCore->m_TeleGunTeleport) {
@@ -1904,7 +1928,7 @@ bool wc_on_entity(SWorldCore *pCore, int Index, int x, int y, int Layer,
 void wc_create_all_entities(SWorldCore *pCore) {
   for (int y = 0; y < pCore->m_pCollision->m_MapData.m_Height; y++) {
     for (int x = 0; x < pCore->m_pCollision->m_MapData.m_Width; x++) {
-      const int Index = y * pCore->m_pCollision->m_MapData.m_Width + x;
+      const int Index = pCore->m_pCollision->m_pWidthLookup[y] + x;
 
       // Game layer
       {
@@ -2057,6 +2081,7 @@ SCharacterCore *wc_add_character(SWorldCore *pWorld) {
   if (wc_next_spawn(pWorld, &SpawnPos)) {
     pChar->m_Pos = SpawnPos;
     pChar->m_PrevPos = SpawnPos;
+    cc_calc_indices(pChar);
   }
 
   return pChar;

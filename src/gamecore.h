@@ -75,6 +75,9 @@ typedef struct CharacterCore {
   vec2 m_Pos;
   vec2 m_Vel;
 
+  ivec2 m_BlockPos;
+  int m_BlockIdx;
+
   vec2 m_HookPos;
   vec2 m_HookDir;
   vec2 m_HookTeleBase;
