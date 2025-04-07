@@ -24,10 +24,12 @@ MACRO_TUNING_PARAM(HookFireSpeed, 80.0f)
 MACRO_TUNING_PARAM(HookDragAccel, 3.0f)
 MACRO_TUNING_PARAM(HookDragSpeed, 15.0f)
 MACRO_TUNING_PARAM(Gravity, 0.5f)
-MACRO_TUNING_PARAM(VelrampStart, 550)
-MACRO_TUNING_PARAM(VelrampRange, 2000)
-MACRO_TUNING_PARAM(VelrampCurvature,
-                   0.33647223662121284f /* Precomputed logf(1.4)*/)
+MACRO_TUNING_PARAM(VelrampStart, 550.0f)
+MACRO_TUNING_PARAM(VelrampRange, 2000.0f)
+MACRO_TUNING_PARAM(VelrampCurvature, 1.4f)
+MACRO_TUNING_PARAM(
+    VelrampValue,
+    -0.00016823611831060642f) // precomputed -logf(Curvature) / Range
 MACRO_TUNING_PARAM(GunCurvature, 1.25f)
 MACRO_TUNING_PARAM(GunSpeed, 2200.0f)
 MACRO_TUNING_PARAM(GunLifetime, 2.0f)

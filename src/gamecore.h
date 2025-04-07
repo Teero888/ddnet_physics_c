@@ -51,7 +51,6 @@ typedef struct Entity {
 typedef struct Projectile {
   SEntity m_Base;
   vec2 m_Direction;
-  vec2 m_InitDir;
   STuningParams *m_pTuning;
   int m_LifeSpan;
   int m_Owner;

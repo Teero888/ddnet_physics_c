@@ -64,11 +64,10 @@ vec2 calc_pos(vec2 Pos, vec2 Velocity, float Curvature, float Speed,
   return n;
 }
 
-// WARNING: This might change physics in some scenarios maybe?? xd
-float velocity_ramp(float Value, float Start, float Range, float Curvature) {
+float velocity_ramp(float Value, float Start, float k) {
   if (Value < Start)
     return 1.0f;
-  return expf((-(Value - Start) / Range) * Curvature);
+  return expf(k * (Value - Start));
 }
 
 // }}}
@@ -108,7 +107,7 @@ void ent_init(SEntity *pEnt, SWorldCore *pGameWorld, int ObjType, vec2 Pos) {
 
 void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner,
               vec2 Pos, vec2 Dir, int Span, bool Freeze, bool Explosive,
-              vec2 InitDir, int Layer, int Number) {
+              int Layer, int Number) {
   memset(pProj, 0, sizeof(SProjectile));
   ent_init(&pProj->m_Base, pGameWorld, ENTTYPE_PROJECTILE, Pos);
   pProj->m_Type = Type;
@@ -120,7 +119,6 @@ void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner,
   pProj->m_Base.m_Layer = Layer;
   pProj->m_Base.m_Number = Number;
   pProj->m_Freeze = Freeze;
-  pProj->m_InitDir = InitDir;
   pProj->m_pTuning = &pGameWorld->m_pTunings[is_tune(
       pGameWorld->m_pCollision, get_map_index(pGameWorld->m_pCollision, Pos))];
   pProj->m_IsSolo = pGameWorld->m_pCharacters[Owner].m_Solo;
@@ -483,9 +481,9 @@ void cc_quantize(SCharacterCore *pCore) {
 }
 
 void cc_move(SCharacterCore *pCore) {
-  const float RampValue = velocity_ramp(
-      vlength(pCore->m_Vel) * 50, pCore->m_pTuning->m_VelrampStart,
-      pCore->m_pTuning->m_VelrampRange, pCore->m_pTuning->m_VelrampCurvature);
+  const float RampValue = velocity_ramp(vlength(pCore->m_Vel) * 50,
+                                        pCore->m_pTuning->m_VelrampStart,
+                                        pCore->m_pTuning->m_VelrampValue);
   if (RampValue != 1.f)
     pCore->m_Vel = vsetx(pCore->m_Vel, vgetx(pCore->m_Vel) * RampValue);
 
@@ -1545,30 +1543,24 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 
   // check if we gonna fire
   bool WillFire = false;
-  if (pCore->m_LatestPrevInput.m_Fire != pCore->m_LatestInput.m_Fire)
+  if (pCore->m_LatestPrevInput.m_Fire != pCore->m_LatestInput.m_Fire) {
     WillFire = true;
-
-  bool FullAuto = false;
-  if (pCore->m_ActiveWeapon == WEAPON_GRENADE ||
-      pCore->m_ActiveWeapon == WEAPON_SHOTGUN ||
-      pCore->m_ActiveWeapon == WEAPON_LASER)
-    FullAuto = true;
-  if (pCore->m_Jetpack && pCore->m_ActiveWeapon == WEAPON_GUN)
-    FullAuto = true;
-  if (pCore->m_FrozenLastTick)
-    FullAuto = true;
-
-  if (FullAuto && pCore->m_LatestInput.m_Fire & 1)
-    WillFire = true;
+  } else if (pCore->m_LatestInput.m_Fire & 1) {
+    if (pCore->m_ActiveWeapon - WEAPON_SHOTGUN <= WEAPON_LASER - WEAPON_SHOTGUN)
+      WillFire = true;
+    else if (pCore->m_Jetpack && pCore->m_ActiveWeapon == WEAPON_GUN)
+      WillFire = true;
+    else if (pCore->m_FrozenLastTick)
+      WillFire = true;
+  }
 
   if (!WillFire)
     return;
 
   // We always expect the target position not to be 0,0
-  vec2 MouseTarget =
-      vec2_init(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY);
-  vec2 Direction = vnormalize_nomask(MouseTarget);
-  vec2 ProjStartPos =
+  const vec2 Direction = vnormalize_nomask(vec2_init(
+      pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY));
+  const vec2 ProjStartPos =
       vvadd(pCore->m_Pos, vfmul(Direction, PHYSICALSIZE * 0.75f));
 
   switch (pCore->m_ActiveWeapon) {
@@ -1654,7 +1646,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
         (int)(SERVER_TICK_SPEED * pCore->m_pTuning->m_GrenadeLifetime);
     SProjectile *pNewProj = malloc(sizeof(SProjectile));
     prj_init(pNewProj, pCore->m_pWorld, WEAPON_GRENADE, pCore->m_Id,
-             ProjStartPos, Direction, Lifetime, false, true, MouseTarget, 0, 0);
+             ProjStartPos, Direction, Lifetime, false, true, 0, 0);
     wc_insert_entity(pCore->m_pWorld, (SEntity *)pNewProj);
   } break;
 
@@ -1698,11 +1690,10 @@ void cc_handle_weapons(SCharacterCore *pCore) {
 }
 
 void cc_tick(SCharacterCore *pCore) {
-  if (pCore->m_pWorld->m_NoWeakHookAndBounce) {
+  if (pCore->m_pWorld->m_NoWeakHookAndBounce)
     cc_tick_deferred(pCore);
-  } else {
+  else
     cc_pre_tick(pCore);
-  }
 
   // handle Weapons
   cc_handle_weapons(pCore);
@@ -1821,7 +1812,6 @@ bool wc_on_entity(SWorldCore *pCore, int Index, int x, int y, int Layer,
              -2,                            // Span
              true,                          // Freeze
              true,                          // Explosive
-             vec2_init(sin(Deg), cos(Deg)), // InitDir
              Layer, Number);
     pBullet->m_Bouncing = 2 - (Dir % 2);
     wc_insert_entity(pCore, (SEntity *)pBullet);
@@ -1845,7 +1835,6 @@ bool wc_on_entity(SWorldCore *pCore, int Index, int x, int y, int Layer,
              -2,                            // Span
              true,                          // Freeze
              false,                         // Explosive
-             vec2_init(sin(Deg), cos(Deg)), // InitDir
              Layer, Number);
     pBullet->m_Bouncing = 2 - (Dir % 2);
     wc_insert_entity(pCore, (SEntity *)pBullet);
