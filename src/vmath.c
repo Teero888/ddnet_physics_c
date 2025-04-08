@@ -23,6 +23,8 @@ extern inline float vsqdistance(vec2 a, vec2 b);
 extern inline float vdistance(vec2 a, vec2 b);
 extern inline vec2 vnormalize(vec2 a);
 extern inline vec2 vnormalize_nomask(vec2 a);
+extern inline int imax(int a, int b);
+extern inline int imin(int a, int b);
 extern inline int iclamp(int num, int low, int high);
 extern inline float fclamp(float n, float a, float b);
 extern inline vec2 vvfmix(vec2 a, vec2 b, float t);

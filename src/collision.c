@@ -330,6 +330,14 @@ bool init_collision(SCollision *restrict pCollision,
             pCollision->m_pTileInfos[Idx] |= INFO_PICKUPNEXT;
         }
       }
+
+      for (int i = -1; i <= 1; ++i) {
+        if (pCollision->m_pTileInfos[pCollision->m_pWidthLookup[iclamp(
+                                         y + 1, 0, Height)] +
+                                     iclamp(x + i, 0, Width)] &
+            INFO_ISSOLID)
+          pCollision->m_pTileInfos[Idx] |= INFO_CANGROUND;
+      }
     }
   }
 
@@ -794,9 +802,8 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
     vgetx(Pos0), vgety(Pos0), vgetx(Pos1), vgety(Pos1)); */
 
   const int Width = pCollision->m_MapData.m_Width;
-  const int Scale = (32 / DISTANCE_FIELD_RESOLUTION);
-  int Idx = ((int)vgety(Pos0) / Scale) * Width * DISTANCE_FIELD_RESOLUTION +
-            ((int)vgetx(Pos0) / Scale);
+  int Idx = ((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION +
+            ((int)vgetx(Pos0));
   unsigned char Start = pCollision->m_pSolidDistanceField[Idx];
 
   // NOTE: doing this check to skip is slower apparently
@@ -1013,6 +1020,7 @@ void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos,
   vec2 NewPos = vvadd(Pos, Vel);
   int Max = (int)Distance;
   float Fraction = 1.0f / (float)(Max + 1);
+
   if (!broad_check_char(pCollision, *pInoutPos, NewPos)) {
     const vec2 Frac = vfmul(Vel, Fraction);
     for (int i = 0; i <= Max; i++)

@@ -115,6 +115,8 @@ inline vec2 vnormalize_nomask(vec2 a) {
   return vfmul(a, l);
 }
 
+inline int imax(int a, int b) { return a > b ? a : b; }
+inline int imin(int a, int b) { return a < b ? a : b; }
 inline int iclamp(int num, int low, int high) {
   return num < low ? low : num > high ? high : num;
 }

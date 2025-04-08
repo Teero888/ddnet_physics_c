@@ -1197,12 +1197,13 @@ void cc_pre_tick(SCharacterCore *pCore) {
       get_move_restrictions(pCore->m_pCollision, pCore, pCore->m_Pos, -1);
 
   const bool Grounded =
-      check_point(pCore->m_pCollision,
-                  vec2_init(vgetx(pCore->m_Pos) + HALFPHYSICALSIZE,
-                            vgety(pCore->m_Pos) + HALFPHYSICALSIZE + 5)) ||
-      check_point(pCore->m_pCollision,
-                  vec2_init(vgetx(pCore->m_Pos) - HALFPHYSICALSIZE,
-                            vgety(pCore->m_Pos) + HALFPHYSICALSIZE + 5));
+      (pCore->m_pCollision->m_pTileInfos[pCore->m_BlockIdx] & INFO_CANGROUND) &&
+      (check_point(pCore->m_pCollision,
+                   vec2_init(vgetx(pCore->m_Pos) + HALFPHYSICALSIZE,
+                             vgety(pCore->m_Pos) + HALFPHYSICALSIZE + 5)) ||
+       check_point(pCore->m_pCollision,
+                   vec2_init(vgetx(pCore->m_Pos) - HALFPHYSICALSIZE,
+                             vgety(pCore->m_Pos) + HALFPHYSICALSIZE + 5)));
 
   pCore->m_Vel = vadd_y(pCore->m_Vel, pCore->m_pTuning->m_Gravity);
 
@@ -1365,7 +1366,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
   }
 
   if (pCore->m_HookState == HOOK_GRABBED) {
-    if (pCore->m_HookedPlayer != -1 && pCore->m_pWorld) {
+    if (pCore->m_HookedPlayer != -1) {
       SCharacterCore *pCharCore =
           &pCore->m_pWorld->m_pCharacters[pCore->m_HookedPlayer];
       if (pCharCore && pCore->m_Id != -1)
@@ -1375,11 +1376,8 @@ void cc_pre_tick(SCharacterCore *pCore) {
         pCore->m_HookState = HOOK_RETRACTED;
         pCore->m_HookPos = pCore->m_Pos;
       }
-    }
-
-    if (pCore->m_HookedPlayer == -1 &&
-        (vsqdistance(pCore->m_HookPos, pCore->m_Pos) > 46 * 46 ||
-         vdistance(pCore->m_HookPos, pCore->m_Pos) > 46.0f)) {
+    } else if (vsqdistance(pCore->m_HookPos, pCore->m_Pos) > 46 * 46 ||
+               vdistance(pCore->m_HookPos, pCore->m_Pos) > 46.0f) {
       vec2 HookVel =
           vfmul(vnormalize_nomask(vvsub(pCore->m_HookPos, pCore->m_Pos)),
                 pCore->m_pTuning->m_HookDragAccel);

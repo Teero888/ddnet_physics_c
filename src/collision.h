@@ -21,7 +21,8 @@ enum {
 enum {
   INFO_ISSOLID = 1 << 0,
   INFO_TILENEXT = 1 << 1,
-  INFO_PICKUPNEXT = 1 << 2
+  INFO_PICKUPNEXT = 1 << 2,
+  INFO_CANGROUND = 1 << 3,
 };
 
 typedef struct TuningParams {
@@ -49,7 +50,7 @@ typedef struct Pickup {
 
 enum {
   NUM_TUNE_ZONES = 256,
-  DISTANCE_FIELD_RESOLUTION = 32, // will always be a power of 2
+  DISTANCE_FIELD_RESOLUTION = 32,
 };
 
 typedef struct Collision {
