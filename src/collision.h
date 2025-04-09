@@ -69,7 +69,7 @@ typedef struct Collision {
   bool m_MoveRestrictionsFound;
   unsigned char (*m_pMoveRestrictions)[5];
 
-  bool *m_pTileBroadCheck;
+  unsigned char *m_pTileBroadCheck;
 
   unsigned char *m_pSolidDistanceField;
 

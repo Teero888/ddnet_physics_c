@@ -11,8 +11,8 @@
 typedef __m128 vec2;
 #define CTVEC2(x, y) {x, y, 0.f, 0.f}
 typedef struct {
-  int x, y;
-} ivec2;
+  unsigned int x, y;
+} uivec2;
 
 #define PI 3.14159265358979323846f
 

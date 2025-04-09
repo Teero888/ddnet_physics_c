@@ -74,7 +74,7 @@ typedef struct CharacterCore {
   vec2 m_Pos;
   vec2 m_Vel;
 
-  ivec2 m_BlockPos;
+  uivec2 m_BlockPos;
   int m_BlockIdx;
 
   vec2 m_HookPos;
@@ -103,12 +103,11 @@ typedef struct CharacterCore {
 
   int m_Direction;
 
-  SPlayerInput m_LatestPrevInput;
+  unsigned char m_PrevFire;
   SPlayerInput m_LatestInput;
   SPlayerInput m_Input;
   SPlayerInput m_SavedInput;
 
-  int m_NumInputs;
   // DDRace
   int m_StartTime;
 

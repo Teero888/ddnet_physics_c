@@ -691,15 +691,24 @@ static inline bool broad_check_char(SCollision *restrict pCollision, vec2 Start,
   const float StartY = vgety(Start);
   const float EndX = vgetx(End);
   const float EndY = vgety(End);
-  const int MinX = (int)(fmin(StartX, EndX) - HALFPHYSICALSIZE - 1) >> 5;
-  const int MinY = (int)(fmin(StartY, EndY) - HALFPHYSICALSIZE - 1) >> 5;
-  const int MaxX = (int)(ceil(fmax(StartX, EndX) + HALFPHYSICALSIZE + 1)) >> 5;
-  const int MaxY = (int)(ceil(fmax(StartY, EndY) + HALFPHYSICALSIZE + 1)) >> 5;
-  for (int y = MinY; y <= MaxY; ++y)
-    for (int x = MinX; x <= MaxX; ++x)
-      if (pCollision->m_pTileInfos[pCollision->m_pWidthLookup[y] + x] &
-          INFO_ISSOLID)
+  const vec2 minVec = _mm_min_ps(Start, End);
+  const vec2 maxVec = _mm_max_ps(Start, End);
+  const vec2 offset = _mm_set1_ps(HALFPHYSICALSIZE + 1.0f);
+  const vec2 minAdj = _mm_sub_ps(minVec, offset);
+  const vec2 maxAdj = _mm_add_ps(maxVec, offset);
+  const int MinX = (int)vgetx(minAdj) >> 5;
+  const int MinY = (int)vgety(minAdj) >> 5;
+  const int MaxX = (int)ceilf(vgetx(maxAdj)) >> 5;
+  const int MaxY = (int)ceilf(vgety(maxAdj)) >> 5;
+  for (int y = MinY; y <= MaxY; ++y) {
+    const unsigned char *rowStart =
+        pCollision->m_pTileInfos + pCollision->m_pWidthLookup[y];
+    for (int x = MinX; x <= MaxX; ++x) {
+      if (rowStart[x] & INFO_ISSOLID) {
         return true;
+      }
+    }
+  }
   return false;
 }
 
@@ -709,14 +718,22 @@ static inline bool broad_check_tele(SCollision *restrict pCollision, vec2 Start,
   const float StartY = vgety(Start);
   const float EndX = vgetx(End);
   const float EndY = vgety(End);
-  const int MinX = (int)fmin(StartX, EndX) >> 5;
-  const int MinY = (int)fmin(StartY, EndY) >> 5;
-  const int MaxX = (int)ceil(fmax(StartX, EndX)) >> 5;
-  const int MaxY = (int)ceil(fmax(StartY, EndY)) >> 5;
-  for (int y = MinY; y <= MaxY; ++y)
-    for (int x = MinX; x <= MaxX; ++x)
-      if (is_teleport_hook(pCollision, pCollision->m_pWidthLookup[y] + x))
+  const vec2 minVec = _mm_min_ps(Start, End);
+  const vec2 maxVec = _mm_max_ps(Start, End);
+  const int MinX = (int)vgetx(minVec) >> 5;
+  const int MinY = (int)vgety(minVec) >> 5;
+  const int MaxX = (int)ceilf(vgetx(maxVec)) >> 5;
+  const int MaxY = (int)ceilf(vgety(maxVec)) >> 5;
+
+  for (int y = MinY; y <= MaxY; ++y) {
+    const unsigned char *rowStart = pCollision->m_MapData.m_TeleLayer.m_pType +
+                                    pCollision->m_pWidthLookup[y];
+    for (int x = MinX; x <= MaxX; ++x) {
+      if (rowStart[x] == TILE_TELEINHOOK) {
         return true;
+      }
+    }
+  }
   return false;
 }
 
@@ -726,21 +743,19 @@ static inline bool broad_check(SCollision *restrict pCollision, vec2 Start,
   const float StartY = vgety(Start);
   const float EndX = vgetx(End);
   const float EndY = vgety(End);
-  const int MinX = (int)fmin(StartX, EndX) >> 5;
-  const int MinY = (int)fmin(StartY, EndY) >> 5;
-  const int MaxX = (int)ceil(fmax(StartX, EndX)) >> 5;
-  const int MaxY = (int)ceil(fmax(StartY, EndY)) >> 5;
+  const vec2 minVec = _mm_min_ps(Start, End);
+  const vec2 maxVec = _mm_max_ps(Start, End);
+  const int MinX = (int)vgetx(minVec) >> 5;
+  const int MinY = (int)vgety(minVec) >> 5;
+  const int MaxX = (int)ceilf(vgetx(maxVec)) >> 5;
+  const int MaxY = (int)ceilf(vgety(maxVec)) >> 5;
   for (int y = MinY; y <= MaxY; ++y) {
-    for (int x = MinX; x <= MaxX; ++x) {
-      // i don't think TILE_CREDITS_1 is right xd
-      // but i wrote this code someday so it must be right, right?
-      if ((unsigned char)(pCollision->m_MapData.m_GameLayer
-                              .m_pData[pCollision->m_pWidthLookup[y] + x] -
-                          1) < TILE_CREDITS_1)
+    const unsigned char *rowStart =
+        pCollision->m_pTileInfos + pCollision->m_pWidthLookup[y];
+    for (int x = MinX; x <= MaxX; ++x)
+      if (rowStart[x] & INFO_ISSOLID)
         return true;
-    }
   }
-
   return false;
 }
 
@@ -1036,12 +1051,12 @@ void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos,
     return;
   }
 
-  ivec2 IPos = (ivec2){(int)(vgetx(Pos) + 0.5f), (int)(vgety(Pos) + 0.5f)};
-  ivec2 INewPos;
+  uivec2 IPos = (uivec2){(int)(vgetx(Pos) + 0.5f), (int)(vgety(Pos) + 0.5f)};
+  uivec2 INewPos;
   int Hits;
   for (int i = 0; i <= Max; i++) {
     NewPos = vvadd(Pos, vfmul(Vel, Fraction));
-    INewPos = (ivec2){(int)(vgetx(NewPos) + 0.5f), (int)(vgety(NewPos) + 0.5f)};
+    INewPos = (uivec2){(int)(vgetx(NewPos) + 0.5f), (int)(vgety(NewPos) + 0.5f)};
     if (test_box_character(pCollision, INewPos.x, INewPos.y)) {
       Hits = 0;
       if (test_box_character(pCollision, IPos.x, INewPos.y)) {

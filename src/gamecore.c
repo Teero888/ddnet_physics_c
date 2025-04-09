@@ -64,7 +64,7 @@ vec2 calc_pos(vec2 Pos, vec2 Velocity, float Curvature, float Speed,
   return n;
 }
 
-float velocity_ramp(float Value, float Start, float k) {
+static inline float velocity_ramp(float Value, float Start, float k) {
   if (Value < Start)
     return 1.0f;
   return expf(k * (Value - Start));
@@ -308,9 +308,10 @@ void prj_tick(SProjectile *pProj) {
 bool cc_freeze(SCharacterCore *pCore, int Seconds);
 
 // This must be called every time the tee positions is updated
-void cc_calc_indices(SCharacterCore *pCore) {
+static inline void cc_calc_indices(SCharacterCore *pCore) {
   pCore->m_BlockPos.x = ((int)vgetx(pCore->m_Pos) >> 5);
   pCore->m_BlockPos.y = ((int)vgety(pCore->m_Pos) >> 5);
+  // This addition is very poor. like 5% of the whole cc_move function
   pCore->m_BlockIdx = pCore->m_pCollision->m_pWidthLookup[pCore->m_BlockPos.y] +
                       pCore->m_BlockPos.x;
 }
@@ -484,11 +485,12 @@ void cc_move(SCharacterCore *pCore) {
   const float RampValue = velocity_ramp(vlength(pCore->m_Vel) * 50,
                                         pCore->m_pTuning->m_VelrampStart,
                                         pCore->m_pTuning->m_VelrampValue);
-  if (RampValue != 1.f)
-    pCore->m_Vel = vsetx(pCore->m_Vel, vgetx(pCore->m_Vel) * RampValue);
+  // NOTE: do not do a if(RampValue != 1.f) here. this makes this apparently
+  // unpredictable so setting the OldVel is super slow. saves 2% by not doing it
+  const float OldVel = vgetx(pCore->m_Vel) * RampValue;
+  pCore->m_Vel = vsetx(pCore->m_Vel, OldVel);
 
   vec2 NewPos = pCore->m_Pos;
-  vec2 OldVel = pCore->m_Vel;
   bool Grounded = false;
   move_box(pCore->m_pCollision, &NewPos, &pCore->m_Vel,
            vec2_init(pCore->m_pTuning->m_GroundElasticityX,
@@ -501,18 +503,17 @@ void cc_move(SCharacterCore *pCore) {
   }
 
   pCore->m_Colliding = 0;
-  float velX = vgetx(pCore->m_Vel);
-  float oldVelX = vgetx(OldVel);
+  const float velX = vgetx(pCore->m_Vel);
   if (velX < 0.001f && velX > -0.001f) {
-    if (oldVelX > 0)
+    if (OldVel > 0)
       pCore->m_Colliding = 1;
-    else if (oldVelX < 0)
+    else if (OldVel < 0)
       pCore->m_Colliding = 2;
   } else
     pCore->m_LeftWall = true;
 
   if (RampValue != 1.f)
-    pCore->m_Vel = vsetx(pCore->m_Vel, vgetx(pCore->m_Vel) * (1.f / RampValue));
+    pCore->m_Vel = vsetx(pCore->m_Vel, velX * (1.f / RampValue));
 
   if (pCore->m_pTuning->m_PlayerCollision && !pCore->m_CollisionDisabled &&
       !pCore->m_Solo && pCore->m_pWorld->m_NumCharacters > 1) {
@@ -1099,17 +1100,26 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
 
 bool broad_check_stopper(SCollision *restrict pCollision, vec2 Start,
                          vec2 End) {
-  const float StartX = vgetx(Start), StartY = vgety(Start), EndX = vgetx(End),
-              EndY = vgety(End);
-  const int MinX = (int)fmin(StartX, EndX) >> 5;
-  const int MinY = (int)fmin(StartY, EndY) >> 5;
-  const int MaxX = (int)ceil(fmax(StartX, EndX)) >> 5;
-  const int MaxY = (int)ceil(fmax(StartY, EndY)) >> 5;
+  const float StartX = vgetx(Start);
+  const float StartY = vgety(Start);
+  const float EndX = vgetx(End);
+  const float EndY = vgety(End);
+
+  const vec2 minVec = _mm_min_ps(Start, End);
+  const vec2 maxVec = _mm_max_ps(Start, End);
+  const int MinX = (int)vgetx(minVec) >> 5;
+  const int MinY = (int)vgety(minVec) >> 5;
+  const int MaxX = (int)ceilf(vgetx(maxVec)) >> 5;
+  const int MaxY = (int)ceilf(vgety(maxVec)) >> 5;
+
   for (int y = MinY; y <= MaxY; ++y) {
-    const int yw = pCollision->m_pWidthLookup[y];
-    for (int x = MinX; x <= MaxX; ++x)
-      if (pCollision->m_pTileBroadCheck[yw + x])
+    const unsigned char *rowStart =
+        pCollision->m_pTileBroadCheck + pCollision->m_pWidthLookup[y];
+    for (int x = MinX; x <= MaxX; ++x) {
+      if (rowStart[x]) {
         return true;
+      }
+    }
   }
   return false;
 }
@@ -1526,8 +1536,6 @@ void wc_insert_entity(SWorldCore *pWorld, SEntity *pEnt);
 void wc_remove_entity(SWorldCore *pWorld, SEntity *pEnt);
 
 void cc_fire_weapon(SCharacterCore *pCore) {
-  if (pCore->m_NumInputs < 2)
-    return;
   if (pCore->m_ReloadTimer)
     return;
   cc_do_weapon_switch(pCore);
@@ -1541,7 +1549,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 
   // check if we gonna fire
   bool WillFire = false;
-  if (pCore->m_LatestPrevInput.m_Fire != pCore->m_LatestInput.m_Fire) {
+  if (pCore->m_PrevFire != pCore->m_LatestInput.m_Fire) {
     WillFire = true;
   } else if (pCore->m_LatestInput.m_Fire & 1) {
     if (pCore->m_ActiveWeapon - WEAPON_SHOTGUN <= WEAPON_LASER - WEAPON_SHOTGUN)
@@ -1702,19 +1710,15 @@ void cc_tick(SCharacterCore *pCore) {
 }
 
 void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
-  pCore->m_NumInputs++;
-  pCore->m_LatestPrevInput = pCore->m_LatestInput;
   pCore->m_LatestInput = *pNewInput;
   if (pCore->m_LatestInput.m_TargetX == 0 &&
       pCore->m_LatestInput.m_TargetY == 0)
     pCore->m_LatestInput.m_TargetY = -1;
 
-  if (pCore->m_NumInputs > 1) {
-    cc_do_weapon_switch(pCore);
-    cc_fire_weapon(pCore);
-  }
+  cc_do_weapon_switch(pCore);
+  cc_fire_weapon(pCore);
 
-  pCore->m_LatestPrevInput = pCore->m_LatestInput;
+  pCore->m_PrevFire = pCore->m_LatestInput.m_Fire;
 }
 
 void cc_on_predicted_input(SCharacterCore *pCore, SPlayerInput *pNewInput) {

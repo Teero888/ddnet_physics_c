@@ -41,3 +41,15 @@ Using 8 threads with OpenMP.
 TPS (mean ± σ):		28,236,062 ± 935,213 ticks/s
 Range (min … max):	25,440,788 … 28,603,573 ticks/s	10 runs
 }}}
+
+2025-04-09 Wednesday W15 18:00:17.887569972{{{
+
+Benchmarking in single-threaded mode...
+TPS (mean ± σ):		6,126,137 ± 4,949 ticks/s
+Range (min … max):	6,122,598 … 6,136,161 ticks/s	10 runs
+
+Benchmarking in multi-threaded mode...
+Using 8 threads with OpenMP.
+TPS (mean ± σ):		31,613,271 ± 43,401 ticks/s
+Range (min … max):	31,517,241 … 31,710,807 ticks/s	10 runs
+}}}
