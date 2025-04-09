@@ -633,23 +633,30 @@ void ThroughOffset(vec2 Pos0, vec2 Pos1, int *restrict pOffsetX,
 bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY,
                 vec2 Pos0, vec2 Pos1) {
   int pos = get_pure_map_index(pCollision, vec2_init(x, y));
-
   unsigned char *pFrontIdx = pCollision->m_MapData.m_FrontLayer.m_pData;
   unsigned char *pFrontFlgs = pCollision->m_MapData.m_FrontLayer.m_pFlags;
-  if (pFrontIdx && (pFrontIdx[pos] == TILE_THROUGH_ALL ||
-                    pFrontIdx[pos] == TILE_THROUGH_CUT))
-    return true;
-  if (pFrontIdx && pFrontIdx[pos] == TILE_THROUGH_DIR &&
-      ((pFrontFlgs[pos] == ROTATION_0 && vgety(Pos0) > vgety(Pos1)) ||
-       (pFrontFlgs[pos] == ROTATION_90 && vgetx(Pos0) < vgetx(Pos1)) ||
-       (pFrontFlgs[pos] == ROTATION_180 && vgety(Pos0) < vgety(Pos1)) ||
-       (pFrontFlgs[pos] == ROTATION_270 && vgetx(Pos0) > vgetx(Pos1))))
-    return true;
+
+  if (pFrontIdx) {
+    unsigned char frontTile = pFrontIdx[pos];
+    if (frontTile == TILE_THROUGH_ALL || frontTile == TILE_THROUGH_CUT) {
+      return true;
+    }
+    if (frontTile == TILE_THROUGH_DIR) {
+      unsigned char flags = pFrontFlgs[pos];
+      if ((flags == ROTATION_0 && vgety(Pos0) > vgety(Pos1)) ||
+          (flags == ROTATION_90 && vgetx(Pos0) < vgetx(Pos1)) ||
+          (flags == ROTATION_180 && vgety(Pos0) < vgety(Pos1)) ||
+          (flags == ROTATION_270 && vgetx(Pos0) > vgetx(Pos1))) {
+        return true;
+      }
+    }
+  }
   int offpos =
       get_pure_map_index(pCollision, vec2_init(x + OffsetX, y + OffsetY));
-  unsigned char *pTileIdx = pCollision->m_MapData.m_GameLayer.m_pData;
   if (offpos < 0)
     return false;
+
+  unsigned char *pTileIdx = pCollision->m_MapData.m_GameLayer.m_pData;
   return pTileIdx[offpos] == TILE_THROUGH ||
          (pFrontIdx && pFrontIdx[offpos] == TILE_THROUGH);
 }

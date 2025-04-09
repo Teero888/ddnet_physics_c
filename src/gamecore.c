@@ -1315,7 +1315,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
         GoingToHitGround = true;
     }
 
-    if (!pCore->m_HookHitDisabled && pCore->m_pWorld &&
+    if (pCore->m_pWorld->m_NumCharacters > 1 && !pCore->m_HookHitDisabled &&
         pCore->m_pTuning->m_PlayerHooking &&
         (pCore->m_HookState == HOOK_FLYING || !pCore->m_NewHook)) {
       float Distance = 0.0f;
