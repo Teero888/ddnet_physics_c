@@ -56,8 +56,7 @@ float saturate_add(float Min, float Max, float Current, float Modifier) {
   }
 }
 
-vec2 calc_pos(vec2 Pos, vec2 Velocity, float Curvature, float Speed,
-              float Time) {
+vec2 calc_pos(vec2 Pos, vec2 Velocity, float Curvature, float Speed, float Time) {
   vec2 n = Pos;
   Time *= Speed;
   n = vadd_x(n, vgetx(Velocity) * Time);
@@ -106,9 +105,8 @@ void ent_init(SEntity *pEnt, SWorldCore *pGameWorld, int ObjType, vec2 Pos) {
   pEnt->m_pNextTypeEntity = NULL;
 }
 
-void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner,
-              vec2 Pos, vec2 Dir, int Span, bool Freeze, bool Explosive,
-              int Layer, int Number) {
+void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner, vec2 Pos, vec2 Dir, int Span,
+              bool Freeze, bool Explosive, int Layer, int Number) {
   memset(pProj, 0, sizeof(SProjectile));
   ent_init(&pProj->m_Base, pGameWorld, ENTTYPE_PROJECTILE, Pos);
   pProj->m_Type = Type;
@@ -120,8 +118,9 @@ void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner,
   pProj->m_Base.m_Layer = Layer;
   pProj->m_Base.m_Number = Number;
   pProj->m_Freeze = Freeze;
-  pProj->m_pTuning = &pGameWorld->m_pTunings[is_tune(
-      pGameWorld->m_pCollision, get_map_index(pGameWorld->m_pCollision, Pos))];
+  pProj->m_pTuning =
+      &pGameWorld
+           ->m_pTunings[is_tune(pGameWorld->m_pCollision, get_map_index(pGameWorld->m_pCollision, Pos))];
   pProj->m_IsSolo = pGameWorld->m_pCharacters[Owner].m_Solo;
 }
 
@@ -146,28 +145,22 @@ vec2 prj_get_pos(SProjectile *pProj, float Time) {
     break;
   }
 
-  return calc_pos(pProj->m_Base.m_Pos, pProj->m_Direction, Curvature, Speed,
-                  Time);
+  return calc_pos(pProj->m_Base.m_Pos, pProj->m_Direction, Curvature, Speed, Time);
 }
-SCharacterCore *wc_intersect_character(SWorldCore *pWorld, vec2 Pos0, vec2 Pos1,
-                                       float Radius, vec2 *pNewPos,
-                                       const SCharacterCore *pNotThis,
-                                       const SCharacterCore *pThisOnly);
+SCharacterCore *wc_intersect_character(SWorldCore *pWorld, vec2 Pos0, vec2 Pos1, float Radius, vec2 *pNewPos,
+                                       const SCharacterCore *pNotThis, const SCharacterCore *pThisOnly);
 bool cc_freeze(SCharacterCore *pCore, int Seconds);
 
 void wc_create_explosion(SWorldCore *pWorld, vec2 Pos, int Owner);
 
 void prj_tick(SProjectile *pProj) {
-  float Pt = (pProj->m_Base.m_pWorld->m_GameTick - pProj->m_StartTick - 1) /
-             (float)SERVER_TICK_SPEED;
-  float Ct = (pProj->m_Base.m_pWorld->m_GameTick - pProj->m_StartTick) /
-             (float)SERVER_TICK_SPEED;
+  float Pt = (pProj->m_Base.m_pWorld->m_GameTick - pProj->m_StartTick - 1) / (float)SERVER_TICK_SPEED;
+  float Ct = (pProj->m_Base.m_pWorld->m_GameTick - pProj->m_StartTick) / (float)SERVER_TICK_SPEED;
   vec2 PrevPos = prj_get_pos(pProj, Pt);
   vec2 CurPos = prj_get_pos(pProj, Ct);
   vec2 ColPos;
   vec2 NewPos;
-  bool Collide = intersect_line(pProj->m_Base.m_pCollision, PrevPos, CurPos,
-                                &ColPos, &NewPos);
+  bool Collide = intersect_line(pProj->m_Base.m_pCollision, PrevPos, CurPos, &ColPos, &NewPos);
   SCharacterCore *pOwnerChar = NULL;
 
   if (pProj->m_Owner >= 0)
@@ -175,57 +168,43 @@ void prj_tick(SProjectile *pProj) {
 
   SCharacterCore *pTargetChr = NULL;
 
-  if (pOwnerChar ? !pOwnerChar->m_GrenadeHitDisabled
-                 : pProj->m_Base.m_pWorld->m_pConfig->m_SvHit)
-    pTargetChr = wc_intersect_character(pProj->m_Base.m_pWorld, PrevPos, ColPos,
-                                        6.0f, &ColPos, pOwnerChar, NULL);
+  if (pOwnerChar ? !pOwnerChar->m_GrenadeHitDisabled : pProj->m_Base.m_pWorld->m_pConfig->m_SvHit)
+    pTargetChr =
+        wc_intersect_character(pProj->m_Base.m_pWorld, PrevPos, ColPos, 6.0f, &ColPos, pOwnerChar, NULL);
 
   if (pProj->m_LifeSpan > -1)
     pProj->m_LifeSpan--;
 
-  if (Collide ||
-      (pTargetChr &&
-       (pOwnerChar ? !pOwnerChar->m_GrenadeHitDisabled
-                   : pProj->m_Base.m_pWorld->m_pConfig->m_SvHit ||
-                         pProj->m_Owner == -1 || pTargetChr == pOwnerChar))) {
-    if (pProj->m_Explosive &&
-        (!pTargetChr ||
-         (pTargetChr && (pProj->m_Type == WEAPON_SHOTGUN && Collide)))) {
+  if (Collide || (pTargetChr && (pOwnerChar ? !pOwnerChar->m_GrenadeHitDisabled
+                                            : pProj->m_Base.m_pWorld->m_pConfig->m_SvHit ||
+                                                  pProj->m_Owner == -1 || pTargetChr == pOwnerChar))) {
+    if (pProj->m_Explosive && (!pTargetChr || (pTargetChr && (pProj->m_Type == WEAPON_SHOTGUN && Collide)))) {
       wc_create_explosion(pProj->m_Base.m_pWorld, ColPos, pProj->m_Owner);
     } else if (pProj->m_Freeze) {
       for (int i = 0; i < pProj->m_Base.m_pWorld->m_NumCharacters; ++i) {
         SCharacterCore *pChr = &pProj->m_Base.m_pWorld->m_pCharacters[i];
         if (vdistance(CurPos, pChr->m_Pos) >= 1.f + PHYSICALSIZE)
           continue;
-        if (pChr &&
-            (pProj->m_Base.m_Layer != LAYER_SWITCH ||
-             (pProj->m_Base.m_Layer == LAYER_SWITCH &&
-              pProj->m_Base.m_Number > 0 &&
-              pProj->m_Base.m_pWorld->m_pSwitches[pProj->m_Base.m_Number]
-                  .m_Status)))
+        if (pChr && (pProj->m_Base.m_Layer != LAYER_SWITCH ||
+                     (pProj->m_Base.m_Layer == LAYER_SWITCH && pProj->m_Base.m_Number > 0 &&
+                      pProj->m_Base.m_pWorld->m_pSwitches[pProj->m_Base.m_Number].m_Status)))
           cc_freeze(pChr, pProj->m_Base.m_pWorld->m_pConfig->m_SvFreezeDelay);
       }
     } else if (pTargetChr)
-      pTargetChr->m_Vel =
-          clamp_vel(pTargetChr->m_MoveRestrictions, pTargetChr->m_Vel);
+      pTargetChr->m_Vel = clamp_vel(pTargetChr->m_MoveRestrictions, pTargetChr->m_Vel);
 
-    if (pOwnerChar &&
-        ((pProj->m_Type == WEAPON_GRENADE && pOwnerChar->m_HasTelegunGrenade) ||
-         (pProj->m_Type == WEAPON_GUN && pOwnerChar->m_HasTelegunGun))) {
-      int MapIndex = get_pure_map_index(
-          pProj->m_Base.m_pCollision, pTargetChr ? pTargetChr->m_Pos : ColPos);
-      int TileFIndex =
-          pProj->m_Base.m_pCollision->m_MapData.m_FrontLayer.m_pData
-              ? get_front_tile_index(pProj->m_Base.m_pCollision, MapIndex)
-              : 0;
+    if (pOwnerChar && ((pProj->m_Type == WEAPON_GRENADE && pOwnerChar->m_HasTelegunGrenade) ||
+                       (pProj->m_Type == WEAPON_GUN && pOwnerChar->m_HasTelegunGun))) {
+      int MapIndex = get_pure_map_index(pProj->m_Base.m_pCollision, pTargetChr ? pTargetChr->m_Pos : ColPos);
+      int TileFIndex = pProj->m_Base.m_pCollision->m_MapData.m_FrontLayer.m_pData
+                           ? get_front_tile_index(pProj->m_Base.m_pCollision, MapIndex)
+                           : 0;
       bool IsSwitchTeleGun = false;
       bool IsBlueSwitchTeleGun = false;
       if (pProj->m_Base.m_pCollision->m_MapData.m_SwitchLayer.m_pType) {
-        IsSwitchTeleGun = get_switch_type(pProj->m_Base.m_pCollision,
-                                          MapIndex) == TILE_ALLOW_TELE_GUN;
+        IsSwitchTeleGun = get_switch_type(pProj->m_Base.m_pCollision, MapIndex) == TILE_ALLOW_TELE_GUN;
         IsBlueSwitchTeleGun =
-            get_switch_type(pProj->m_Base.m_pCollision, MapIndex) ==
-            TILE_ALLOW_BLUE_TELE_GUN;
+            get_switch_type(pProj->m_Base.m_pCollision, MapIndex) == TILE_ALLOW_BLUE_TELE_GUN;
       }
 
       if (IsSwitchTeleGun || IsBlueSwitchTeleGun) {
@@ -239,25 +218,21 @@ void prj_tick(SProjectile *pProj) {
           IsSwitchTeleGun = IsBlueSwitchTeleGun = false;
       }
 
-      if (TileFIndex == TILE_ALLOW_TELE_GUN ||
-          TileFIndex == TILE_ALLOW_BLUE_TELE_GUN || IsSwitchTeleGun ||
+      if (TileFIndex == TILE_ALLOW_TELE_GUN || TileFIndex == TILE_ALLOW_BLUE_TELE_GUN || IsSwitchTeleGun ||
           IsBlueSwitchTeleGun || pTargetChr) {
         bool Found;
         vec2 PossiblePos;
 
         if (!Collide)
-          Found = get_nearest_air_pos_player(
-              pProj->m_Base.m_pCollision,
-              pTargetChr ? pTargetChr->m_Pos : ColPos, &PossiblePos);
+          Found = get_nearest_air_pos_player(pProj->m_Base.m_pCollision,
+                                             pTargetChr ? pTargetChr->m_Pos : ColPos, &PossiblePos);
         else
-          Found = get_nearest_air_pos(pProj->m_Base.m_pCollision, NewPos,
-                                      CurPos, &PossiblePos);
+          Found = get_nearest_air_pos(pProj->m_Base.m_pCollision, NewPos, CurPos, &PossiblePos);
 
         if (Found) {
           pOwnerChar->m_TeleGunPos = PossiblePos;
           pOwnerChar->m_TeleGunTeleport = true;
-          pOwnerChar->m_IsBlueTeleGunTeleport =
-              TileFIndex == TILE_ALLOW_BLUE_TELE_GUN || IsBlueSwitchTeleGun;
+          pOwnerChar->m_IsBlueTeleGunTeleport = TileFIndex == TILE_ALLOW_BLUE_TELE_GUN || IsBlueSwitchTeleGun;
         }
       }
     }
@@ -266,11 +241,9 @@ void prj_tick(SProjectile *pProj) {
       pProj->m_StartTick = pProj->m_Base.m_pWorld->m_GameTick;
       pProj->m_Base.m_Pos = vvadd(NewPos, vfmul(pProj->m_Direction, -4));
       if (pProj->m_Bouncing == 1)
-        pProj->m_Direction =
-            vsetx(pProj->m_Direction, -vgetx(pProj->m_Direction));
+        pProj->m_Direction = vsetx(pProj->m_Direction, -vgetx(pProj->m_Direction));
       else if (pProj->m_Bouncing == 2)
-        pProj->m_Direction =
-            vsety(pProj->m_Direction, -vgety(pProj->m_Direction));
+        pProj->m_Direction = vsety(pProj->m_Direction, -vgety(pProj->m_Direction));
       if (fabs(vgetx(pProj->m_Direction)) < 1e-6f)
         pProj->m_Direction = vsetx(pProj->m_Direction, 0);
       if (fabs(vgety(pProj->m_Direction)) < 1e-6f)
@@ -299,9 +272,8 @@ void prj_tick(SProjectile *pProj) {
   int z = is_teleport_weapon(pProj->m_Base.m_pCollision, x);
   int NumTeleOuts;
   if (z && tele_outs(pProj->m_Base.m_pCollision, z - 1, &NumTeleOuts)) {
-    pProj->m_Base.m_Pos = tele_outs(
-        pProj->m_Base.m_pCollision, z - 1,
-        &NumTeleOuts)[pProj->m_Base.m_pWorld->m_GameTick % NumTeleOuts];
+    pProj->m_Base.m_Pos = tele_outs(pProj->m_Base.m_pCollision, z - 1,
+                                    &NumTeleOuts)[pProj->m_Base.m_pWorld->m_GameTick % NumTeleOuts];
     pProj->m_StartTick = pProj->m_Base.m_pWorld->m_GameTick;
   }
 }
@@ -313,8 +285,7 @@ static inline void cc_calc_indices(SCharacterCore *pCore) {
   pCore->m_BlockPos.x = ((int)vgetx(pCore->m_Pos) >> 5);
   pCore->m_BlockPos.y = ((int)vgety(pCore->m_Pos) >> 5);
   // This addition is very poor. like 5% of the whole cc_move function
-  pCore->m_BlockIdx = pCore->m_pCollision->m_pWidthLookup[pCore->m_BlockPos.y] +
-                      pCore->m_BlockPos.x;
+  pCore->m_BlockIdx = pCore->m_pCollision->m_pWidthLookup[pCore->m_BlockPos.y] + pCore->m_BlockPos.x;
 }
 
 void cc_do_pickup(SCharacterCore *pCore) {
@@ -331,16 +302,13 @@ void cc_do_pickup(SCharacterCore *pCore) {
     int Idx = pCore->m_pCollision->m_pWidthLookup[iclamp(iy + dy, 0, Height)];
     for (int dx = -1; dx <= 1; ++dx) {
       // NOTE: doing a copy here should be faster since it is only 3 bytes
-      SPickup Pickup =
-          pCore->m_pCollision->m_pPickups[Idx + iclamp(ix + dx, 0, Width)];
+      SPickup Pickup = pCore->m_pCollision->m_pPickups[Idx + iclamp(ix + dx, 0, Width)];
       if (Pickup.m_Type < 0)
         continue;
       vec2 Offset = vec2_init(dx * 32, dy * 32);
-      if (vdistance(pCore->m_Pos, vvadd(pCore->m_Pos, Offset)) >=
-          PICKUPSIZE + 6 + PHYSICALSIZE)
+      if (vdistance(pCore->m_Pos, vvadd(pCore->m_Pos, Offset)) >= PICKUPSIZE + 6 + PHYSICALSIZE)
         continue;
-      if (Pickup.m_Number > 0 &&
-          !pCore->m_pWorld->m_pSwitches[Pickup.m_Number].m_Status)
+      if (Pickup.m_Number > 0 && !pCore->m_pWorld->m_pSwitches[Pickup.m_Number].m_Status)
         continue;
 
       switch (Pickup.m_Type) {
@@ -418,8 +386,7 @@ void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   pCore->m_Id = -1;
 }
 
-void cc_set_worldcore(SCharacterCore *pCore, SWorldCore *pWorld,
-                      SCollision *pCollision) {
+void cc_set_worldcore(SCharacterCore *pCore, SWorldCore *pWorld, SCollision *pCollision) {
   pCore->m_pWorld = pWorld;
   pCore->m_pCollision = pCollision;
 }
@@ -435,8 +402,7 @@ void cc_unfreeze(SCharacterCore *pCore) {
 
 bool is_switch_active_cb(int Number, void *pUser) {
   SCharacterCore *pThis = (SCharacterCore *)pUser;
-  return pThis->m_pWorld->m_pSwitches &&
-         pThis->m_pWorld->m_pSwitches[Number].m_Status;
+  return pThis->m_pWorld->m_pSwitches && pThis->m_pWorld->m_pSwitches[Number].m_Status;
 }
 
 __attribute__((noinline)) void cc_quantize(SCharacterCore *pCore) {
@@ -462,9 +428,8 @@ __attribute__((noinline)) void cc_quantize(SCharacterCore *pCore) {
   // Quantize m_Vel
   __m128 vel = pCore->m_Vel;
   __m128 vel_scaled = _mm_mul_ps(vel, scale);
-  __m128 adjusted_vel =
-      _mm_blendv_ps(_mm_sub_ps(vel_scaled, half), _mm_add_ps(vel_scaled, half),
-                    _mm_cmpge_ps(vel_scaled, zero));
+  __m128 adjusted_vel = _mm_blendv_ps(_mm_sub_ps(vel_scaled, half), _mm_add_ps(vel_scaled, half),
+                                      _mm_cmpge_ps(vel_scaled, zero));
   __m128i vel_int = _mm_cvttps_epi32(adjusted_vel);
   __m128 vel_rounded = _mm_cvtepi32_ps(vel_int);
   pCore->m_Vel = _mm_div_ps(vel_rounded, scale);
@@ -472,9 +437,9 @@ __attribute__((noinline)) void cc_quantize(SCharacterCore *pCore) {
   // Quantize m_HookDir
   __m128 hook_dir = pCore->m_HookDir;
   __m128 hook_dir_scaled = _mm_mul_ps(hook_dir, scale);
-  __m128 adjusted_hook_dir = _mm_blendv_ps(_mm_sub_ps(hook_dir_scaled, half),
-                                           _mm_add_ps(hook_dir_scaled, half),
-                                           _mm_cmpge_ps(hook_dir_scaled, zero));
+  __m128 adjusted_hook_dir =
+      _mm_blendv_ps(_mm_sub_ps(hook_dir_scaled, half), _mm_add_ps(hook_dir_scaled, half),
+                    _mm_cmpge_ps(hook_dir_scaled, zero));
   __m128i hook_dir_int = _mm_cvttps_epi32(adjusted_hook_dir);
   __m128 hook_dir_rounded = _mm_cvtepi32_ps(hook_dir_int);
   pCore->m_HookDir = _mm_div_ps(hook_dir_rounded, scale);
@@ -483,8 +448,7 @@ __attribute__((noinline)) void cc_quantize(SCharacterCore *pCore) {
 }
 
 void cc_move(SCharacterCore *pCore) {
-  const float RampValue = velocity_ramp(vlength(pCore->m_Vel) * 50,
-                                        pCore->m_pTuning->m_VelrampStart,
+  const float RampValue = velocity_ramp(vlength(pCore->m_Vel) * 50, pCore->m_pTuning->m_VelrampStart,
                                         pCore->m_pTuning->m_VelrampValue);
   // NOTE: do not do a if(RampValue != 1.f) here. this makes this apparently
   // unpredictable so setting the OldVel is super slow. saves 2% by not doing it
@@ -494,8 +458,7 @@ void cc_move(SCharacterCore *pCore) {
   vec2 NewPos = pCore->m_Pos;
   bool Grounded = false;
   move_box(pCore->m_pCollision, &NewPos, &pCore->m_Vel,
-           vec2_init(pCore->m_pTuning->m_GroundElasticityX,
-                     pCore->m_pTuning->m_GroundElasticityY),
+           vec2_init(pCore->m_pTuning->m_GroundElasticityX, pCore->m_pTuning->m_GroundElasticityY),
            &Grounded);
 
   if (Grounded) {
@@ -516,8 +479,8 @@ void cc_move(SCharacterCore *pCore) {
   if (RampValue != 1.f)
     pCore->m_Vel = vsetx(pCore->m_Vel, velX * (1.f / RampValue));
 
-  if (pCore->m_pTuning->m_PlayerCollision && !pCore->m_CollisionDisabled &&
-      !pCore->m_Solo && pCore->m_pWorld->m_NumCharacters > 1) {
+  if (pCore->m_pTuning->m_PlayerCollision && !pCore->m_CollisionDisabled && !pCore->m_Solo &&
+      pCore->m_pWorld->m_NumCharacters > 1) {
     float Distance = vdistance(pCore->m_Pos, NewPos);
     if (Distance > 0) {
       int End = Distance + 1;
@@ -527,8 +490,7 @@ void cc_move(SCharacterCore *pCore) {
         vec2 Pos = vvfmix(pCore->m_Pos, NewPos, a);
         for (int p = 0; p < pCore->m_pWorld->m_NumCharacters; p++) {
           SCharacterCore *pCharCore = &pCore->m_pWorld->m_pCharacters[p];
-          if (pCharCore == pCore || pCharCore->m_Solo ||
-              pCharCore->m_CollisionDisabled)
+          if (pCharCore == pCore || pCharCore->m_Solo || pCharCore->m_CollisionDisabled)
             continue;
           float D = vdistance(Pos, pCharCore->m_Pos);
           if (D < PHYSICALSIZE) {
@@ -564,9 +526,8 @@ void cc_tick_deferred(SCharacterCore *pCore) {
       if (Distance > 0) {
         vec2 Dir = vnormalize(vvsub(pCore->m_Pos, pCharCore->m_Pos));
 
-        bool CanCollide =
-            (!pCore->m_CollisionDisabled && !pCharCore->m_CollisionDisabled &&
-             pCore->m_pTuning->m_PlayerCollision);
+        bool CanCollide = (!pCore->m_CollisionDisabled && !pCharCore->m_CollisionDisabled &&
+                           pCore->m_pTuning->m_PlayerCollision);
 
         if (CanCollide && Distance < PHYSICALSIZE * 1.25f) {
           float a = (PHYSICALSIZE * 1.45f - Distance);
@@ -575,34 +536,27 @@ void cc_tick_deferred(SCharacterCore *pCore) {
           if (vlength(pCore->m_Vel) > 0.0001f)
             Velocity = 1 - (vdot(vnormalize_nomask(pCore->m_Vel), Dir) + 1) / 2;
 
-          pCore->m_Vel = vfmul(
-              vvadd(pCore->m_Vel, vfmul(Dir, a * (Velocity * 0.75f))), 0.85f);
+          pCore->m_Vel = vfmul(vvadd(pCore->m_Vel, vfmul(Dir, a * (Velocity * 0.75f))), 0.85f);
         }
 
-        if (!pCore->m_HookHitDisabled && pCore->m_HookedPlayer == i &&
-            pCore->m_pTuning->m_PlayerHooking) {
+        if (!pCore->m_HookHitDisabled && pCore->m_HookedPlayer == i && pCore->m_pTuning->m_PlayerHooking) {
           if (Distance > PHYSICALSIZE * 1.50f) {
-            float HookAccel = pCore->m_pTuning->m_HookDragAccel *
-                              (Distance / pCore->m_pTuning->m_HookLength);
+            float HookAccel = pCore->m_pTuning->m_HookDragAccel * (Distance / pCore->m_pTuning->m_HookLength);
             float DragSpeed = pCore->m_pTuning->m_HookDragSpeed;
 
             vec2 Temp;
-            Temp = clamp_vel(
-                pCharCore->m_MoveRestrictions,
-                vec2_init(
-                    saturate_add(-DragSpeed, DragSpeed, vgetx(pCharCore->m_Vel),
-                                 HookAccel * vgetx(Dir) * 1.5f),
-                    saturate_add(-DragSpeed, DragSpeed, vgety(pCharCore->m_Vel),
-                                 HookAccel * vgety(Dir) * 1.5f)));
+            Temp = clamp_vel(pCharCore->m_MoveRestrictions,
+                             vec2_init(saturate_add(-DragSpeed, DragSpeed, vgetx(pCharCore->m_Vel),
+                                                    HookAccel * vgetx(Dir) * 1.5f),
+                                       saturate_add(-DragSpeed, DragSpeed, vgety(pCharCore->m_Vel),
+                                                    HookAccel * vgety(Dir) * 1.5f)));
             pCharCore->m_Vel = Temp;
 
-            Temp = clamp_vel(
-                pCore->m_MoveRestrictions,
-                vec2_init(
-                    saturate_add(-DragSpeed, DragSpeed, vgetx(pCore->m_Vel),
-                                 -HookAccel * vgetx(Dir) * 0.25f),
-                    saturate_add(-DragSpeed, DragSpeed, vgety(pCore->m_Vel),
-                                 -HookAccel * vgety(Dir) * 0.25f)));
+            Temp = clamp_vel(pCore->m_MoveRestrictions,
+                             vec2_init(saturate_add(-DragSpeed, DragSpeed, vgetx(pCore->m_Vel),
+                                                    -HookAccel * vgetx(Dir) * 0.25f),
+                                       saturate_add(-DragSpeed, DragSpeed, vgety(pCore->m_Vel),
+                                                    -HookAccel * vgety(Dir) * 0.25f)));
             pCore->m_Vel = Temp;
           }
         }
@@ -636,9 +590,7 @@ void cc_ddracetick(SCharacterCore *pCore) {
       cc_unfreeze(pCore);
   }
 
-  pCore->m_pTuning =
-      &pCore->m_pWorld
-           ->m_pTunings[is_tune(pCore->m_pCollision, pCore->m_BlockIdx)];
+  pCore->m_pTuning = &pCore->m_pWorld->m_pTunings[is_tune(pCore->m_pCollision, pCore->m_BlockIdx)];
 }
 
 void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
@@ -647,27 +599,15 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
   static const vec2 DeathOffset3 = {-DEATH, -DEATH, 0.f, 0.f};
   static const vec2 DeathOffset4 = {-DEATH, DEATH, 0.f, 0.f};
   if (pCore->m_pCollision->m_pTileInfos[Index] & INFO_CANHITKILL &&
-      (get_collision_at(pCore->m_pCollision,
-                        vvadd(pCore->m_Pos, DeathOffset1)) == TILE_DEATH ||
-       get_collision_at(pCore->m_pCollision,
-                        vvadd(pCore->m_Pos, DeathOffset2)) == TILE_DEATH ||
-       get_collision_at(pCore->m_pCollision,
-                        vvadd(pCore->m_Pos, DeathOffset3)) == TILE_DEATH ||
-       get_collision_at(pCore->m_pCollision,
-                        vvadd(pCore->m_Pos, DeathOffset4)) == TILE_DEATH ||
+      (get_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset1)) == TILE_DEATH ||
+       get_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset2)) == TILE_DEATH ||
+       get_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset3)) == TILE_DEATH ||
+       get_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset4)) == TILE_DEATH ||
        (pCore->m_pCollision->m_MapData.m_FrontLayer.m_pData &&
-        (get_front_collision_at(pCore->m_pCollision,
-                                vvadd(pCore->m_Pos, DeathOffset1)) ==
-             TILE_DEATH ||
-         get_front_collision_at(pCore->m_pCollision,
-                                vvadd(pCore->m_Pos, DeathOffset2)) ==
-             TILE_DEATH ||
-         get_front_collision_at(pCore->m_pCollision,
-                                vvadd(pCore->m_Pos, DeathOffset3)) ==
-             TILE_DEATH ||
-         get_front_collision_at(pCore->m_pCollision,
-                                vvadd(pCore->m_Pos, DeathOffset4)) ==
-             TILE_DEATH)))) {
+        (get_front_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset1)) == TILE_DEATH ||
+         get_front_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset2)) == TILE_DEATH ||
+         get_front_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset3)) == TILE_DEATH ||
+         get_front_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset4)) == TILE_DEATH)))) {
     return;
   }
 
@@ -677,8 +617,7 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
   if (is_speedup(pCore->m_pCollision, Index)) {
     vec2 Direction, TempVel = pCore->m_Vel;
     int Force, Type, MaxSpeed = 0;
-    get_speedup(pCore->m_pCollision, Index, &Direction, &Force, &MaxSpeed,
-                &Type);
+    get_speedup(pCore->m_pCollision, Index, &Direction, &Force, &MaxSpeed, &Type);
 
     if (Type == TILE_SPEED_BOOST_OLD) {
       float TeeAngle, SpeederAngle, DiffAngle, SpeedLeft, TeeSpeed;
@@ -734,20 +673,15 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
     } else if (Type == TILE_SPEED_BOOST) {
       static const float MaxSpeedScale = 5.0f;
       if (MaxSpeed == 0) {
-        float MaxRampSpeed =
-            pCore->m_pTuning->m_VelrampRange /
-            (50 *
-             logf(fmaxf((float)pCore->m_pTuning->m_VelrampCurvature, 1.01f)));
-        MaxSpeed = fmaxf(MaxRampSpeed, pCore->m_pTuning->m_VelrampStart) / 50 *
-                   MaxSpeedScale;
+        float MaxRampSpeed = pCore->m_pTuning->m_VelrampRange /
+                             (50 * logf(fmaxf((float)pCore->m_pTuning->m_VelrampCurvature, 1.01f)));
+        MaxSpeed = fmaxf(MaxRampSpeed, pCore->m_pTuning->m_VelrampStart) / 50 * MaxSpeedScale;
       }
 
       float CurrentDirectionalSpeed = vdot(Direction, pCore->m_Vel);
       float TempMaxSpeed = MaxSpeed / MaxSpeedScale;
       if (CurrentDirectionalSpeed + Force > TempMaxSpeed)
-        TempVel =
-            vvadd(TempVel,
-                  vfmul(Direction, (TempMaxSpeed - CurrentDirectionalSpeed)));
+        TempVel = vvadd(TempVel, vfmul(Direction, (TempMaxSpeed - CurrentDirectionalSpeed)));
       else
         TempVel = vvadd(TempVel, vfmul(Direction, Force));
 
@@ -788,8 +722,7 @@ bool wc_next_spawn(SWorldCore *pCore, vec2 *pOutPos);
 void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   int MapIndex = Index;
 
-  pCore->m_MoveRestrictions =
-      get_move_restrictions(pCore->m_pCollision, pCore, pCore->m_Pos, MapIndex);
+  pCore->m_MoveRestrictions = get_move_restrictions(pCore->m_pCollision, pCore, pCore->m_Pos, MapIndex);
 
   if (Index < 0) {
     pCore->m_LastRefillJumps = false;
@@ -807,11 +740,9 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
       pCore->m_TeleCheckpoint = TeleCheckpoint;
   }
 
-  if ((TileIndex == TILE_FREEZE || TileFIndex == TILE_FREEZE) &&
-      !pCore->m_DeepFrozen) {
+  if ((TileIndex == TILE_FREEZE || TileFIndex == TILE_FREEZE) && !pCore->m_DeepFrozen) {
     cc_freeze(pCore, pCore->m_pWorld->m_pConfig->m_SvFreezeDelay);
-  } else if ((TileIndex == TILE_UNFREEZE || TileFIndex == TILE_UNFREEZE) &&
-             !pCore->m_DeepFrozen)
+  } else if ((TileIndex == TILE_UNFREEZE || TileFIndex == TILE_UNFREEZE) && !pCore->m_DeepFrozen)
     cc_unfreeze(pCore);
 
   if (TileIndex == TILE_DFREEZE || TileFIndex == TILE_DFREEZE)
@@ -827,8 +758,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
 
   if (TileIndex == TILE_EHOOK_ENABLE || TileFIndex == TILE_EHOOK_ENABLE) {
     pCore->m_EndlessHook = true;
-  } else if (TileIndex == TILE_EHOOK_DISABLE ||
-             TileFIndex == TILE_EHOOK_DISABLE) {
+  } else if (TileIndex == TILE_EHOOK_DISABLE || TileFIndex == TILE_EHOOK_DISABLE) {
     pCore->m_EndlessHook = false;
   }
 
@@ -856,11 +786,9 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
     pCore->m_HookHitDisabled = false;
   }
 
-  if (TileIndex == TILE_UNLIMITED_JUMPS_ENABLE ||
-      TileFIndex == TILE_UNLIMITED_JUMPS_ENABLE) {
+  if (TileIndex == TILE_UNLIMITED_JUMPS_ENABLE || TileFIndex == TILE_UNLIMITED_JUMPS_ENABLE) {
     pCore->m_EndlessJump = true;
-  } else if (TileIndex == TILE_UNLIMITED_JUMPS_DISABLE ||
-             TileFIndex == TILE_UNLIMITED_JUMPS_DISABLE) {
+  } else if (TileIndex == TILE_UNLIMITED_JUMPS_DISABLE || TileFIndex == TILE_UNLIMITED_JUMPS_DISABLE) {
     pCore->m_EndlessJump = false;
   }
 
@@ -874,13 +802,11 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
 
   if (TileIndex == TILE_JETPACK_ENABLE || TileFIndex == TILE_JETPACK_ENABLE) {
     pCore->m_Jetpack = true;
-  } else if (TileIndex == TILE_JETPACK_DISABLE ||
-             TileFIndex == TILE_JETPACK_DISABLE) {
+  } else if (TileIndex == TILE_JETPACK_DISABLE || TileFIndex == TILE_JETPACK_DISABLE) {
     pCore->m_Jetpack = false;
   }
 
-  if ((TileIndex == TILE_REFILL_JUMPS || TileFIndex == TILE_REFILL_JUMPS) &&
-      !pCore->m_LastRefillJumps) {
+  if ((TileIndex == TILE_REFILL_JUMPS || TileFIndex == TILE_REFILL_JUMPS) && !pCore->m_LastRefillJumps) {
     pCore->m_JumpedTotal = 0;
     pCore->m_Jumped = 0;
     pCore->m_LastRefillJumps = true;
@@ -891,25 +817,20 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
 
   if (TileIndex == TILE_TELE_GUN_ENABLE || TileFIndex == TILE_TELE_GUN_ENABLE) {
     pCore->m_HasTelegunGun = true;
-  } else if (TileIndex == TILE_TELE_GUN_DISABLE ||
-             TileFIndex == TILE_TELE_GUN_DISABLE) {
+  } else if (TileIndex == TILE_TELE_GUN_DISABLE || TileFIndex == TILE_TELE_GUN_DISABLE) {
     pCore->m_HasTelegunGun = false;
   }
 
-  if (TileIndex == TILE_TELE_GRENADE_ENABLE ||
-      TileFIndex == TILE_TELE_GRENADE_ENABLE) {
+  if (TileIndex == TILE_TELE_GRENADE_ENABLE || TileFIndex == TILE_TELE_GRENADE_ENABLE) {
     pCore->m_HasTelegunGrenade = true;
-  } else if (TileIndex == TILE_TELE_GRENADE_DISABLE ||
-             TileFIndex == TILE_TELE_GRENADE_DISABLE) {
+  } else if (TileIndex == TILE_TELE_GRENADE_DISABLE || TileFIndex == TILE_TELE_GRENADE_DISABLE) {
     pCore->m_HasTelegunGrenade = false;
   }
 
-  if (((TileIndex == TILE_TELE_LASER_ENABLE) ||
-       (TileFIndex == TILE_TELE_LASER_ENABLE)) &&
+  if (((TileIndex == TILE_TELE_LASER_ENABLE) || (TileFIndex == TILE_TELE_LASER_ENABLE)) &&
       !pCore->m_HasTelegunLaser) {
     pCore->m_HasTelegunLaser = true;
-  } else if (TileIndex == TILE_TELE_LASER_DISABLE ||
-             TileFIndex == TILE_TELE_LASER_DISABLE) {
+  } else if (TileIndex == TILE_TELE_LASER_DISABLE || TileFIndex == TILE_TELE_LASER_DISABLE) {
     pCore->m_HasTelegunLaser = false;
   }
 
@@ -1018,8 +939,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   int Num;
   SConfig *pConfig = pCore->m_pWorld->m_pConfig;
   if (z && tele_outs(pCore->m_pCollision, z - 1, &Num) && Num > 0) {
-    pCore->m_Pos = tele_outs(pCore->m_pCollision, z - 1,
-                             &Num)[pCore->m_pWorld->m_GameTick % Num];
+    pCore->m_Pos = tele_outs(pCore->m_pCollision, z - 1, &Num)[pCore->m_pWorld->m_GameTick % Num];
     cc_calc_indices(pCore);
     if (!pConfig->m_SvTeleportHoldHook) {
       cc_reset_hook(pCore);
@@ -1030,8 +950,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   }
   int evilz = is_evil_teleport(pCore->m_pCollision, MapIndex);
   if (evilz && tele_outs(pCore->m_pCollision, evilz, &Num) && Num > 0) {
-    pCore->m_Pos = tele_outs(pCore->m_pCollision, evilz - 1,
-                             &Num)[pCore->m_pWorld->m_GameTick % Num];
+    pCore->m_Pos = tele_outs(pCore->m_pCollision, evilz - 1, &Num)[pCore->m_pWorld->m_GameTick % Num];
     cc_calc_indices(pCore);
     pCore->m_Vel = vec2_init(0, 0);
 
@@ -1047,8 +966,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   if (is_check_evil_teleport(pCore->m_pCollision, MapIndex)) {
     for (int k = pCore->m_TeleCheckpoint - 1; k >= 0; k--) {
       if (tele_check_outs(pCore->m_pCollision, k, &Num)) {
-        pCore->m_Pos = tele_check_outs(pCore->m_pCollision, k,
-                                       &Num)[pCore->m_pWorld->m_GameTick % Num];
+        pCore->m_Pos = tele_check_outs(pCore->m_pCollision, k, &Num)[pCore->m_pWorld->m_GameTick % Num];
         cc_calc_indices(pCore);
         pCore->m_Vel = vec2_init(0, 0);
 
@@ -1076,8 +994,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   if (is_check_teleport(pCore->m_pCollision, MapIndex)) {
     for (int k = pCore->m_TeleCheckpoint - 1; k >= 0; k--) {
       if (tele_check_outs(pCore->m_pCollision, k, &Num)) {
-        pCore->m_Pos = tele_check_outs(pCore->m_pCollision, k,
-                                       &Num)[pCore->m_pWorld->m_GameTick % Num];
+        pCore->m_Pos = tele_check_outs(pCore->m_pCollision, k, &Num)[pCore->m_pWorld->m_GameTick % Num];
         cc_calc_indices(pCore);
 
         if (!pConfig->m_SvTeleportHoldHook) {
@@ -1100,8 +1017,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   }
 }
 
-bool broad_check_stopper(SCollision *restrict pCollision, vec2 Start,
-                         vec2 End) {
+bool broad_check_stopper(SCollision *restrict pCollision, vec2 Start, vec2 End) {
   const float StartX = vgetx(Start);
   const float StartY = vgety(Start);
   const float EndX = vgetx(End);
@@ -1113,10 +1029,8 @@ bool broad_check_stopper(SCollision *restrict pCollision, vec2 Start,
   const int MinY = (int)vgety(minVec) >> 5;
   const int MaxX = (int)vgetx(maxVec) >> 5;
   const int MaxY = (int)vgety(maxVec) >> 5;
-  bool OptHit =
-      pCollision->m_pBroadBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
-      (1ul << ((uint64_t)(MaxY - MinY) * 8ul + (uint64_t)(MaxX - MinX)));
-  return OptHit;
+  return pCollision->m_pBroadIndicesBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
+         (1ul << ((uint64_t)(MaxY - MinY) * 8ul + (uint64_t)(MaxX - MinX)));
 }
 
 void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
@@ -1160,8 +1074,7 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
     const int Width = pCore->m_pCollision->m_MapData.m_Width;
     int Index;
     if (!d) {
-      Index = pCore->m_pCollision->m_pWidthLookup[((int)vgety(Pos) >> 5)] +
-              ((int)vgetx(Pos) >> 5);
+      Index = pCore->m_pCollision->m_pWidthLookup[((int)vgety(Pos) >> 5)] + ((int)vgetx(Pos) >> 5);
       if (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT) {
         cc_handle_tiles(pCore, Index);
         Handled = true;
@@ -1172,10 +1085,8 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
       for (int i = 0; i < End; i++) {
         float a = i / d;
         Tmp = vvfmix(PrevPos, Pos, a);
-        Index = pCore->m_pCollision->m_pWidthLookup[((int)vgety(Tmp) >> 5)] +
-                ((int)vgetx(Tmp) >> 5);
-        if (LastIndex != Index &&
-            (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT)) {
+        Index = pCore->m_pCollision->m_pWidthLookup[((int)vgety(Tmp) >> 5)] + ((int)vgetx(Tmp) >> 5);
+        if (LastIndex != Index && (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT)) {
           cc_handle_tiles(pCore, Index);
           LastIndex = Index;
           Handled = true;
@@ -1198,34 +1109,27 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
 void cc_pre_tick(SCharacterCore *pCore) {
   cc_ddracetick(pCore);
 
-  pCore->m_MoveRestrictions =
-      get_move_restrictions(pCore->m_pCollision, pCore, pCore->m_Pos, -1);
+  pCore->m_MoveRestrictions = get_move_restrictions(pCore->m_pCollision, pCore, pCore->m_Pos, -1);
 
   const bool Grounded =
       (pCore->m_pCollision->m_pTileInfos[pCore->m_BlockIdx] & INFO_CANGROUND) &&
-      (check_point(pCore->m_pCollision,
-                   vec2_init(vgetx(pCore->m_Pos) + HALFPHYSICALSIZE,
-                             vgety(pCore->m_Pos) + HALFPHYSICALSIZE + 5)) ||
-       check_point(pCore->m_pCollision,
-                   vec2_init(vgetx(pCore->m_Pos) - HALFPHYSICALSIZE,
-                             vgety(pCore->m_Pos) + HALFPHYSICALSIZE + 5)));
+      (check_point(pCore->m_pCollision, vec2_init(vgetx(pCore->m_Pos) + HALFPHYSICALSIZE,
+                                                  vgety(pCore->m_Pos) + HALFPHYSICALSIZE + 5)) ||
+       check_point(pCore->m_pCollision, vec2_init(vgetx(pCore->m_Pos) - HALFPHYSICALSIZE,
+                                                  vgety(pCore->m_Pos) + HALFPHYSICALSIZE + 5)));
 
   pCore->m_Vel = vadd_y(pCore->m_Vel, pCore->m_pTuning->m_Gravity);
 
-  float MaxSpeed = Grounded ? pCore->m_pTuning->m_GroundControlSpeed
-                            : pCore->m_pTuning->m_AirControlSpeed;
-  float Accel = Grounded ? pCore->m_pTuning->m_GroundControlAccel
-                         : pCore->m_pTuning->m_AirControlAccel;
-  float Friction = Grounded ? pCore->m_pTuning->m_GroundFriction
-                            : pCore->m_pTuning->m_AirFriction;
+  float MaxSpeed = Grounded ? pCore->m_pTuning->m_GroundControlSpeed : pCore->m_pTuning->m_AirControlSpeed;
+  float Accel = Grounded ? pCore->m_pTuning->m_GroundControlAccel : pCore->m_pTuning->m_AirControlAccel;
+  float Friction = Grounded ? pCore->m_pTuning->m_GroundFriction : pCore->m_pTuning->m_AirFriction;
 
   pCore->m_Direction = pCore->m_Input.m_Direction;
 
   if (pCore->m_Input.m_Jump) {
     if (!(pCore->m_Jumped & 1)) {
       if (Grounded && (!(pCore->m_Jumped & 2) || pCore->m_Jumps != 0)) {
-        pCore->m_Vel =
-            vsety(pCore->m_Vel, -pCore->m_pTuning->m_GroundJumpImpulse);
+        pCore->m_Vel = vsety(pCore->m_Vel, -pCore->m_pTuning->m_GroundJumpImpulse);
         if (pCore->m_Jumps > 1) {
           pCore->m_Jumped |= 1;
         } else {
@@ -1244,16 +1148,13 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
   if (pCore->m_Input.m_Hook) {
     if (pCore->m_HookState == HOOK_IDLE) {
-      vec2 TargetDirection = vnormalize_nomask(
-          vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
+      vec2 TargetDirection = vnormalize_nomask(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
 
       pCore->m_HookState = HOOK_FLYING;
-      pCore->m_HookPos =
-          vvadd(pCore->m_Pos, vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
+      pCore->m_HookPos = vvadd(pCore->m_Pos, vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
       pCore->m_HookDir = TargetDirection;
       pCore->m_HookedPlayer = -1;
-      pCore->m_HookTick =
-          (float)SERVER_TICK_SPEED * (1.25f - pCore->m_pTuning->m_HookDuration);
+      pCore->m_HookTick = (float)SERVER_TICK_SPEED * (1.25f - pCore->m_pTuning->m_HookDuration);
     }
   } else {
     pCore->m_HookedPlayer = -1;
@@ -1267,21 +1168,16 @@ void cc_pre_tick(SCharacterCore *pCore) {
   }
 
   if (pCore->m_Direction < 0)
-    pCore->m_Vel =
-        vsetx(pCore->m_Vel,
-              saturate_add(-MaxSpeed, MaxSpeed, vgetx(pCore->m_Vel), -Accel));
+    pCore->m_Vel = vsetx(pCore->m_Vel, saturate_add(-MaxSpeed, MaxSpeed, vgetx(pCore->m_Vel), -Accel));
   else if (pCore->m_Direction > 0)
-    pCore->m_Vel =
-        vsetx(pCore->m_Vel,
-              saturate_add(-MaxSpeed, MaxSpeed, vgetx(pCore->m_Vel), Accel));
+    pCore->m_Vel = vsetx(pCore->m_Vel, saturate_add(-MaxSpeed, MaxSpeed, vgetx(pCore->m_Vel), Accel));
   else
     pCore->m_Vel = vsetx(pCore->m_Vel, vgetx(pCore->m_Vel) * Friction);
 
   if (pCore->m_HookState == HOOK_IDLE) {
     pCore->m_HookedPlayer = -1;
     pCore->m_HookPos = pCore->m_Pos;
-  } else if (pCore->m_HookState >= HOOK_RETRACT_START &&
-             pCore->m_HookState < HOOK_RETRACT_END) {
+  } else if (pCore->m_HookState >= HOOK_RETRACT_START && pCore->m_HookState < HOOK_RETRACT_END) {
     pCore->m_HookState++;
   } else if (pCore->m_HookState == HOOK_RETRACT_END) {
     pCore->m_HookState = HOOK_RETRACTED;
@@ -1290,26 +1186,22 @@ void cc_pre_tick(SCharacterCore *pCore) {
     if (pCore->m_NewHook) {
       HookBase = pCore->m_HookTeleBase;
     }
-    vec2 NewPos =
-        vvadd(pCore->m_HookPos,
-              vfmul(pCore->m_HookDir, pCore->m_pTuning->m_HookFireSpeed));
+    vec2 NewPos = vvadd(pCore->m_HookPos, vfmul(pCore->m_HookDir, pCore->m_pTuning->m_HookFireSpeed));
 
-    if (vsqdistance(HookBase, NewPos) >=
-        pCore->m_pTuning->m_HookLength * pCore->m_pTuning->m_HookLength)
+    if (vsqdistance(HookBase, NewPos) >= pCore->m_pTuning->m_HookLength * pCore->m_pTuning->m_HookLength)
       if (vdistance(HookBase, NewPos) > pCore->m_pTuning->m_HookLength) {
         pCore->m_HookState = HOOK_RETRACT_START;
-        NewPos =
-            vvadd(HookBase, vfmul(vnormalize_nomask(vvsub(NewPos, HookBase)),
-                                  pCore->m_pTuning->m_HookLength));
+        NewPos = vvadd(HookBase,
+                       vfmul(vnormalize_nomask(vvsub(NewPos, HookBase)), pCore->m_pTuning->m_HookLength));
       }
 
     bool GoingToHitGround = false;
     bool GoingToRetract = false;
     bool GoingThroughTele = false;
     unsigned char teleNr = 0;
-    unsigned char Hit = intersect_line_tele_hook(
-        pCore->m_pCollision, pCore->m_HookPos, NewPos, &NewPos,
-        pCore->m_pCollision->m_MapData.m_TeleLayer.m_pType ? &teleNr : NULL);
+    unsigned char Hit =
+        intersect_line_tele_hook(pCore->m_pCollision, pCore->m_HookPos, NewPos, &NewPos,
+                                 pCore->m_pCollision->m_MapData.m_TeleLayer.m_pType ? &teleNr : NULL);
 
     if (Hit) {
       if (Hit == TILE_NOHOOK)
@@ -1321,8 +1213,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
     }
 
     if (pCore->m_pWorld->m_NumCharacters > 1 && !pCore->m_HookHitDisabled &&
-        pCore->m_pTuning->m_PlayerHooking &&
-        (pCore->m_HookState == HOOK_FLYING || !pCore->m_NewHook)) {
+        pCore->m_pTuning->m_PlayerHooking && (pCore->m_HookState == HOOK_FLYING || !pCore->m_NewHook)) {
       float Distance = 0.0f;
 
       for (int i = 0; i < pCore->m_pWorld->m_NumCharacters; ++i) {
@@ -1331,11 +1222,9 @@ void cc_pre_tick(SCharacterCore *pCore) {
           continue;
 
         vec2 ClosestPoint;
-        if (closest_point_on_line(pCore->m_HookPos, NewPos, pEntity->m_Pos,
-                                  &ClosestPoint)) {
+        if (closest_point_on_line(pCore->m_HookPos, NewPos, pEntity->m_Pos, &ClosestPoint)) {
           if (vdistance(pEntity->m_Pos, ClosestPoint) < PHYSICALSIZE + 2.0f) {
-            if (pCore->m_HookedPlayer == -1 ||
-                vdistance(pCore->m_HookPos, pEntity->m_Pos) < Distance) {
+            if (pCore->m_HookedPlayer == -1 || vdistance(pCore->m_HookPos, pEntity->m_Pos) < Distance) {
               pCore->m_HookState = HOOK_GRABBED;
               pCore->m_HookedPlayer = -1;
               Distance = vdistance(pCore->m_HookPos, pEntity->m_Pos);
@@ -1356,12 +1245,10 @@ void cc_pre_tick(SCharacterCore *pCore) {
       if (GoingThroughTele && NumOuts > 0) {
         pCore->m_HookedPlayer = -1;
 
-        vec2 TargetDirection = vnormalize(
-            vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
+        vec2 TargetDirection = vnormalize(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
         pCore->m_NewHook = true;
-        pCore->m_HookPos =
-            vvadd(pTeleOuts[pCore->m_pWorld->m_GameTick % NumOuts],
-                  vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
+        pCore->m_HookPos = vvadd(pTeleOuts[pCore->m_pWorld->m_GameTick % NumOuts],
+                                 vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
         pCore->m_HookDir = TargetDirection;
         pCore->m_HookTeleBase = pCore->m_HookPos;
       } else {
@@ -1372,8 +1259,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
   if (pCore->m_HookState == HOOK_GRABBED) {
     if (pCore->m_HookedPlayer != -1) {
-      SCharacterCore *pCharCore =
-          &pCore->m_pWorld->m_pCharacters[pCore->m_HookedPlayer];
+      SCharacterCore *pCharCore = &pCore->m_pWorld->m_pCharacters[pCore->m_HookedPlayer];
       if (pCharCore && pCore->m_Id != -1)
         pCore->m_HookPos = pCharCore->m_Pos;
       else {
@@ -1384,13 +1270,11 @@ void cc_pre_tick(SCharacterCore *pCore) {
     } else if (vsqdistance(pCore->m_HookPos, pCore->m_Pos) > 46 * 46 ||
                vdistance(pCore->m_HookPos, pCore->m_Pos) > 46.0f) {
       vec2 HookVel =
-          vfmul(vnormalize_nomask(vvsub(pCore->m_HookPos, pCore->m_Pos)),
-                pCore->m_pTuning->m_HookDragAccel);
+          vfmul(vnormalize_nomask(vvsub(pCore->m_HookPos, pCore->m_Pos)), pCore->m_pTuning->m_HookDragAccel);
       if (vgety(HookVel) > 0)
         HookVel = vsety(HookVel, vgety(HookVel) * 0.3f);
 
-      if ((vgetx(HookVel) < 0 && pCore->m_Direction < 0) ||
-          (vgetx(HookVel) > 0 && pCore->m_Direction > 0))
+      if ((vgetx(HookVel) < 0 && pCore->m_Direction < 0) || (vgetx(HookVel) > 0 && pCore->m_Direction > 0))
         HookVel = vsetx(HookVel, vgetx(HookVel) * 0.95f);
       else
         HookVel = vsetx(HookVel, vgetx(HookVel) * 0.75f);
@@ -1399,16 +1283,14 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
       // doing a square length compare doesn't change physics apparently
       const float NewVelLength = vsqlength(NewVel);
-      if (NewVelLength < pCore->m_pTuning->m_HookDragSpeed *
-                             pCore->m_pTuning->m_HookDragSpeed ||
+      if (NewVelLength < pCore->m_pTuning->m_HookDragSpeed * pCore->m_pTuning->m_HookDragSpeed ||
           NewVelLength < vsqlength(pCore->m_Vel))
         pCore->m_Vel = NewVel;
     }
 
     pCore->m_HookTick++;
-    if (pCore->m_HookedPlayer != -1 &&
-        (pCore->m_HookTick > SERVER_TICK_SPEED + SERVER_TICK_SPEED / 5 ||
-         (pCore->m_HookedPlayer >= pCore->m_pWorld->m_NumCharacters))) {
+    if (pCore->m_HookedPlayer != -1 && (pCore->m_HookTick > SERVER_TICK_SPEED + SERVER_TICK_SPEED / 5 ||
+                                        (pCore->m_HookedPlayer >= pCore->m_pWorld->m_NumCharacters))) {
       pCore->m_HookedPlayer = -1;
       pCore->m_HookState = HOOK_RETRACTED;
       pCore->m_HookPos = pCore->m_Pos;
@@ -1428,8 +1310,7 @@ void cc_remove_ninja(SCharacterCore *pCore) {
 }
 
 void cc_take_damage(SCharacterCore *pCore, vec2 Force) {
-  pCore->m_Vel =
-      clamp_vel(pCore->m_MoveRestrictions, vvadd(pCore->m_Vel, Force));
+  pCore->m_Vel = clamp_vel(pCore->m_MoveRestrictions, vvadd(pCore->m_Vel, Force));
 }
 
 void cc_handle_ninja(SCharacterCore *pCore) {
@@ -1448,19 +1329,17 @@ void cc_handle_ninja(SCharacterCore *pCore) {
 
   if (pCore->m_Ninja.m_CurrentMoveTime == 0) {
     // reset velocity
-    pCore->m_Vel =
-        vfmul(pCore->m_Ninja.m_ActivationDir, pCore->m_Ninja.m_OldVelAmount);
+    pCore->m_Vel = vfmul(pCore->m_Ninja.m_ActivationDir, pCore->m_Ninja.m_OldVelAmount);
   }
 
   if (pCore->m_Ninja.m_CurrentMoveTime > 0) {
     // Set velocity
     pCore->m_Vel = vfmul(pCore->m_Ninja.m_ActivationDir, NINJA_VELOCITY);
     vec2 OldPos = pCore->m_Pos;
-    vec2 GroundElasticity = vec2_init(pCore->m_pTuning->m_GroundElasticityX,
-                                      pCore->m_pTuning->m_GroundElasticityY);
+    vec2 GroundElasticity =
+        vec2_init(pCore->m_pTuning->m_GroundElasticityX, pCore->m_pTuning->m_GroundElasticityY);
 
-    move_box(pCore->m_pCollision, &pCore->m_Pos, &pCore->m_Vel,
-             GroundElasticity, NULL);
+    move_box(pCore->m_pCollision, &pCore->m_Pos, &pCore->m_Vel, GroundElasticity, NULL);
 
     pCore->m_Vel = vec2_init(0, 0);
 
@@ -1511,17 +1390,16 @@ void cc_handle_jetpack(SCharacterCore *pCore) {
   if (!(pCore->m_LatestInput.m_Fire & 1) || pCore->m_FreezeTime)
     return;
 
-  const vec2 Direction = vnormalize(vec2_init(pCore->m_LatestInput.m_TargetX,
-                                              pCore->m_LatestInput.m_TargetY));
+  const vec2 Direction =
+      vnormalize(vec2_init(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY));
   float Strength = pCore->m_pTuning->m_JetpackStrength;
   cc_take_damage(pCore, vfmul(Direction, -(Strength / 100.f / 6.11f)));
 }
 
 void cc_do_weapon_switch(SCharacterCore *pCore) {
-  pCore->m_Input.m_WantedWeapon =
-      iclamp(pCore->m_Input.m_WantedWeapon, 0, NUM_WEAPONS - 1);
-  if (!pCore->m_aWeaponGot[pCore->m_Input.m_WantedWeapon] ||
-      pCore->m_ReloadTimer != 0 || pCore->m_aWeaponGot[WEAPON_NINJA])
+  pCore->m_Input.m_WantedWeapon = iclamp(pCore->m_Input.m_WantedWeapon, 0, NUM_WEAPONS - 1);
+  if (!pCore->m_aWeaponGot[pCore->m_Input.m_WantedWeapon] || pCore->m_ReloadTimer != 0 ||
+      pCore->m_aWeaponGot[WEAPON_NINJA])
     return;
 
   pCore->m_ActiveWeapon = pCore->m_Input.m_WantedWeapon;
@@ -1538,8 +1416,8 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   if (pCore->m_FreezeTime)
     return;
   // don't fire hammer when player is deep and sv_deepfly is disabled
-  if (!pCore->m_pWorld->m_pConfig->m_SvDeepfly &&
-      pCore->m_ActiveWeapon == WEAPON_HAMMER && pCore->m_DeepFrozen)
+  if (!pCore->m_pWorld->m_pConfig->m_SvDeepfly && pCore->m_ActiveWeapon == WEAPON_HAMMER &&
+      pCore->m_DeepFrozen)
     return;
 
   // check if we gonna fire
@@ -1559,10 +1437,9 @@ void cc_fire_weapon(SCharacterCore *pCore) {
     return;
 
   // We always expect the target position not to be 0,0
-  const vec2 Direction = vnormalize_nomask(vec2_init(
-      pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY));
-  const vec2 ProjStartPos =
-      vvadd(pCore->m_Pos, vfmul(Direction, PHYSICALSIZE * 0.75f));
+  const vec2 Direction =
+      vnormalize_nomask(vec2_init(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY));
+  const vec2 ProjStartPos = vvadd(pCore->m_Pos, vfmul(Direction, PHYSICALSIZE * 0.75f));
 
   switch (pCore->m_ActiveWeapon) {
   case WEAPON_HAMMER: {
@@ -1593,11 +1470,8 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 
         float Strength = pCore->m_pTuning->m_HammerStrength;
 
-        vec2 Temp =
-            vvadd(pTarget->m_Vel,
-                  vfmul(vnormalize(vvadd(Dir, vec2_init(0.f, -1.1f))), 10.0f));
-        Temp =
-            vvsub(clamp_vel(pTarget->m_MoveRestrictions, Temp), pTarget->m_Vel);
+        vec2 Temp = vvadd(pTarget->m_Vel, vfmul(vnormalize(vvadd(Dir, vec2_init(0.f, -1.1f))), 10.0f));
+        Temp = vvsub(clamp_vel(pTarget->m_MoveRestrictions, Temp), pTarget->m_Vel);
 
         vec2 Force = vfmul(vvadd(vec2_init(0.f, -1.0f), Temp), Strength);
 
@@ -1643,11 +1517,10 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   }
 
   case WEAPON_GRENADE: {
-    int Lifetime =
-        (int)(SERVER_TICK_SPEED * pCore->m_pTuning->m_GrenadeLifetime);
+    int Lifetime = (int)(SERVER_TICK_SPEED * pCore->m_pTuning->m_GrenadeLifetime);
     SProjectile *pNewProj = malloc(sizeof(SProjectile));
-    prj_init(pNewProj, pCore->m_pWorld, WEAPON_GRENADE, pCore->m_Id,
-             ProjStartPos, Direction, Lifetime, false, true, 0, 0);
+    prj_init(pNewProj, pCore->m_pWorld, WEAPON_GRENADE, pCore->m_Id, ProjStartPos, Direction, Lifetime, false,
+             true, 0, 0);
     wc_insert_entity(pCore->m_pWorld, (SEntity *)pNewProj);
   } break;
 
@@ -1663,8 +1536,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
     pCore->m_NumObjectsHit = 0;
 
     pCore->m_Ninja.m_ActivationDir = Direction;
-    pCore->m_Ninja.m_CurrentMoveTime =
-        (NINJA_MOVETIME * SERVER_TICK_SPEED) / 1000;
+    pCore->m_Ninja.m_CurrentMoveTime = (NINJA_MOVETIME * SERVER_TICK_SPEED) / 1000;
     pCore->m_Ninja.m_OldVelAmount = vlength(pCore->m_Vel);
   } break;
   }
@@ -1672,9 +1544,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   // reloadtimer can be changed earlier by hammer so check again
   if (!pCore->m_ReloadTimer) {
     pCore->m_ReloadTimer =
-        (*(&pCore->m_pTuning->m_HammerFireDelay + pCore->m_ActiveWeapon) *
-         SERVER_TICK_SPEED) /
-        1000;
+        (*(&pCore->m_pTuning->m_HammerFireDelay + pCore->m_ActiveWeapon) * SERVER_TICK_SPEED) / 1000;
   }
 }
 
@@ -1706,8 +1576,7 @@ void cc_tick(SCharacterCore *pCore) {
 
 void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
   pCore->m_LatestInput = *pNewInput;
-  if (pCore->m_LatestInput.m_TargetX == 0 &&
-      pCore->m_LatestInput.m_TargetY == 0)
+  if (pCore->m_LatestInput.m_TargetX == 0 && pCore->m_LatestInput.m_TargetY == 0)
     pCore->m_LatestInput.m_TargetY = -1;
 
   cc_do_weapon_switch(pCore);
@@ -1737,11 +1606,8 @@ void init_switchers(SWorldCore *pCore, int HighestSwitchNumber) {
   }
 
   for (int i = 0; i < pCore->m_NumSwitches; ++i) {
-    pCore->m_pSwitches[i] = (SSwitch){.m_Initial = true,
-                                      .m_Status = true,
-                                      .m_EndTick = 0,
-                                      .m_Type = 0,
-                                      .m_LastUpdateTick = 0};
+    pCore->m_pSwitches[i] =
+        (SSwitch){.m_Initial = true, .m_Status = true, .m_EndTick = 0, .m_Type = 0, .m_LastUpdateTick = 0};
   }
 }
 
@@ -1759,12 +1625,10 @@ bool wc_next_spawn(SWorldCore *pCore, vec2 *pOutPos) {
 void wc_release_hooked(SWorldCore *pCore, int Id) {
   for (int i = 0; i < pCore->m_NumCharacters; ++i)
     if (pCore->m_pCharacters[i].m_HookedPlayer == Id)
-      cc_release_hook(
-          &pCore->m_pCharacters[pCore->m_pCharacters[i].m_HookedPlayer]);
+      cc_release_hook(&pCore->m_pCharacters[pCore->m_pCharacters[i].m_HookedPlayer]);
 }
 
-bool wc_on_entity(SWorldCore *pCore, int Index, int x, int y, int Layer,
-                  int Flags, int Number) {
+bool wc_on_entity(SWorldCore *pCore, int Index, int x, int y, int Layer, int Flags, int Number) {
   const vec2 Pos = vec2_init(x * 32.0f + 16.0f, y * 32.0f + 16.0f);
 
   int aSides[8];
@@ -1893,8 +1757,7 @@ bool wc_on_entity(SWorldCore *pCore, int Index, int x, int y, int Layer,
     // new CDragger(&GameServer()->m_World, Pos, Index - ENTITY_DRAGGER_WEAK +
     // 1,
     //              false, Layer, Number);
-  } else if (Index >= ENTITY_DRAGGER_WEAK_NW &&
-             Index <= ENTITY_DRAGGER_STRONG_NW) {
+  } else if (Index >= ENTITY_DRAGGER_WEAK_NW && Index <= ENTITY_DRAGGER_STRONG_NW) {
     // new CDragger(&GameServer()->m_World, Pos,
     //              Index - ENTITY_DRAGGER_WEAK_NW + 1, true, Layer, Number);
   } else if (Index == ENTITY_PLASMAE) {
@@ -1917,8 +1780,7 @@ void wc_create_all_entities(SWorldCore *pCore) {
 
       // Game layer
       {
-        const int GameIndex =
-            pCore->m_pCollision->m_MapData.m_GameLayer.m_pData[Index];
+        const int GameIndex = pCore->m_pCollision->m_MapData.m_GameLayer.m_pData[Index];
         if (GameIndex == TILE_NPC) {
           pCore->m_pTunings[0].m_PlayerCollision = 0;
         } else if (GameIndex == TILE_EHOOK) {
@@ -1928,15 +1790,13 @@ void wc_create_all_entities(SWorldCore *pCore) {
         } else if (GameIndex == TILE_NPH) {
           pCore->m_pTunings[0].m_PlayerHooking = 0;
         } else if (GameIndex >= ENTITY_OFFSET) {
-          wc_on_entity(
-              pCore, GameIndex - ENTITY_OFFSET, x, y, LAYER_GAME,
-              pCore->m_pCollision->m_MapData.m_GameLayer.m_pFlags[Index], 0);
+          wc_on_entity(pCore, GameIndex - ENTITY_OFFSET, x, y, LAYER_GAME,
+                       pCore->m_pCollision->m_MapData.m_GameLayer.m_pFlags[Index], 0);
         }
       }
 
       if (pCore->m_pCollision->m_MapData.m_FrontLayer.m_pData) {
-        const int FrontIndex =
-            pCore->m_pCollision->m_MapData.m_FrontLayer.m_pData[Index];
+        const int FrontIndex = pCore->m_pCollision->m_MapData.m_FrontLayer.m_pData[Index];
         if (FrontIndex == TILE_NPC) {
           pCore->m_pTunings[0].m_PlayerCollision = 0;
         } else if (FrontIndex == TILE_EHOOK) {
@@ -1946,20 +1806,17 @@ void wc_create_all_entities(SWorldCore *pCore) {
         } else if (FrontIndex == TILE_NPH) {
           pCore->m_pTunings[0].m_PlayerHooking = 0;
         } else if (FrontIndex >= ENTITY_OFFSET) {
-          wc_on_entity(
-              pCore, FrontIndex - ENTITY_OFFSET, x, y, LAYER_FRONT,
-              pCore->m_pCollision->m_MapData.m_FrontLayer.m_pFlags[Index], 0);
+          wc_on_entity(pCore, FrontIndex - ENTITY_OFFSET, x, y, LAYER_FRONT,
+                       pCore->m_pCollision->m_MapData.m_FrontLayer.m_pFlags[Index], 0);
         }
       }
 
       if (pCore->m_pCollision->m_MapData.m_SwitchLayer.m_pType) {
-        const int SwitchType =
-            pCore->m_pCollision->m_MapData.m_SwitchLayer.m_pType[Index];
+        const int SwitchType = pCore->m_pCollision->m_MapData.m_SwitchLayer.m_pType[Index];
         if (SwitchType >= ENTITY_OFFSET) {
-          wc_on_entity(
-              pCore, SwitchType - ENTITY_OFFSET, x, y, LAYER_SWITCH,
-              pCore->m_pCollision->m_MapData.m_SwitchLayer.m_pFlags[Index],
-              pCore->m_pCollision->m_MapData.m_SwitchLayer.m_pNumber[Index]);
+          wc_on_entity(pCore, SwitchType - ENTITY_OFFSET, x, y, LAYER_SWITCH,
+                       pCore->m_pCollision->m_MapData.m_SwitchLayer.m_pFlags[Index],
+                       pCore->m_pCollision->m_MapData.m_SwitchLayer.m_pNumber[Index]);
         }
       }
     }
@@ -1997,8 +1854,7 @@ void wc_free(SWorldCore *pCore) {
 void wc_tick(SWorldCore *pCore) {
   ++pCore->m_GameTick;
   for (int i = 0; i < pCore->m_NumCharacters; ++i)
-    cc_on_predicted_input(&pCore->m_pCharacters[i],
-                          &pCore->m_pCharacters[i].m_LatestInput);
+    cc_on_predicted_input(&pCore->m_pCharacters[i], &pCore->m_pCharacters[i].m_LatestInput);
 
   // Tick entities
 
@@ -2050,8 +1906,7 @@ void wc_tick(SWorldCore *pCore) {
 
 SCharacterCore *wc_add_character(SWorldCore *pWorld) {
   const int NewSize = pWorld->m_NumCharacters + 1;
-  SCharacterCore *pNewArray =
-      realloc(pWorld->m_pCharacters, NewSize * sizeof(SCharacterCore));
+  SCharacterCore *pNewArray = realloc(pWorld->m_pCharacters, NewSize * sizeof(SCharacterCore));
   if (!pNewArray)
     return NULL;
 
@@ -2084,9 +1939,7 @@ void wc_create_explosion(SWorldCore *pWorld, vec2 Pos, int Owner) {
     vec2 ForceDir = vec2_init(0, 1);
     if (l)
       ForceDir = vnormalize_nomask(Diff);
-    l = 1 - fclamp((l - EXPLOSION_INNER_RADIUS) /
-                       (EXPLOSION_RADIUS - EXPLOSION_INNER_RADIUS),
-                   0.0f, 1.0f);
+    l = 1 - fclamp((l - EXPLOSION_INNER_RADIUS) / (EXPLOSION_RADIUS - EXPLOSION_INNER_RADIUS), 0.0f, 1.0f);
     float Strength;
     if (Owner != -1)
       Strength = pWorld->m_pCharacters[Owner].m_pTuning->m_ExplosionStrength;
@@ -2097,8 +1950,7 @@ void wc_create_explosion(SWorldCore *pWorld, vec2 Pos, int Owner) {
     if (!(int)Dmg)
       continue;
 
-    if (!pWorld->m_pCharacters[Owner].m_GrenadeHitDisabled ||
-        Owner == pChr->m_Id) {
+    if (!pWorld->m_pCharacters[Owner].m_GrenadeHitDisabled || Owner == pChr->m_Id) {
       if (pChr->m_Solo && Owner != pChr->m_Id)
         continue;
       cc_take_damage(pChr, vfmul(ForceDir, Dmg * 2));
@@ -2106,10 +1958,8 @@ void wc_create_explosion(SWorldCore *pWorld, vec2 Pos, int Owner) {
   }
 }
 
-SCharacterCore *wc_intersect_character(SWorldCore *pWorld, vec2 Pos0, vec2 Pos1,
-                                       float Radius, vec2 *pNewPos,
-                                       const SCharacterCore *pNotThis,
-                                       const SCharacterCore *pThisOnly) {
+SCharacterCore *wc_intersect_character(SWorldCore *pWorld, vec2 Pos0, vec2 Pos1, float Radius, vec2 *pNewPos,
+                                       const SCharacterCore *pNotThis, const SCharacterCore *pThisOnly) {
   float ClosestLen = vdistance(Pos0, Pos1) * 100.0f;
   SCharacterCore *pClosest = NULL;
 

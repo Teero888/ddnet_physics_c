@@ -74,7 +74,8 @@ typedef struct Collision {
   unsigned char *m_pSolidDistanceField;
   unsigned int *m_pWidthLookup;
 
-  uint64_t *m_pBroadBitField;
+  uint64_t *m_pBroadIndicesBitField;
+  uint64_t *m_pBroadSolidBitField;
 
   // Could be made into a dynamic list based on the server settings so only tune
   // zones that actually get modified get loaded
