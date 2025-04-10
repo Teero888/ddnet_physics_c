@@ -299,10 +299,10 @@ void cc_do_pickup(SCharacterCore *pCore) {
 
   // getting the memory could be done in parralel/non-sequential
   for (int dy = -1; dy <= 1; ++dy) {
-    int Idx = pCore->m_pCollision->m_pWidthLookup[iclamp(iy + dy, 0, Height)];
+    const int Idx = pCore->m_pCollision->m_pWidthLookup[iclamp(iy + dy, 0, Height - 1)];
     for (int dx = -1; dx <= 1; ++dx) {
       // NOTE: doing a copy here should be faster since it is only 3 bytes
-      SPickup Pickup = pCore->m_pCollision->m_pPickups[Idx + iclamp(ix + dx, 0, Width)];
+      SPickup Pickup = pCore->m_pCollision->m_pPickups[Idx + iclamp(ix + dx, 0, Width - 1)];
       if (Pickup.m_Type < 0)
         continue;
       vec2 Offset = vec2_init(dx * 32, dy * 32);
@@ -317,6 +317,7 @@ void cc_do_pickup(SCharacterCore *pCore) {
         break;
 
       case POWERUP_ARMOR:
+#pragma clang unroll(full)
         for (int j = WEAPON_SHOTGUN; j < NUM_WEAPONS; j++) {
           pCore->m_aWeaponGot[j] = false;
         }
@@ -1025,7 +1026,7 @@ bool broad_check_stopper(SCollision *restrict pCollision, vec2 Start, vec2 End) 
   const int MaxX = (int)vgetx(maxVec) >> 5;
   const int MaxY = (int)vgety(maxVec) >> 5;
   return pCollision->m_pBroadIndicesBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
-         (uint64_t)1 << ((MaxY - MinY) * 8 + (MaxX - MinX));
+         (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
 }
 
 void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
@@ -2019,6 +2020,7 @@ void wc_copy_world(SWorldCore *restrict pTo, SWorldCore *restrict pFrom) {
   pTo->m_pTunings = pFrom->m_pTunings;
 
   // delete the previous entities
+#pragma clang unroll(full)
   for (int i = 0; i < NUM_ENTTYPES; ++i) {
     SEntity *pEntity = pTo->m_apFirstEntityTypes[i];
     while (pEntity) {
@@ -2029,6 +2031,7 @@ void wc_copy_world(SWorldCore *restrict pTo, SWorldCore *restrict pFrom) {
   }
 
   // insert new entities
+#pragma clang unroll(full)
   for (int i = 0; i < NUM_ENTTYPES; ++i) {
     SEntity *pEntity = pFrom->m_apFirstEntityTypes[i];
     while (pEntity) {

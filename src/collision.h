@@ -57,32 +57,25 @@ enum {
 
 typedef struct Collision {
   SMapData m_MapData;
-
-  int m_NumSpawnPoints;
-  vec2 *m_pSpawnPoints;
-  int m_aNumTeleOuts[256];
-  vec2 *m_apTeleOuts[256];
-  int m_aNumTeleCheckOuts[256];
-  vec2 *m_apTeleCheckOuts[256];
-
+  unsigned int *m_pWidthLookup;
+  uint64_t *m_pBroadIndicesBitField;
+  uint64_t *m_pBroadSolidBitField;
   unsigned char *m_pTileInfos;
   SPickup *m_pPickups;
-
-  bool m_MoveRestrictionsFound;
   unsigned char (*m_pMoveRestrictions)[5];
   unsigned char *m_pTileBroadCheck;
   unsigned char *m_pSolidDistanceField;
-  unsigned int *m_pWidthLookup;
-
-  uint64_t *m_pBroadIndicesBitField;
-  uint64_t *m_pBroadSolidBitField;
   uint64_t *m_pBroadTeleHookInBitField;
+  vec2 *m_apTeleOuts[256];
+  vec2 *m_apTeleCheckOuts[256];
+  vec2 *m_pSpawnPoints;
 
-  // Could be made into a dynamic list based on the server settings so only tune
-  // zones that actually get modified get loaded
-  // this is 48KB xd
-  // TODO: do this better lol
+  int m_NumSpawnPoints;
+  int m_aNumTeleOuts[256];
+  int m_aNumTeleCheckOuts[256];
   STuningParams m_aTuningList[NUM_TUNE_ZONES];
+
+  bool m_MoveRestrictionsFound;
 } SCollision;
 
 bool init_collision(SCollision *restrict pCollision, const char *restrict pMap);

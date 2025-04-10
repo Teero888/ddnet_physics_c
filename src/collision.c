@@ -567,6 +567,7 @@ inline unsigned char get_move_restrictions(SCollision *restrict pCollision, void
   static const vec2 DIRECTIONS[NUM_MR_DIRS] = {CTVEC2(0, 0), CTVEC2(18, 0), CTVEC2(0, 18), CTVEC2(-18, 0),
                                                CTVEC2(0, -18)};
   unsigned char Restrictions = 0;
+#pragma clang unroll(full)
   for (int d = 0; d < NUM_MR_DIRS; d++) {
     int ModMapIndex = get_pure_map_index(pCollision, vvadd(Pos, DIRECTIONS[d]));
     if (d == MR_DIR_HERE && OverrideCenterTileIndex >= 0)
@@ -687,7 +688,7 @@ static inline bool broad_check_char(SCollision *restrict pCollision, vec2 Start,
   const int MaxX = (int)ceilf(vgetx(maxAdj)) >> 5;
   const int MaxY = (int)ceilf(vgety(maxAdj)) >> 5;
   return pCollision->m_pBroadSolidBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
-         (uint64_t)1 << ((MaxY - MinY) * 8 + (MaxX - MinX));
+         (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
 }
 
 static inline bool broad_check(SCollision *restrict pCollision, vec2 Start, vec2 End) {
@@ -698,7 +699,7 @@ static inline bool broad_check(SCollision *restrict pCollision, vec2 Start, vec2
   const int MaxX = (int)ceilf(vgetx(maxVec)) >> 5;
   const int MaxY = (int)ceilf(vgety(maxVec)) >> 5;
   return pCollision->m_pBroadSolidBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
-         (uint64_t)1 << ((MaxY - MinY) * 8 + (MaxX - MinX));
+         (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
 }
 
 static inline bool broad_check_tele(SCollision *restrict pCollision, vec2 Start, vec2 End) {
@@ -709,7 +710,7 @@ static inline bool broad_check_tele(SCollision *restrict pCollision, vec2 Start,
   const int MaxX = (int)ceilf(vgetx(maxVec)) >> 5;
   const int MaxY = (int)ceilf(vgety(maxVec)) >> 5;
   return pCollision->m_pBroadTeleHookInBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
-         (uint64_t)1 << ((MaxY - MinY) * 8 + (MaxX - MinX));
+         (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
 }
 
 #if 0
@@ -759,16 +760,9 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
 #else
 unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos0, vec2 Pos1,
                                        vec2 *restrict pOutCollision, unsigned char *restrict pTeleNr) {
-  if (!broad_check(pCollision, Pos0, Pos1)) {
-    if (pTeleNr) {
-      if (!broad_check_tele(pCollision, Pos0, Pos1)) {
-        *pOutCollision = Pos1;
-        return 0;
-      }
-    } else {
-      *pOutCollision = Pos1;
-      return 0;
-    }
+  if (!broad_check(pCollision, Pos0, Pos1) || (pTeleNr && !broad_check_tele(pCollision, Pos0, Pos1))) {
+    *pOutCollision = Pos1;
+    return 0;
   }
   /* if (vgetx(Pos0) < 0 || vgety(Pos0) < 0 || vgetx(Pos1) < 0 || vgety(Pos1) <
     0) printf("PANIC, HOOK POS IS NEGATIVE: %.2f, %.2f, %.2f, %.2f\n",
@@ -794,7 +788,6 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos
 
   int aIndices[84 /* todo: replace with hook tune length + length%4 later*/];
 
-  // Precompute constants outside the loop
   // WARNING: using this inverse might lead to floating point errors changing
   // physics
   const float inv_fEnd = 1.0f / fEnd;
@@ -803,7 +796,6 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos
   const float diff_x = vgetx(Pos1) - Pos0_x;
   const float diff_y = vgety(Pos1) - Pos0_y;
 
-  // SSE constant vectors
   const __m128 Pos0_x_vec = _mm_set1_ps(Pos0_x);
   const __m128 Pos0_y_vec = _mm_set1_ps(Pos0_y);
   const __m128 diff_x_vec = _mm_set1_ps(diff_x);
@@ -812,30 +804,23 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos
   const __m128 half_vec = _mm_set1_ps(0.5f);
   const __m128i width_vec = _mm_set1_epi32(Width);
 
-  // Vectorized loop: process 4 iterations at a time up to 80
+#pragma clang unroll(full)
   for (int k = Start; k < 84 /* todo: replace with hook tune length later*/; k += 4) {
-    // Set integer vector for indices k, k+1, k+2, k+3
     __m128i i_vec = _mm_set_epi32(k + 3, k + 2, k + 1, k);
-    // Compute a_vec = i_vec / fEnd
     __m128 a_vec = _mm_mul_ps(_mm_cvtepi32_ps(i_vec), inv_fEnd_vec);
-    // Interpolate x and y positions for 4 iterations
     __m128 Pos_x_vec = _mm_add_ps(Pos0_x_vec, _mm_mul_ps(a_vec, diff_x_vec));
     __m128 Pos_y_vec = _mm_add_ps(Pos0_y_vec, _mm_mul_ps(a_vec, diff_y_vec));
-    // Add 0.5 to all components
     __m128 Pos_x_plus_half = _mm_add_ps(Pos_x_vec, half_vec);
     __m128 Pos_y_plus_half = _mm_add_ps(Pos_y_vec, half_vec);
-    // Truncate and shift right by 5
     __m128i ix_vec = _mm_srai_epi32(_mm_cvttps_epi32(Pos_x_plus_half), 5);
     __m128i iy_vec = _mm_srai_epi32(_mm_cvttps_epi32(Pos_y_plus_half), 5);
-    // Compute indices: iy * Width + ix
     // NOTE: Use width lookup maybe, i tried and it was slower
     __m128i index_vec = _mm_add_epi32(_mm_mullo_epi32(iy_vec, width_vec), ix_vec);
-    // Store 4 indices into aIndices[k] to aIndices[k+3]
     _mm_storeu_si128((__m128i *)&aIndices[k], index_vec);
   }
-
   for (int i = Start; i <= End; i++) {
     int Index = aIndices[i];
+    __builtin_assume(Index > 0);
     if (Index == LastIndex)
       continue;
     LastIndex = Index;
