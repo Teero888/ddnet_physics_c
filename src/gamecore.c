@@ -1018,11 +1018,6 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
 }
 
 bool broad_check_stopper(SCollision *restrict pCollision, vec2 Start, vec2 End) {
-  const float StartX = vgetx(Start);
-  const float StartY = vgety(Start);
-  const float EndX = vgetx(End);
-  const float EndY = vgety(End);
-
   const vec2 minVec = _mm_min_ps(Start, End);
   const vec2 maxVec = _mm_max_ps(Start, End);
   const int MinX = (int)vgetx(minVec) >> 5;
@@ -1030,7 +1025,7 @@ bool broad_check_stopper(SCollision *restrict pCollision, vec2 Start, vec2 End) 
   const int MaxX = (int)vgetx(maxVec) >> 5;
   const int MaxY = (int)vgety(maxVec) >> 5;
   return pCollision->m_pBroadIndicesBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
-         (1ul << ((uint64_t)(MaxY - MinY) * 8ul + (uint64_t)(MaxX - MinX)));
+         (uint64_t)1 << ((MaxY - MinY) * 8 + (MaxX - MinX));
 }
 
 void cc_ddrace_postcore_tick(SCharacterCore *pCore) {

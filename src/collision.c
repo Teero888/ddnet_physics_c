@@ -190,6 +190,8 @@ bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) 
   pCollision->m_pMoveRestrictions = calloc(MapSize, NUM_MR_DIRS);
   pCollision->m_pPickups = calloc(MapSize, sizeof(SPickup));
   pCollision->m_pBroadSolidBitField = calloc(MapSize, sizeof(uint64_t));
+  pCollision->m_pBroadTeleHookInBitField =
+      pCollision->m_MapData.m_TeleLayer.m_pType ? calloc(MapSize, sizeof(uint64_t)) : NULL;
   pCollision->m_pBroadIndicesBitField = calloc(MapSize, sizeof(uint64_t));
   pCollision->m_MoveRestrictionsFound = false;
 
@@ -329,23 +331,61 @@ bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) 
 
   for (int y = 0; y < Height; ++y) {
     for (int x = 0; x < Width; ++x) {
-      const int maxX = imin(Width - x, 8);
-      const int maxY = imin(Height - y, 8);
-      for (int dy = 0; dy < maxY; ++dy) {
-        for (int dx = 0; dx < maxX; ++dx) {
-          for (int iy = y; iy <= y + dy; ++iy) {
+      const int Idx = pCollision->m_pWidthLookup[y] + x;
+      const int maxX = imin((Width - 1) - x, 7);
+      const int maxY = imin((Height - 1) - y, 7);
+
+      // Set bitfield for all sub-rectangles
+      for (int dy = 0; dy <= maxY; ++dy) {
+        for (int dx = 0; dx <= maxX; ++dx) {
+          const uint64_t BitIdx = (uint64_t)1 << (dy * 8 + dx);
+          for (int iy = y; iy < y + dy + 1; ++iy) {
             const unsigned char *pRowBroad = pCollision->m_pTileBroadCheck + pCollision->m_pWidthLookup[iy];
             const unsigned char *pRowInfos = pCollision->m_pTileInfos + pCollision->m_pWidthLookup[iy];
-            for (int ix = x; ix <= x + dx; ++ix) {
-              int BitIdx = 1ul << ((uint64_t)dy * 8ul + (uint64_t)dx);
+            const unsigned char *pRowTele =
+                pCollision->m_MapData.m_TeleLayer.m_pType
+                    ? pCollision->m_MapData.m_TeleLayer.m_pType + pCollision->m_pWidthLookup[y]
+                    : NULL;
+            for (int ix = x; ix < x + dx + 1; ++ix) {
               if (pRowBroad[ix])
-                pCollision->m_pBroadIndicesBitField[pCollision->m_pWidthLookup[y] + x] |= BitIdx;
+                pCollision->m_pBroadIndicesBitField[Idx] |= BitIdx;
               if (pRowInfos[ix] & INFO_ISSOLID)
-                pCollision->m_pBroadSolidBitField[pCollision->m_pWidthLookup[y] + x] |= BitIdx;
+                pCollision->m_pBroadSolidBitField[Idx] |= BitIdx;
+              if (pRowTele && pRowTele[x] == TILE_TELEINHOOK)
+                pCollision->m_pBroadTeleHookInBitField[Idx] |= BitIdx;
             }
           }
         }
       }
+
+// This works, validation not necessary currently
+#if 0
+      // Validate all sub-rectangles for solids atleast
+      for (int dy = 0; dy <= maxY; ++dy) {
+        for (int dx = 0; dx <= maxX; ++dx) {
+          // Compute Hit for this sub-rectangle
+          bool Hit = false;
+          for (int ay = y; ay <= y + dy; ++ay) {
+            const unsigned char *rowStart = pCollision->m_pTileInfos + pCollision->m_pWidthLookup[ay];
+            for (int ax = x; ax <= x + dx; ++ax) {
+              if (rowStart[ax] & INFO_ISSOLID) {
+                Hit = true;
+                break; // No need to check further once a solid tile is found
+              }
+            }
+            if (Hit)
+              break; // Exit outer loop if Hit is true
+          }
+
+          // Check the corresponding bit in the bitfield
+          const uint64_t BitIdx = (uint64_t)1 << (dy * 8 + dx);
+          uint64_t Opt = pCollision->m_pBroadSolidBitField[Idx] & BitIdx;
+          if (Hit != (bool)Opt) {
+            printf("ERROR at (%d, %d) for size (%d, %d): Hit: %d, Opt: %lu\n", x, y, dx, dy, Hit, Opt);
+          }
+        }
+      }
+#endif
     }
   }
 
@@ -381,6 +421,7 @@ void free_collision(SCollision *pCollision) {
   free(pCollision->m_pTileBroadCheck);
   free(pCollision->m_pWidthLookup);
   free(pCollision->m_pBroadSolidBitField);
+  free(pCollision->m_pBroadTeleHookInBitField);
   free(pCollision->m_pBroadIndicesBitField);
   if (pCollision->m_NumSpawnPoints)
     free(pCollision->m_pSpawnPoints);
@@ -507,7 +548,7 @@ inline unsigned char get_collision_at(SCollision *pCollision, vec2 Pos) {
 }
 static inline unsigned char get_collision_at_idx(SCollision *pCollision, int Idx) {
   const unsigned char Tile = pCollision->m_MapData.m_GameLayer.m_pData[Idx];
-  return Idx * (bool)(Idx - 1 <= TILE_NOLASER - 1);
+  return Tile * (bool)(Tile - 1 <= TILE_NOLASER - 1);
 }
 
 inline unsigned char get_front_collision_at(SCollision *pCollision, vec2 Pos) {
@@ -636,10 +677,6 @@ bool is_hook_blocker(SCollision *pCollision, int Index, vec2 Pos0, vec2 Pos1) {
 }
 
 static inline bool broad_check_char(SCollision *restrict pCollision, vec2 Start, vec2 End) {
-  const float StartX = vgetx(Start);
-  const float StartY = vgety(Start);
-  const float EndX = vgetx(End);
-  const float EndY = vgety(End);
   const vec2 minVec = _mm_min_ps(Start, End);
   const vec2 maxVec = _mm_max_ps(Start, End);
   const vec2 offset = _mm_set1_ps(HALFPHYSICALSIZE + 1.0f);
@@ -650,38 +687,10 @@ static inline bool broad_check_char(SCollision *restrict pCollision, vec2 Start,
   const int MaxX = (int)ceilf(vgetx(maxAdj)) >> 5;
   const int MaxY = (int)ceilf(vgety(maxAdj)) >> 5;
   return pCollision->m_pBroadSolidBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
-         (1ul << ((uint64_t)(MaxY - MinY) * 8ul + (uint64_t)(MaxX - MinX)));
-  return false;
-}
-
-static inline bool broad_check_tele(SCollision *restrict pCollision, vec2 Start, vec2 End) {
-  const float StartX = vgetx(Start);
-  const float StartY = vgety(Start);
-  const float EndX = vgetx(End);
-  const float EndY = vgety(End);
-  const vec2 minVec = _mm_min_ps(Start, End);
-  const vec2 maxVec = _mm_max_ps(Start, End);
-  const int MinX = (int)vgetx(minVec) >> 5;
-  const int MinY = (int)vgety(minVec) >> 5;
-  const int MaxX = (int)ceilf(vgetx(maxVec)) >> 5;
-  const int MaxY = (int)ceilf(vgety(maxVec)) >> 5;
-
-  for (int y = MinY; y <= MaxY; ++y) {
-    const unsigned char *rowStart = pCollision->m_MapData.m_TeleLayer.m_pType + pCollision->m_pWidthLookup[y];
-    for (int x = MinX; x <= MaxX; ++x) {
-      if (rowStart[x] == TILE_TELEINHOOK) {
-        return true;
-      }
-    }
-  }
-  return false;
+         (uint64_t)1 << ((MaxY - MinY) * 8 + (MaxX - MinX));
 }
 
 static inline bool broad_check(SCollision *restrict pCollision, vec2 Start, vec2 End) {
-  const float StartX = vgetx(Start);
-  const float StartY = vgety(Start);
-  const float EndX = vgetx(End);
-  const float EndY = vgety(End);
   const vec2 minVec = _mm_min_ps(Start, End);
   const vec2 maxVec = _mm_max_ps(Start, End);
   const int MinX = (int)vgetx(minVec) >> 5;
@@ -689,7 +698,18 @@ static inline bool broad_check(SCollision *restrict pCollision, vec2 Start, vec2
   const int MaxX = (int)ceilf(vgetx(maxVec)) >> 5;
   const int MaxY = (int)ceilf(vgety(maxVec)) >> 5;
   return pCollision->m_pBroadSolidBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
-         (1ul << ((uint64_t)(MaxY - MinY) * 8ul + (uint64_t)(MaxX - MinX)));
+         (uint64_t)1 << ((MaxY - MinY) * 8 + (MaxX - MinX));
+}
+
+static inline bool broad_check_tele(SCollision *restrict pCollision, vec2 Start, vec2 End) {
+  const vec2 minVec = _mm_min_ps(Start, End);
+  const vec2 maxVec = _mm_max_ps(Start, End);
+  const int MinX = (int)vgetx(minVec) >> 5;
+  const int MinY = (int)vgety(minVec) >> 5;
+  const int MaxX = (int)ceilf(vgetx(maxVec)) >> 5;
+  const int MaxY = (int)ceilf(vgety(maxVec)) >> 5;
+  return pCollision->m_pBroadTeleHookInBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
+         (uint64_t)1 << ((MaxY - MinY) * 8 + (MaxX - MinX));
 }
 
 #if 0
