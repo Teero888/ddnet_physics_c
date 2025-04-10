@@ -2,6 +2,7 @@
 #include "collision.h"
 #include "map_loader.h"
 #include "vmath.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -438,7 +439,7 @@ bool is_switch_active_cb(int Number, void *pUser) {
          pThis->m_pWorld->m_pSwitches[Number].m_Status;
 }
 
-void cc_quantize(SCharacterCore *pCore) {
+__attribute__((noinline)) void cc_quantize(SCharacterCore *pCore) {
   // Common constants
   __m128 half = _mm_set1_ps(0.5f);
   __m128 zero = _mm_setzero_ps();
@@ -547,7 +548,7 @@ void cc_move(SCharacterCore *pCore) {
   cc_calc_indices(pCore);
 }
 
-void cc_world_tick_deferred(SCharacterCore *pCore) {
+__attribute__((noinline)) void cc_world_tick_deferred(SCharacterCore *pCore) {
   cc_move(pCore);
   cc_quantize(pCore);
 }
@@ -645,7 +646,8 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
   static const vec2 DeathOffset2 = {DEATH, DEATH, 0.f, 0.f};
   static const vec2 DeathOffset3 = {-DEATH, -DEATH, 0.f, 0.f};
   static const vec2 DeathOffset4 = {-DEATH, DEATH, 0.f, 0.f};
-  if ((get_collision_at(pCore->m_pCollision,
+  if (pCore->m_pCollision->m_pTileInfos[Index] & INFO_CANHITKILL &&
+      (get_collision_at(pCore->m_pCollision,
                         vvadd(pCore->m_Pos, DeathOffset1)) == TILE_DEATH ||
        get_collision_at(pCore->m_pCollision,
                         vvadd(pCore->m_Pos, DeathOffset2)) == TILE_DEATH ||
@@ -1109,19 +1111,12 @@ bool broad_check_stopper(SCollision *restrict pCollision, vec2 Start,
   const vec2 maxVec = _mm_max_ps(Start, End);
   const int MinX = (int)vgetx(minVec) >> 5;
   const int MinY = (int)vgety(minVec) >> 5;
-  const int MaxX = (int)ceilf(vgetx(maxVec)) >> 5;
-  const int MaxY = (int)ceilf(vgety(maxVec)) >> 5;
-
-  for (int y = MinY; y <= MaxY; ++y) {
-    const unsigned char *rowStart =
-        pCollision->m_pTileBroadCheck + pCollision->m_pWidthLookup[y];
-    for (int x = MinX; x <= MaxX; ++x) {
-      if (rowStart[x]) {
-        return true;
-      }
-    }
-  }
-  return false;
+  const int MaxX = (int)vgetx(maxVec) >> 5;
+  const int MaxY = (int)vgety(maxVec) >> 5;
+  bool OptHit =
+      pCollision->m_pBroadBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
+      (1ul << ((uint64_t)(MaxY - MinY) * 8ul + (uint64_t)(MaxX - MinX)));
+  return OptHit;
 }
 
 void cc_ddrace_postcore_tick(SCharacterCore *pCore) {

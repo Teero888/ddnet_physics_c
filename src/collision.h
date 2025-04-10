@@ -4,6 +4,7 @@
 #include "../libs/ddnet_maploader_c/map_loader.h"
 #include "stdbool.h"
 #include "vmath.h"
+#include <stdint.h>
 
 enum {
   CANTMOVE_LEFT = 1 << 0,
@@ -23,6 +24,7 @@ enum {
   INFO_TILENEXT = 1 << 1,
   INFO_PICKUPNEXT = 1 << 2,
   INFO_CANGROUND = 1 << 3,
+  INFO_CANHITKILL = 1 << 4,
 };
 
 typedef struct TuningParams {
@@ -68,12 +70,11 @@ typedef struct Collision {
 
   bool m_MoveRestrictionsFound;
   unsigned char (*m_pMoveRestrictions)[5];
-
   unsigned char *m_pTileBroadCheck;
-
   unsigned char *m_pSolidDistanceField;
-
   unsigned int *m_pWidthLookup;
+
+  uint64_t *m_pBroadBitField;
 
   // Could be made into a dynamic list based on the server settings so only tune
   // zones that actually get modified get loaded
