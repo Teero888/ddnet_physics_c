@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <time.h>
 
-#define ITERATIONS 333
+#define ITERATIONS 3000
 #define TICKS_PER_ITERATION 3000
 #define TOTAL_TICKS ITERATIONS *TICKS_PER_ITERATION
 #define NUM_RUNS 10
@@ -61,8 +61,7 @@ void print_progress(int current, int total, double elapsed_time) {
     else
       printf(" ");
   }
-  printf("] %3.0f%% (Run %d/%d, %.2fs)", progress * 100, current, total,
-         elapsed_time);
+  printf("] %3.0f%% (Run %d/%d, %.2fs)", progress * 100, current, total, elapsed_time);
   fflush(stdout);
 }
 
@@ -81,9 +80,8 @@ int main(int argc, char *argv[]) {
 
   // Parse command-line options
   while (1) {
-    static struct option long_options[] = {{"multi", no_argument, 0, 'm'},
-                                           {"help", no_argument, 0, 'h'},
-                                           {0, 0, 0, 0}};
+    static struct option long_options[] = {
+        {"multi", no_argument, 0, 'm'}, {"help", no_argument, 0, 'h'}, {0, 0, 0, 0}};
     int option_index = 0;
     int c = getopt_long(argc, argv, "", long_options, &option_index);
     if (c == -1)
@@ -109,8 +107,7 @@ int main(int argc, char *argv[]) {
   init_config(&Config);
 
   double aTPSValues[NUM_RUNS];
-  printf("Benchmarking in %s-threaded mode...\n",
-         use_multi_threaded ? "multi" : "single");
+  printf("Benchmarking in %s-threaded mode...\n", use_multi_threaded ? "multi" : "single");
   if (use_multi_threaded)
     printf("Using %d threads with OpenMP.\n", omp_get_max_threads());
 

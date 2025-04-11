@@ -2,6 +2,7 @@
 #include "collision.h"
 #include "data.h"
 #include "utils.h"
+#include "vmath.h"
 #include <getopt.h> // Explicitly include getopt.h for struct option and getopt_long
 #include <math.h>
 #include <omp.h>
@@ -9,7 +10,7 @@
 #include <time.h>
 
 #define ITERATIONS 1000
-#define TICKS_PER_ITERATION 3000
+#define TICKS_PER_ITERATION s_TestRun.m_Ticks
 #define TOTAL_TICKS ITERATIONS *TICKS_PER_ITERATION
 #define NUM_RUNS 10
 #define BAR_WIDTH 50
@@ -60,8 +61,7 @@ void print_progress(int current, int total, double elapsed_time) {
     else
       printf(" ");
   }
-  printf("] %3.0f%% (Run %d/%d, %.2fs)", progress * 100, current, total,
-         elapsed_time);
+  printf("] %3.0f%% (Run %d/%d, %.2fs)", progress * 100, current, total, elapsed_time);
   fflush(stdout);
 }
 
@@ -80,9 +80,8 @@ int main(int argc, char *argv[]) {
 
   // Parse command-line options
   while (1) {
-    static struct option long_options[] = {{"multi", no_argument, 0, 'm'},
-                                           {"help", no_argument, 0, 'h'},
-                                           {0, 0, 0, 0}};
+    static struct option long_options[] = {
+        {"multi", no_argument, 0, 'm'}, {"help", no_argument, 0, 'h'}, {0, 0, 0, 0}};
     int option_index = 0;
     int c = getopt_long(argc, argv, "", long_options, &option_index);
     if (c == -1)
@@ -114,8 +113,7 @@ int main(int argc, char *argv[]) {
     wc_tick(&StartWorld);
 
   double aTPSValues[NUM_RUNS];
-  printf("Benchmarking in %s-threaded mode...\n",
-         use_multi_threaded ? "multi" : "single");
+  printf("Benchmarking in %s-threaded mode...\n", use_multi_threaded ? "multi" : "single");
   if (use_multi_threaded)
     printf("Using %d threads with OpenMP.\n", omp_get_max_threads());
 
@@ -129,10 +127,14 @@ int main(int argc, char *argv[]) {
         SWorldCore World = (SWorldCore){};
         wc_copy_world(&World, &StartWorld);
         for (int t = 0; t < TICKS_PER_ITERATION; ++t) {
-          cc_on_input(&World.m_pCharacters[0],
-                      &s_TestRun.m_vStates[0][t].m_Input);
+          cc_on_input(&World.m_pCharacters[0], &s_TestRun.m_vStates[0][t].m_Input);
           wc_tick(&World);
         }
+        // if (!vvcmp(World.m_pCharacters[0].m_Pos, s_TestRun.m_vStates[0][TICKS_PER_ITERATION - 1].m_Pos) ||
+        //     !vvcmp(World.m_pCharacters[0].m_Vel, s_TestRun.m_vStates[0][TICKS_PER_ITERATION - 1].m_Vel)) {
+        //   printf("Run not valid.\n");
+        //   exit(1);
+        // }
         wc_free(&World);
       }
       ElapsedTime = omp_get_wtime() - StartTime;
@@ -142,10 +144,14 @@ int main(int argc, char *argv[]) {
         SWorldCore World = (SWorldCore){};
         wc_copy_world(&World, &StartWorld);
         for (int t = 0; t < TICKS_PER_ITERATION; ++t) {
-          cc_on_input(&World.m_pCharacters[0],
-                      &s_TestRun.m_vStates[0][t].m_Input);
+          cc_on_input(&World.m_pCharacters[0], &s_TestRun.m_vStates[0][t].m_Input);
           wc_tick(&World);
         }
+        // if (!vvcmp(World.m_pCharacters[0].m_Pos, s_TestRun.m_vStates[0][TICKS_PER_ITERATION - 1].m_Pos) ||
+        //     !vvcmp(World.m_pCharacters[0].m_Vel, s_TestRun.m_vStates[0][TICKS_PER_ITERATION - 1].m_Vel)) {
+        //   printf("Run not valid.\n");
+        //   exit(1);
+        // }
         wc_free(&World);
       }
       ElapsedTime = (double)clock() / CLOCKS_PER_SEC - StartTime;

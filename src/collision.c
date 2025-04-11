@@ -1,15 +1,14 @@
 #include "collision.h"
+#include "collision_tables.h"
 #include "gamecore.h"
 #include "limits.h"
 #include "map_loader.h"
 #include "vmath.h"
 #include <float.h>
 #include <immintrin.h>
+#include <mm_malloc.h>
 #include <stdio.h>
 #include <string.h>
-
-// int NumSkips = 0;
-// int NumIntersects = 0;
 
 enum { MR_DIR_HERE = 0, MR_DIR_RIGHT, MR_DIR_DOWN, MR_DIR_LEFT, MR_DIR_UP, NUM_MR_DIRS };
 
@@ -114,7 +113,7 @@ static void init_distance_field(SCollision *pCollision) {
 
   const int hr_width = orig_width * DISTANCE_FIELD_RESOLUTION;
   const int hr_height = orig_height * DISTANCE_FIELD_RESOLUTION;
-  float *hr_field = malloc(hr_width * hr_height * sizeof(float));
+  float *hr_field = _mm_malloc(hr_width * hr_height * sizeof(float), 64);
   for (int y = 0; y < hr_height; ++y) {
     for (int x = 0; x < hr_width; ++x) {
       const int orig_x = x / DISTANCE_FIELD_RESOLUTION;
@@ -157,7 +156,7 @@ static void init_distance_field(SCollision *pCollision) {
     }
   }
 
-  pCollision->m_pSolidDistanceField = malloc(hr_width * hr_height);
+  pCollision->m_pSolidDistanceField = _mm_malloc(hr_width * hr_height, 64);
 
   const float scale_to_world = 32.f / DISTANCE_FIELD_RESOLUTION;
   for (int i = 0; i < hr_width * hr_height; ++i) {
@@ -181,21 +180,36 @@ bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) 
     return false;
 
   SMapData *pMapData = &pCollision->m_MapData;
-  int Width = pMapData->m_Width;
-  int Height = pMapData->m_Height;
-  int MapSize = Width * Height;
+  const int Width = pMapData->m_Width;
+  const int Height = pMapData->m_Height;
+  const int MapSize = Width * Height;
 
-  pCollision->m_pTileInfos = calloc(MapSize, 1);
-  pCollision->m_pTileBroadCheck = calloc(MapSize, 1);
-  pCollision->m_pMoveRestrictions = calloc(MapSize, NUM_MR_DIRS);
-  pCollision->m_pPickups = calloc(MapSize, sizeof(SPickup));
-  pCollision->m_pBroadSolidBitField = calloc(MapSize, sizeof(uint64_t));
+  pCollision->m_pTileInfos = _mm_malloc(MapSize * sizeof(char), 64);
+  memset(pCollision->m_pTileInfos, 0, MapSize * sizeof(char));
+
+  pCollision->m_pTileBroadCheck = _mm_malloc(MapSize * sizeof(char), 64);
+  memset(pCollision->m_pTileBroadCheck, 0, MapSize * sizeof(char));
+
+  pCollision->m_pMoveRestrictions = _mm_malloc(MapSize * NUM_MR_DIRS * sizeof(char), 64);
+  memset(pCollision->m_pMoveRestrictions, 0, MapSize * NUM_MR_DIRS * sizeof(char));
+
+  pCollision->m_pPickups = _mm_malloc(MapSize * sizeof(SPickup), 64);
+  memset(pCollision->m_pPickups, 0, MapSize * sizeof(SPickup));
+
+  pCollision->m_pBroadSolidBitField = _mm_malloc(MapSize * sizeof(uint64_t), 64);
+  memset(pCollision->m_pBroadSolidBitField, 0, MapSize * sizeof(uint64_t));
+
   pCollision->m_pBroadTeleHookInBitField =
-      pCollision->m_MapData.m_TeleLayer.m_pType ? calloc(MapSize, sizeof(uint64_t)) : NULL;
-  pCollision->m_pBroadIndicesBitField = calloc(MapSize, sizeof(uint64_t));
+      pCollision->m_MapData.m_TeleLayer.m_pType ? _mm_malloc(MapSize * sizeof(uint64_t), 64) : NULL;
+  if (pCollision->m_pBroadTeleHookInBitField)
+    memset(pCollision->m_pBroadTeleHookInBitField, 0, MapSize * sizeof(uint64_t));
+
+  pCollision->m_pBroadIndicesBitField = _mm_malloc(MapSize * sizeof(uint64_t), 64);
+  memset(pCollision->m_pBroadIndicesBitField, 0, MapSize * sizeof(uint64_t));
   pCollision->m_MoveRestrictionsFound = false;
 
-  pCollision->m_pWidthLookup = malloc(Height * sizeof(unsigned int));
+  pCollision->m_pWidthLookup = _mm_malloc(Height * sizeof(unsigned int), 64);
+
   for (int i = 0; i < Height; ++i)
     pCollision->m_pWidthLookup[i] = i * Width;
 
@@ -414,29 +428,45 @@ bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) 
 }
 
 void free_collision(SCollision *pCollision) {
-  free_map_data(&pCollision->m_MapData);
-  free(pCollision->m_pPickups);
-  free(pCollision->m_pMoveRestrictions);
-  free(pCollision->m_pSolidDistanceField);
-  free(pCollision->m_pTileBroadCheck);
-  free(pCollision->m_pWidthLookup);
-  free(pCollision->m_pBroadSolidBitField);
-  free(pCollision->m_pBroadTeleHookInBitField);
-  free(pCollision->m_pBroadIndicesBitField);
-  if (pCollision->m_NumSpawnPoints)
-    free(pCollision->m_pSpawnPoints);
-  if (pCollision->m_pTileInfos)
-    free(pCollision->m_pTileInfos);
-  if (pCollision->m_MapData.m_TeleLayer.m_pType)
-    for (int i = 0; i < 256; ++i) {
-      free(pCollision->m_apTeleOuts[i]);
-      free(pCollision->m_apTeleCheckOuts[i]);
-    }
-  memset(pCollision, 0, sizeof(SCollision));
+  if (!pCollision)
+    return;
 
-  // if (NumIntersects)
-  //   printf("Skips:%d, Intersects:%d, Ratio:%f\n", NumSkips, NumIntersects,
-  //          (float)NumSkips / (float)NumIntersects);
+  free_map_data(&pCollision->m_MapData);
+  if (pCollision->m_pPickups)
+    _mm_free(pCollision->m_pPickups);
+  if (pCollision->m_pMoveRestrictions)
+    _mm_free(pCollision->m_pMoveRestrictions);
+  if (pCollision->m_pSolidDistanceField)
+    _mm_free(pCollision->m_pSolidDistanceField);
+  if (pCollision->m_pTileBroadCheck)
+    _mm_free(pCollision->m_pTileBroadCheck);
+  if (pCollision->m_pWidthLookup)
+    _mm_free(pCollision->m_pWidthLookup);
+  if (pCollision->m_pBroadSolidBitField)
+    _mm_free(pCollision->m_pBroadSolidBitField);
+  if (pCollision->m_pBroadTeleHookInBitField)
+    _mm_free(pCollision->m_pBroadTeleHookInBitField);
+  if (pCollision->m_pBroadIndicesBitField)
+    _mm_free(pCollision->m_pBroadIndicesBitField);
+  if (pCollision->m_pTileInfos)
+    _mm_free(pCollision->m_pTileInfos);
+
+  // Free spawn points
+  if (pCollision->m_NumSpawnPoints && pCollision->m_pSpawnPoints)
+    free(pCollision->m_pSpawnPoints);
+
+  // Free tele layer arrays
+  if (pCollision->m_MapData.m_TeleLayer.m_pType) {
+    for (int i = 0; i < 256; ++i) {
+      if (pCollision->m_apTeleOuts[i])
+        free(pCollision->m_apTeleOuts[i]);
+      if (pCollision->m_apTeleCheckOuts[i])
+        free(pCollision->m_apTeleCheckOuts[i]);
+    }
+  }
+
+  // Zero everything
+  memset(pCollision, 0, sizeof(SCollision));
 }
 
 inline int get_pure_map_index(SCollision *pCollision, vec2 Pos) {
@@ -544,11 +574,11 @@ inline unsigned char get_collision_at(SCollision *pCollision, vec2 Pos) {
   const int Nx = (int)vgetx(Pos) >> 5;
   const int Ny = (int)vgety(Pos) >> 5;
   const unsigned char Idx = pCollision->m_MapData.m_GameLayer.m_pData[pCollision->m_pWidthLookup[Ny] + Nx];
-  return Idx * (bool)(Idx - 1 <= TILE_NOLASER - 1);
+  return Idx * (Idx - 1 <= TILE_NOLASER - 1);
 }
 static inline unsigned char get_collision_at_idx(SCollision *pCollision, int Idx) {
   const unsigned char Tile = pCollision->m_MapData.m_GameLayer.m_pData[Idx];
-  return Tile * (bool)(Tile - 1 <= TILE_NOLASER - 1);
+  return Tile * (Tile - 1 <= TILE_NOLASER - 1);
 }
 
 inline unsigned char get_front_collision_at(SCollision *pCollision, vec2 Pos) {
@@ -556,7 +586,7 @@ inline unsigned char get_front_collision_at(SCollision *pCollision, vec2 Pos) {
   const int Ny = (int)vgety(Pos) >> 5;
   const int pos = pCollision->m_pWidthLookup[Ny] + Nx;
   const unsigned char Idx = pCollision->m_MapData.m_FrontLayer.m_pData[pos];
-  return Idx * (bool)(Idx - 1 <= TILE_NOLASER - 1);
+  return Idx * (Idx - 1 <= TILE_NOLASER - 1);
 }
 
 inline unsigned char get_move_restrictions(SCollision *restrict pCollision, void *restrict pUser, vec2 Pos,
@@ -590,8 +620,7 @@ int get_map_index(SCollision *pCollision, vec2 Pos) {
   const int Index = pCollision->m_pWidthLookup[Ny] + Nx;
   if (pCollision->m_pTileInfos[Index] & INFO_TILENEXT)
     return Index;
-  else
-    return -1;
+  return -1;
 }
 
 inline bool check_point(SCollision *pCollision, vec2 Pos) {
@@ -604,26 +633,14 @@ static inline bool check_point_idx(SCollision *pCollision, int Idx) {
   return pCollision->m_pTileInfos[Idx] & INFO_ISSOLID;
 }
 
-void ThroughOffset(vec2 Pos0, vec2 Pos1, int *restrict pOffsetX, int *restrict pOffsetY) {
-  const float x = vgetx(Pos0) - vgetx(Pos1);
-  const float y = vgety(Pos0) - vgety(Pos1);
-  if (fabs(x) > fabs(y)) {
-    if (x < 0) {
-      *pOffsetX = -32;
-      *pOffsetY = 0;
-    } else {
-      *pOffsetX = 32;
-      *pOffsetY = 0;
-    }
-  } else {
-    if (y < 0) {
-      *pOffsetX = 0;
-      *pOffsetY = -32;
-    } else {
-      *pOffsetX = 0;
-      *pOffsetY = 32;
-    }
-  }
+static inline void through_offset(vec2 Pos0, vec2 Pos1, int *restrict pOffsetX, int *restrict pOffsetY) {
+  static const int offsets[8][2] = {{32, 0}, {0, 32},  {-32, 0}, {0, 32},
+                                    {32, 0}, {0, -32}, {-32, 0}, {0, -32}};
+  const float dx = vgetx(Pos0) - vgetx(Pos1);
+  const float dy = vgety(Pos0) - vgety(Pos1);
+  int index = ((dx < 0.0f) << 2) | ((dy < 0.0f) << 1) | ((dx >= 0.0f ? dx : -dx) > (dy >= 0.0f ? dy : -dy));
+  *pOffsetX = offsets[index][0];
+  *pOffsetY = offsets[index][1];
 }
 
 bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY, vec2 Pos0, vec2 Pos1) {
@@ -783,41 +800,39 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos
   Start -= Start % 4;
   const float fEnd = End;
   int dx = 0, dy = 0;
-  ThroughOffset(Pos0, Pos1, &dx, &dy);
+  through_offset(Pos0, Pos1, &dx, &dy);
   int LastIndex = -1;
 
-  int aIndices[84 /* todo: replace with hook tune length + length%4 later*/];
+  int aIndices[88];
 
-  // WARNING: using this inverse might lead to floating point errors changing
-  // physics
   const float inv_fEnd = 1.0f / fEnd;
   const float Pos0_x = vgetx(Pos0);
   const float Pos0_y = vgety(Pos0);
   const float diff_x = vgetx(Pos1) - Pos0_x;
   const float diff_y = vgety(Pos1) - Pos0_y;
 
-  const __m128 Pos0_x_vec = _mm_set1_ps(Pos0_x);
-  const __m128 Pos0_y_vec = _mm_set1_ps(Pos0_y);
-  const __m128 diff_x_vec = _mm_set1_ps(diff_x);
-  const __m128 diff_y_vec = _mm_set1_ps(diff_y);
-  const __m128 inv_fEnd_vec = _mm_set1_ps(inv_fEnd);
-  const __m128 half_vec = _mm_set1_ps(0.5f);
-  const __m128i width_vec = _mm_set1_epi32(Width);
+  const __m256 Pos0_x_vec = _mm256_set1_ps(Pos0_x);
+  const __m256 Pos0_y_vec = _mm256_set1_ps(Pos0_y);
+  const __m256 diff_x_vec = _mm256_set1_ps(diff_x);
+  const __m256 diff_y_vec = _mm256_set1_ps(diff_y);
+  const __m256 inv_fEnd_vec = _mm256_set1_ps(inv_fEnd);
+  const __m256 half_vec = _mm256_set1_ps(0.5f);
+  const __m256i width_vec = _mm256_set1_epi32(Width);
 
 #pragma clang unroll(full)
-  for (int k = Start; k < 84 /* todo: replace with hook tune length later*/; k += 4) {
-    __m128i i_vec = _mm_set_epi32(k + 3, k + 2, k + 1, k);
-    __m128 a_vec = _mm_mul_ps(_mm_cvtepi32_ps(i_vec), inv_fEnd_vec);
-    __m128 Pos_x_vec = _mm_add_ps(Pos0_x_vec, _mm_mul_ps(a_vec, diff_x_vec));
-    __m128 Pos_y_vec = _mm_add_ps(Pos0_y_vec, _mm_mul_ps(a_vec, diff_y_vec));
-    __m128 Pos_x_plus_half = _mm_add_ps(Pos_x_vec, half_vec);
-    __m128 Pos_y_plus_half = _mm_add_ps(Pos_y_vec, half_vec);
-    __m128i ix_vec = _mm_srai_epi32(_mm_cvttps_epi32(Pos_x_plus_half), 5);
-    __m128i iy_vec = _mm_srai_epi32(_mm_cvttps_epi32(Pos_y_plus_half), 5);
-    // NOTE: Use width lookup maybe, i tried and it was slower
-    __m128i index_vec = _mm_add_epi32(_mm_mullo_epi32(iy_vec, width_vec), ix_vec);
-    _mm_storeu_si128((__m128i *)&aIndices[k], index_vec);
+  for (int k = Start; k <= 80; k += 8) {
+    __m256i i_vec = _mm256_set_epi32(k + 7, k + 6, k + 5, k + 4, k + 3, k + 2, k + 1, k);
+    __m256 a_vec = _mm256_mul_ps(_mm256_cvtepi32_ps(i_vec), inv_fEnd_vec);
+    __m256 Pos_x_vec = _mm256_add_ps(Pos0_x_vec, _mm256_mul_ps(a_vec, diff_x_vec));
+    __m256 Pos_y_vec = _mm256_add_ps(Pos0_y_vec, _mm256_mul_ps(a_vec, diff_y_vec));
+    __m256 Pos_x_plus_half = _mm256_add_ps(Pos_x_vec, half_vec);
+    __m256 Pos_y_plus_half = _mm256_add_ps(Pos_y_vec, half_vec);
+    __m256i ix_vec = _mm256_srai_epi32(_mm256_cvttps_epi32(Pos_x_plus_half), 5);
+    __m256i iy_vec = _mm256_srai_epi32(_mm256_cvttps_epi32(Pos_y_plus_half), 5);
+    __m256i index_vec = _mm256_add_epi32(_mm256_mullo_epi32(iy_vec, width_vec), ix_vec);
+    _mm256_storeu_si256((__m256i *)&aIndices[k], index_vec);
   }
+
   for (int i = Start; i <= End; i++) {
     int Index = aIndices[i];
     __builtin_assume(Index > 0);
@@ -901,6 +916,7 @@ const vec2 *tele_check_outs(SCollision *restrict pCollision, int Number, int *re
   return pCollision->m_apTeleCheckOuts[Number];
 }
 
+// TODO: do the same optimization as in intersect_line_tele_hook
 bool intersect_line(SCollision *restrict pCollision, vec2 Pos0, vec2 Pos1, vec2 *restrict pOutCollision,
                     vec2 *restrict pOutBeforeCollision) {
   if (!broad_check(pCollision, Pos0, Pos1)) {
@@ -936,9 +952,7 @@ bool intersect_line(SCollision *restrict pCollision, vec2 Pos0, vec2 Pos1, vec2 
 }
 
 static inline bool check_point_int(SCollision *restrict pCollision, int x, int y) {
-  int Nx = x >> 5;
-  int Ny = y >> 5;
-  return pCollision->m_pTileInfos[pCollision->m_pWidthLookup[Ny] + Nx] & INFO_ISSOLID;
+  return pCollision->m_pTileInfos[pCollision->m_pWidthLookup[y >> 5] + (x >> 5)] & INFO_ISSOLID;
 }
 
 static inline bool test_box_character(SCollision *restrict pCollision, int x, int y) {
@@ -957,44 +971,42 @@ void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos, vec2 *r
               vec2 Elasticity, bool *restrict pGrounded) {
   vec2 Vel = *pInoutVel;
   float Distance = vlength(Vel);
-  if (Distance <= 0.00001f) {
+  if (Distance <= 0.00001f)
     return;
-  }
+
   vec2 Pos = *pInoutPos;
   vec2 NewPos = vvadd(Pos, Vel);
-  int Max = (int)Distance;
-  float Fraction = 1.0f / (float)(Max + 1);
-
-  if (!broad_check_char(pCollision, *pInoutPos, NewPos)) {
-    const vec2 Frac = vfmul(Vel, Fraction);
+  const int Max = (int)Distance;
+  if (!broad_check_char(pCollision, Pos, NewPos)) {
+    const vec2 Frac = vfmul(Vel, s_aFractionTable[Max]);
     for (int i = 0; i <= Max; i++)
       Pos = vvadd(Pos, Frac);
     *pInoutPos = Pos;
     return;
   }
 
+  const float Fraction = s_aFractionTable[Max];
   uivec2 IPos = (uivec2){(int)(vgetx(Pos) + 0.5f), (int)(vgety(Pos) + 0.5f)};
   uivec2 INewPos;
-  int Hits;
   for (int i = 0; i <= Max; i++) {
     NewPos = vvadd(Pos, vfmul(Vel, Fraction));
     INewPos = (uivec2){(int)(vgetx(NewPos) + 0.5f), (int)(vgety(NewPos) + 0.5f)};
     if (test_box_character(pCollision, INewPos.x, INewPos.y)) {
-      Hits = 0;
+      bool Hit = false;
       if (test_box_character(pCollision, IPos.x, INewPos.y)) {
-        if (pGrounded && vgety(Elasticity) > 0 && vgety(Vel) > 0)
+        if (vgety(Elasticity) > 0 && vgety(Vel) > 0)
           *pGrounded = true;
         NewPos = vsety(NewPos, vgety(Pos));
         Vel = vsety(Vel, -vgety(Vel) * vgety(Elasticity));
-        Hits++;
+        Hit = true;
       }
       if (test_box_character(pCollision, INewPos.x, IPos.y)) {
         NewPos = vsetx(NewPos, vgetx(Pos));
         Vel = vsetx(Vel, -vgetx(Vel) * vgetx(Elasticity));
-        Hits++;
+        Hit = true;
       }
-      if (Hits == 0) {
-        if (pGrounded && vgety(Elasticity) > 0 && vgety(Vel) > 0)
+      if (!Hit) {
+        if (vgety(Elasticity) > 0 && vgety(Vel) > 0)
           *pGrounded = true;
         NewPos = Pos;
         Vel = vfmul(Vel, -1.0f);
@@ -1012,9 +1024,8 @@ void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos, vec2 *r
 bool get_nearest_air_pos_player(SCollision *restrict pCollision, vec2 PlayerPos, vec2 *restrict pOutPos) {
   for (int dist = 5; dist >= -1; dist--) {
     *pOutPos = vec2_init(vgetx(PlayerPos), vgety(PlayerPos) - dist);
-    if (!test_box(pCollision, *pOutPos, PHYSICALSIZEVEC)) {
+    if (!test_box(pCollision, *pOutPos, PHYSICALSIZEVEC))
       return true;
-    }
   }
   return false;
 }
@@ -1068,40 +1079,6 @@ int get_index(SCollision *pCollision, vec2 PrevPos, vec2 Pos) {
   }
 
   return -1;
-}
-
-unsigned char mover_speed(SCollision *pCollision, int x, int y, vec2 *pSpeed) {
-  int Nx = x >> 5;
-  int Ny = y >> 5;
-  int Index = pCollision->m_MapData.m_GameLayer.m_pData[pCollision->m_pWidthLookup[Ny] + Nx];
-
-  if (Index != TILE_CP && Index != TILE_CP_F) {
-    return 0;
-  }
-
-  vec2 Target;
-  switch (pCollision->m_MapData.m_GameLayer.m_pFlags[pCollision->m_pWidthLookup[Ny] + Nx]) {
-  case ROTATION_0:
-    Target = vec2_init(0.0f, -4.0f);
-    break;
-  case ROTATION_90:
-    Target = vec2_init(4.0f, 0.0f);
-    break;
-  case ROTATION_180:
-    Target = vec2_init(0.0f, 4.0f);
-    break;
-  case ROTATION_270:
-    Target = vec2_init(-4.0f, 0.0f);
-    break;
-  default:
-    Target = vec2_init(0.0f, 0.0f);
-    break;
-  }
-  if (Index == TILE_CP_F) {
-    Target = vfmul(Target, 4.0f);
-  }
-  *pSpeed = Target;
-  return Index;
 }
 
 int entity(SCollision *pCollision, int x, int y, int Layer) {

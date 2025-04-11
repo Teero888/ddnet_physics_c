@@ -20,32 +20,22 @@ typedef struct {
 inline vec2 vec2_init(float x, float y) { return _mm_set_ps(0.0f, 0.0f, y, x); }
 
 // Add x value to vector
-inline vec2 vadd_x(vec2 v, float x_val) {
-  return _mm_add_ps(v, _mm_set_ps(0.0f, 0.0f, 0.0f, x_val));
-}
+inline vec2 vadd_x(vec2 v, float x_val) { return _mm_add_ps(v, _mm_set_ps(0.0f, 0.0f, 0.0f, x_val)); }
 
 // Subtract x value from vector
-inline vec2 vsub_x(vec2 v, float x_val) {
-  return _mm_sub_ps(v, _mm_set_ps(0.0f, 0.0f, 0.0f, x_val));
-}
+inline vec2 vsub_x(vec2 v, float x_val) { return _mm_sub_ps(v, _mm_set_ps(0.0f, 0.0f, 0.0f, x_val)); }
 
 // Add y value to vector
-inline vec2 vadd_y(vec2 v, float y_val) {
-  return _mm_add_ps(v, _mm_set_ps(0.0f, 0.0f, y_val, 0.0f));
-}
+inline vec2 vadd_y(vec2 v, float y_val) { return _mm_add_ps(v, _mm_set_ps(0.0f, 0.0f, y_val, 0.0f)); }
 
 // Subtract y value from vector
-inline vec2 vsub_y(vec2 v, float y_val) {
-  return _mm_sub_ps(v, _mm_set_ps(0.0f, 0.0f, y_val, 0.0f));
-}
+inline vec2 vsub_y(vec2 v, float y_val) { return _mm_sub_ps(v, _mm_set_ps(0.0f, 0.0f, y_val, 0.0f)); }
 
 // Get x component
 inline float vgetx(vec2 v) { return _mm_cvtss_f32(v); }
 
 // Get y component
-inline float vgety(vec2 v) {
-  return _mm_cvtss_f32(_mm_shuffle_ps(v, v, _MM_SHUFFLE(1, 1, 1, 1)));
-}
+inline float vgety(vec2 v) { return _mm_cvtss_f32(_mm_shuffle_ps(v, v, _MM_SHUFFLE(1, 1, 1, 1))); }
 
 // Set x component
 inline vec2 vsetx(vec2 v, float x) { return _mm_move_ss(v, _mm_set_ss(x)); }
@@ -117,9 +107,7 @@ inline vec2 vnormalize_nomask(vec2 a) {
 
 inline int imax(int a, int b) { return a > b ? a : b; }
 inline int imin(int a, int b) { return a < b ? a : b; }
-inline int iclamp(int num, int low, int high) {
-  return num < low ? low : num > high ? high : num;
-}
+inline int iclamp(int num, int low, int high) { return num < low ? low : num > high ? high : num; }
 
 // Clamp value
 inline float fclamp(float n, float a, float b) {
@@ -138,12 +126,9 @@ inline vec2 vvfmix(vec2 a, vec2 b, float t) {
 }
 
 // Create direction vector from angle (in radians)
-inline vec2 vdirection(float angle) {
-  return vec2_init(cosf(angle), sinf(angle));
-}
+inline vec2 vdirection(float angle) { return vec2_init(cosf(angle), sinf(angle)); }
 
-inline bool closest_point_on_line(vec2 line_pointA, vec2 line_pointB,
-                                  vec2 target_point, vec2 *out_pos) {
+inline bool closest_point_on_line(vec2 line_pointA, vec2 line_pointB, vec2 target_point, vec2 *out_pos) {
   vec2 AB = vvsub(line_pointB, line_pointA);
   float sq_mag_AB = vdot(AB, AB);
   if (sq_mag_AB > 0.0f) {

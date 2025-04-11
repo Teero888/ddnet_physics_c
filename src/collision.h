@@ -102,7 +102,6 @@ unsigned char get_move_restrictions(SCollision *pCollision, void *pUser, vec2 Po
                                     int OverrideCenterTileIndex);
 int get_map_index(SCollision *pCollision, vec2 Pos);
 bool check_point(SCollision *pCollision, vec2 Pos);
-void ThroughOffset(vec2 Pos0, vec2 Pos1, int *restrict pOffsetX, int *restrict pOffsetY);
 bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY, vec2 Pos0, vec2 Pos1);
 bool is_hook_blocker(SCollision *pCollision, int Index, vec2 Pos0, vec2 Pos1);
 unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos0, vec2 Pos1,

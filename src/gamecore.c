@@ -363,6 +363,7 @@ void cc_do_pickup(SCharacterCore *pCore) {
         break;
       }
       default:
+        __builtin_unreachable();
         break;
       }
     }
@@ -1335,7 +1336,10 @@ void cc_handle_ninja(SCharacterCore *pCore) {
     vec2 GroundElasticity =
         vec2_init(pCore->m_pTuning->m_GroundElasticityX, pCore->m_pTuning->m_GroundElasticityY);
 
-    move_box(pCore->m_pCollision, &pCore->m_Pos, &pCore->m_Vel, GroundElasticity, NULL);
+    {
+      bool _;
+      move_box(pCore->m_pCollision, &pCore->m_Pos, &pCore->m_Vel, GroundElasticity, &_);
+    }
 
     pCore->m_Vel = vec2_init(0, 0);
 
@@ -1459,7 +1463,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
         // set his velocity to fast upward (for now)
 
         vec2 Dir;
-        if (vlength(vvsub(pTarget->m_Pos, pCore->m_Pos)) > 0.0f)
+        if (vsqlength(vvsub(pTarget->m_Pos, pCore->m_Pos)) > 0.0f)
           Dir = vnormalize(vvsub(pTarget->m_Pos, pCore->m_Pos));
         else
           Dir = vec2_init(0.f, -1.f);

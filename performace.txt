@@ -16,6 +16,7 @@ Benchmarking in multi-threaded mode...
 Using 8 threads with OpenMP.
 TPS (mean ± σ):		24,598,397 ± 103,532 ticks/s
 Range (min … max):	24,323,203 … 24,687,930 ticks/s	10 runs
+
 }}}
 
 2025-04-05 Saturday W14 15:17:00.516534548{{{
@@ -28,6 +29,7 @@ Benchmarking in multi-threaded mode...
 Using 8 threads with OpenMP.
 TPS (mean ± σ):		25,694,347 ± 1,375,989 ticks/s
 Range (min … max):	21,566,762 … 26,163,163 ticks/s	10 runs
+
 }}}
 
 2025-04-06 Sunday W14 16:31:43.972672795{{{
@@ -40,6 +42,7 @@ Benchmarking in multi-threaded mode...
 Using 8 threads with OpenMP.
 TPS (mean ± σ):		28,236,062 ± 935,213 ticks/s
 Range (min … max):	25,440,788 … 28,603,573 ticks/s	10 runs
+
 }}}
 
 2025-04-09 Wednesday W15 18:00:17.887569972{{{
@@ -52,6 +55,7 @@ Benchmarking in multi-threaded mode...
 Using 8 threads with OpenMP.
 TPS (mean ± σ):		31,613,271 ± 43,401 ticks/s
 Range (min … max):	31,517,241 … 31,710,807 ticks/s	10 runs
+
 }}}
 
 2025-04-10 Thursday W15 15:58:27.018134560{{{
@@ -64,4 +68,18 @@ Benchmarking in multi-threaded mode...
 Using 8 threads with OpenMP.
 TPS (mean ± σ):		36,861,152 ± 56,330 ticks/s
 Range (min … max):	36,798,058 … 36,995,072 ticks/s	10 runs
+
+}}}
+
+2025-04-11 Friday W15 18:43:24.093325002{{{
+
+Benchmarking in single-threaded mode...
+TPS (mean ± σ):		7,107,854 ± 7,984 ticks/s
+Range (min … max):	7,093,650 … 7,115,485 ticks/s	10 runs
+
+Benchmarking in multi-threaded mode...
+Using 8 threads with OpenMP.
+TPS (mean ± σ):		37,724,725 ± 211,755 ticks/s
+Range (min … max):	37,227,666 … 37,880,578 ticks/s	10 runs
+
 }}}
