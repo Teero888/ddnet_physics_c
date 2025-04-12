@@ -805,7 +805,7 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos
 
   int aIndices[88];
 
-  const float inv_fEnd = 1.0f / fEnd;
+  const float inv_fEnd = s_aFractionTable[End - 1];
   const float Pos0_x = vgetx(Pos0);
   const float Pos0_y = vgety(Pos0);
   const float diff_x = vgetx(Pos1) - Pos0_x;
@@ -967,21 +967,37 @@ static inline bool test_box_character(SCollision *restrict pCollision, int x, in
   return false;
 }
 
+// float MaxDiff;
 void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos, vec2 *restrict pInoutVel,
               vec2 Elasticity, bool *restrict pGrounded) {
   vec2 Vel = *pInoutVel;
-  float Distance = vlength(Vel);
-  if (Distance <= 0.00001f)
+  float Distance = vsqlength(Vel);
+  if (Distance <= 0.00001f * 0.00001f)
     return;
 
   vec2 Pos = *pInoutPos;
   vec2 NewPos = vvadd(Pos, Vel);
-  const int Max = (int)Distance;
+  const unsigned short Max = s_aMaxTable[(int)Distance];
   if (!broad_check_char(pCollision, Pos, NewPos)) {
+    const float NewPosX = vgetx(NewPos) + 0.5f;
+    const float NewPosY = vgety(NewPos) + 0.5f;
+    const float INewPosX = (float)((int)NewPosX);
+    const float INewPosY = (float)((int)NewPosY);
+    static const float Epsilon = 0.08f;
+    if (NewPosX - INewPosX > Epsilon && NewPosY - INewPosY > Epsilon &&
+        (INewPosX + 1.f) - NewPosX > Epsilon && (INewPosX + 1.f) - NewPosX > Epsilon) {
+      *pInoutPos = NewPos;
+      return;
+    }
     const vec2 Frac = vfmul(Vel, s_aFractionTable[Max]);
     for (int i = 0; i <= Max; i++)
       Pos = vvadd(Pos, Frac);
     *pInoutPos = Pos;
+    // if (vgetx(NewPos) - vgetx(Pos) > MaxDiff)
+    //   MaxDiff = vgetx(NewPos) - vgetx(Pos);
+    // if (vgety(NewPos) - vgety(Pos) > MaxDiff)
+    //   MaxDiff = vgety(NewPos) - vgety(Pos);
+    // printf("Max: %.20f\n", MaxDiff);
     return;
   }
 

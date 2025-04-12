@@ -2,8 +2,7 @@
 #include "collision.h"
 #include "data.h"
 #include "utils.h"
-#include "vmath.h"
-#include <getopt.h> // Explicitly include getopt.h for struct option and getopt_long
+#include <getopt.h> 
 #include <math.h>
 #include <omp.h>
 #include <stdio.h>

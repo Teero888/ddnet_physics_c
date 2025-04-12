@@ -280,12 +280,12 @@ void prj_tick(SProjectile *pProj) {
 
 bool cc_freeze(SCharacterCore *pCore, int Seconds);
 
-// This must be called every time the tee positions is updated
 static inline void cc_calc_indices(SCharacterCore *pCore) {
-  pCore->m_BlockPos.x = ((int)vgetx(pCore->m_Pos) >> 5);
-  pCore->m_BlockPos.y = ((int)vgety(pCore->m_Pos) >> 5);
-  // This addition is very poor. like 5% of the whole cc_move function
-  pCore->m_BlockIdx = pCore->m_pCollision->m_pWidthLookup[pCore->m_BlockPos.y] + pCore->m_BlockPos.x;
+  const int x = ((int)vgetx(pCore->m_Pos) >> 5);
+  const int y = ((int)vgety(pCore->m_Pos) >> 5);
+  pCore->m_BlockPos.x = x;
+  pCore->m_BlockPos.y = y;
+  pCore->m_BlockIdx = y * pCore->m_pCollision->m_MapData.m_Width + x;
 }
 
 void cc_do_pickup(SCharacterCore *pCore) {
@@ -481,8 +481,8 @@ void cc_move(SCharacterCore *pCore) {
   if (RampValue != 1.f)
     pCore->m_Vel = vsetx(pCore->m_Vel, velX * (1.f / RampValue));
 
-  if (pCore->m_pTuning->m_PlayerCollision && !pCore->m_CollisionDisabled && !pCore->m_Solo &&
-      pCore->m_pWorld->m_NumCharacters > 1) {
+  if (pCore->m_pWorld->m_NumCharacters > 1 && pCore->m_pTuning->m_PlayerCollision &&
+      !pCore->m_CollisionDisabled && !pCore->m_Solo) {
     float Distance = vdistance(pCore->m_Pos, NewPos);
     if (Distance > 0) {
       int End = Distance + 1;
@@ -1409,8 +1409,6 @@ void wc_insert_entity(SWorldCore *pWorld, SEntity *pEnt);
 void wc_remove_entity(SWorldCore *pWorld, SEntity *pEnt);
 
 void cc_fire_weapon(SCharacterCore *pCore) {
-  if (pCore->m_ReloadTimer)
-    return;
   cc_do_weapon_switch(pCore);
 
   if (pCore->m_FreezeTime)
@@ -1436,7 +1434,6 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   if (!WillFire)
     return;
 
-  // We always expect the target position not to be 0,0
   const vec2 Direction =
       vnormalize_nomask(vec2_init(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY));
   const vec2 ProjStartPos = vvadd(pCore->m_Pos, vfmul(Direction, PHYSICALSIZE * 0.75f));
@@ -1445,7 +1442,8 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   case WEAPON_HAMMER: {
     // reset objects Hit
     pCore->m_NumObjectsHit = 0;
-
+    if (pCore->m_pWorld->m_NumCharacters <= 1)
+      break;
     if (pCore->m_HammerHitDisabled)
       break;
     if (pCore->m_Solo)
@@ -1487,7 +1485,8 @@ void cc_fire_weapon(SCharacterCore *pCore) {
       float FireDelay = pCore->m_pTuning->m_HammerHitFireDelay;
       pCore->m_ReloadTimer = FireDelay * SERVER_TICK_SPEED / 1000;
     }
-  } break;
+    break;
+  }
 
   case WEAPON_GUN: {
     if (!pCore->m_Jetpack) {
@@ -1507,7 +1506,8 @@ void cc_fire_weapon(SCharacterCore *pCore) {
       //                 -1            // SoundImpact
       // );
     }
-  } break;
+    break;
+  }
 
   case WEAPON_SHOTGUN: {
     // float LaserReach = pCore->m_pTuning->m_LaserReach;
@@ -1522,14 +1522,16 @@ void cc_fire_weapon(SCharacterCore *pCore) {
     prj_init(pNewProj, pCore->m_pWorld, WEAPON_GRENADE, pCore->m_Id, ProjStartPos, Direction, Lifetime, false,
              true, 0, 0);
     wc_insert_entity(pCore->m_pWorld, (SEntity *)pNewProj);
-  } break;
+    break;
+  }
 
   case WEAPON_LASER: {
     // float LaserReach = pCore->m_pTuning->m_LaserReach;
     // TODO:
     // new CLaser(GameWorld(), m_Pos, Direction, LaserReach, GetCid(),
     //            WEAPON_LASER);
-  } break;
+    break;
+  }
 
   case WEAPON_NINJA: {
     // reset Hit objects
@@ -1538,7 +1540,10 @@ void cc_fire_weapon(SCharacterCore *pCore) {
     pCore->m_Ninja.m_ActivationDir = Direction;
     pCore->m_Ninja.m_CurrentMoveTime = (NINJA_MOVETIME * SERVER_TICK_SPEED) / 1000;
     pCore->m_Ninja.m_OldVelAmount = vlength(pCore->m_Vel);
-  } break;
+    break;
+  }
+  default:
+    __builtin_unreachable();
   }
 
   // reloadtimer can be changed earlier by hammer so check again
@@ -1580,7 +1585,8 @@ void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
     pCore->m_LatestInput.m_TargetY = -1;
 
   cc_do_weapon_switch(pCore);
-  cc_fire_weapon(pCore);
+  if (!pCore->m_ReloadTimer)
+    cc_fire_weapon(pCore);
 
   pCore->m_PrevFire = pCore->m_LatestInput.m_Fire;
 }
