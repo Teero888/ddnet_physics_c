@@ -2,7 +2,7 @@
 #include "collision.h"
 #include "data.h"
 #include "utils.h"
-#include <getopt.h> 
+#include <getopt.h>
 #include <math.h>
 #include <omp.h>
 #include <stdio.h>
