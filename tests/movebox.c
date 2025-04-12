@@ -3,11 +3,10 @@
 #include "data.h"
 #include "utils.h"
 #include "vmath.h"
-#include <getopt.h> // Explicitly include getopt.h for struct option and getopt_long
+#include <getopt.h>
 #include <math.h>
 #include <omp.h>
 #include <stdio.h>
-#include <time.h>
 
 #define ITERATIONS 3000
 #define TICKS_PER_ITERATION 3000
@@ -127,7 +126,7 @@ int main(int argc, char *argv[]) {
       }
       ElapsedTime = omp_get_wtime() - StartTime;
     } else {
-      StartTime = (double)clock() / CLOCKS_PER_SEC;
+      StartTime = omp_get_wtime();
       for (int i = 0; i < ITERATIONS; ++i) {
         for (int t = 0; t < TICKS_PER_ITERATION; ++t) {
           vec2 Pos = s_TestRun.m_vStates[0][t].m_Pos;
@@ -136,7 +135,7 @@ int main(int argc, char *argv[]) {
           move_box(&Collision, Pos, Vel, &Pos, &Vel, vec2_init(0, 0), &Grounded);
         }
       }
-      ElapsedTime = (double)clock() / CLOCKS_PER_SEC - StartTime;
+      ElapsedTime = omp_get_wtime() - StartTime;
     }
 
     aTPSValues[run] = (double)TOTAL_TICKS / ElapsedTime;

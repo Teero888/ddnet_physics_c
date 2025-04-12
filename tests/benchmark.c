@@ -6,7 +6,6 @@
 #include <math.h>
 #include <omp.h>
 #include <stdio.h>
-#include <time.h>
 
 #define ITERATIONS 1000
 #define TICKS_PER_ITERATION s_TestRun.m_Ticks
@@ -138,7 +137,7 @@ int main(int argc, char *argv[]) {
       }
       ElapsedTime = omp_get_wtime() - StartTime;
     } else {
-      StartTime = (double)clock() / CLOCKS_PER_SEC;
+      StartTime = omp_get_wtime();
       for (int i = 0; i < ITERATIONS; ++i) {
         SWorldCore World = (SWorldCore){};
         wc_copy_world(&World, &StartWorld);
@@ -153,7 +152,7 @@ int main(int argc, char *argv[]) {
         // }
         wc_free(&World);
       }
-      ElapsedTime = (double)clock() / CLOCKS_PER_SEC - StartTime;
+      ElapsedTime = omp_get_wtime() - StartTime;
     }
 
     aTPSValues[run] = (double)TOTAL_TICKS / ElapsedTime;

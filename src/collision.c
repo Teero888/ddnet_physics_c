@@ -967,15 +967,6 @@ static inline bool test_box_character(const SCollision *restrict pCollision, int
   return false;
 }
 
-static inline float calculate_precision(float x) {
-  union {
-    float f;
-    uint32_t i;
-  } bits;
-  bits.f = x;
-  uint32_t exponent = (bits.i >> 23) & 0xFF;
-  return s_aUlpTable[exponent];
-}
 void move_box(const SCollision *restrict pCollision, vec2 Pos, vec2 Vel, vec2 *restrict pOutPos,
               vec2 *restrict pOutVel, vec2 Elasticity, bool *restrict pGrounded) {
   float Distance = vsqlength(Vel);
@@ -989,8 +980,14 @@ void move_box(const SCollision *restrict pCollision, vec2 Pos, vec2 Vel, vec2 *r
     const float NewPosY = vgety(NewPos) + 0.5f;
     const float INewPosX = (float)((int)NewPosX);
     const float INewPosY = (float)((int)NewPosY);
-    const float EpsilonX = calculate_precision(NewPosX) * (Max >> 1);
-    const float EpsilonY = calculate_precision(NewPosY) * (Max >> 1);
+    union {
+      float f;
+      uint32_t i;
+    } bits;
+    bits.f = NewPosX;
+    const float EpsilonX = s_aUlpTable[(bits.i >> 23) & 0xFF] * (Max >> 1);
+    bits.f = NewPosY;
+    const float EpsilonY = s_aUlpTable[(bits.i >> 23) & 0xFF] * (Max >> 1);
     if (NewPosX - INewPosX > EpsilonX && NewPosY - INewPosY > EpsilonY &&
         (INewPosX + 1.f) - NewPosX > EpsilonX && (INewPosY + 1.f) - NewPosY > EpsilonY) {
       *pOutPos = NewPos;

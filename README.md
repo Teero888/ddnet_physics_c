@@ -1,1 +1,2 @@
 # Optimizations
+- use clang
