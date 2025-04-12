@@ -101,8 +101,6 @@ typedef struct CharacterCore {
   int m_JumpedTotal;
   int m_Jumps;
 
-  int m_Direction;
-
   unsigned char m_PrevFire;
   SPlayerInput m_LatestInput;
   SPlayerInput m_Input;

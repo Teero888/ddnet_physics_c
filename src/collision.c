@@ -650,9 +650,8 @@ bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY, 
 
   if (pFrontIdx) {
     unsigned char frontTile = pFrontIdx[pos];
-    if (frontTile == TILE_THROUGH_ALL || frontTile == TILE_THROUGH_CUT) {
+    if (frontTile == TILE_THROUGH_ALL || frontTile == TILE_THROUGH_CUT)
       return true;
-    }
     if (frontTile == TILE_THROUGH_DIR) {
       unsigned char flags = pFrontFlgs[pos];
       if ((flags == ROTATION_0 && vgety(Pos0) > vgety(Pos1)) ||
@@ -702,9 +701,9 @@ static inline bool broad_check_char(const SCollision *restrict pCollision, vec2 
   const vec2 maxAdj = _mm_add_ps(maxVec, offset);
   const int MinX = (int)vgetx(minAdj) >> 5;
   const int MinY = (int)vgety(minAdj) >> 5;
-  const int MaxX = (int)ceilf(vgetx(maxAdj)) >> 5;
-  const int MaxY = (int)ceilf(vgety(maxAdj)) >> 5;
-  return pCollision->m_pBroadSolidBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
+  const int MaxX = (int)vgetx(maxAdj) >> 5;
+  const int MaxY = (int)vgety(maxAdj) >> 5;
+  return pCollision->m_pBroadSolidBitField[MinY * pCollision->m_MapData.m_Width + MinX] &
          (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
 }
 
@@ -715,7 +714,7 @@ static inline bool broad_check(const SCollision *restrict pCollision, vec2 Start
   const int MinY = (int)vgety(minVec) >> 5;
   const int MaxX = (int)ceilf(vgetx(maxVec)) >> 5;
   const int MaxY = (int)ceilf(vgety(maxVec)) >> 5;
-  return pCollision->m_pBroadSolidBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
+  return pCollision->m_pBroadSolidBitField[MinY * pCollision->m_MapData.m_Width + MinX] &
          (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
 }
 
@@ -795,7 +794,7 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos
   //   return 0;
   // }
 
-  const int End = vdistance(Pos0, Pos1) + 1;
+  const int End = s_aMaxTable[(int)vsqdistance(Pos0, Pos1)] + 1;
   Start = iclamp(Start, 0, End);
   Start -= Start % 4;
   const float fEnd = End;
@@ -906,7 +905,6 @@ const vec2 *spawn_points(SCollision *restrict pCollision, int *restrict pOutNum)
   *pOutNum = pCollision->m_NumSpawnPoints;
   return pCollision->m_pSpawnPoints;
 }
-
 const vec2 *tele_outs(SCollision *restrict pCollision, int Number, int *restrict pOutNum) {
   *pOutNum = pCollision->m_aNumTeleOuts[Number];
   return pCollision->m_apTeleOuts[Number];
@@ -956,13 +954,13 @@ static inline bool check_point_int(const SCollision *restrict pCollision, int x,
 }
 
 static inline bool test_box_character(const SCollision *restrict pCollision, int x, int y) {
-  if (check_point_int(pCollision, x - HALFPHYSICALSIZE, y - HALFPHYSICALSIZE))
-    return true;
-  if (check_point_int(pCollision, x + HALFPHYSICALSIZE, y - HALFPHYSICALSIZE))
-    return true;
   if (check_point_int(pCollision, x - HALFPHYSICALSIZE, y + HALFPHYSICALSIZE))
     return true;
   if (check_point_int(pCollision, x + HALFPHYSICALSIZE, y + HALFPHYSICALSIZE))
+    return true;
+  if (check_point_int(pCollision, x - HALFPHYSICALSIZE, y - HALFPHYSICALSIZE))
+    return true;
+  if (check_point_int(pCollision, x + HALFPHYSICALSIZE, y - HALFPHYSICALSIZE))
     return true;
   return false;
 }
@@ -985,9 +983,9 @@ void move_box(const SCollision *restrict pCollision, vec2 Pos, vec2 Vel, vec2 *r
       uint32_t i;
     } bits;
     bits.f = NewPosX;
-    const float EpsilonX = s_aUlpTable[(bits.i >> 23) & 0xFF] * (Max >> 1);
+    const float EpsilonX = s_aMagicTable[(bits.i >> 23) & 0xFF] * (Max >> 1);
     bits.f = NewPosY;
-    const float EpsilonY = s_aUlpTable[(bits.i >> 23) & 0xFF] * (Max >> 1);
+    const float EpsilonY = s_aMagicTable[(bits.i >> 23) & 0xFF] * (Max >> 1);
     if (NewPosX - INewPosX > EpsilonX && NewPosY - INewPosY > EpsilonY &&
         (INewPosX + 1.f) - NewPosX > EpsilonX && (INewPosY + 1.f) - NewPosY > EpsilonY) {
       *pOutPos = NewPos;

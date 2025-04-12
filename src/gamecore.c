@@ -64,12 +64,6 @@ vec2 calc_pos(vec2 Pos, vec2 Velocity, float Curvature, float Speed, float Time)
   return n;
 }
 
-static inline float velocity_ramp(float Value, float Start, float k) {
-  if (Value < Start)
-    return 1.0f;
-  return expf(k * (Value - Start));
-}
-
 // }}}
 
 // Necessary enums {{{
@@ -450,10 +444,12 @@ __attribute__((noinline)) void cc_quantize(SCharacterCore *pCore) {
 }
 
 void cc_move(SCharacterCore *pCore) {
-  const float RampValue = velocity_ramp(vlength(pCore->m_Vel) * 50, pCore->m_pTuning->m_VelrampStart,
-                                        pCore->m_pTuning->m_VelrampValue);
-  // NOTE: do not do a if(RampValue != 1.f) here. this makes this apparently
-  // unpredictable so setting the OldVel is super slow. saves 2% by not doing it
+
+  float RampValue = 1.f;
+  const float VelMag = vlength(pCore->m_Vel) * 50;
+  if (VelMag >= pCore->m_pTuning->m_VelrampStart)
+    RampValue = expf(pCore->m_pTuning->m_VelrampValue * (VelMag - pCore->m_pTuning->m_VelrampStart));
+
   const float OldVel = vgetx(pCore->m_Vel) * RampValue;
   pCore->m_Vel = vsetx(pCore->m_Vel, OldVel);
 
@@ -1019,7 +1015,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   }
 }
 
-bool broad_check_stopper(SCollision *restrict pCollision, vec2 Start, vec2 End) {
+static inline bool broad_check_stopper(SCollision *restrict pCollision, vec2 Start, vec2 End) {
   const vec2 minVec = _mm_min_ps(Start, End);
   const vec2 maxVec = _mm_max_ps(Start, End);
   const int MinX = (int)vgetx(minVec) >> 5;
@@ -1103,6 +1099,15 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
   }
 }
 
+static inline int compare_sign_bits(float f, int32_t i) {
+  union {
+    float f;
+    uint32_t u;
+  } bits;
+  bits.f = f;
+  return !((bits.u ^ (uint32_t)i) >> 31);
+}
+
 void cc_pre_tick(SCharacterCore *pCore) {
   cc_ddracetick(pCore);
 
@@ -1116,13 +1121,6 @@ void cc_pre_tick(SCharacterCore *pCore) {
                                                   vgety(pCore->m_Pos) + HALFPHYSICALSIZE + 5)));
 
   pCore->m_Vel = vadd_y(pCore->m_Vel, pCore->m_pTuning->m_Gravity);
-
-  const float MaxSpeed =
-      Grounded ? pCore->m_pTuning->m_GroundControlSpeed : pCore->m_pTuning->m_AirControlSpeed;
-  const float Accel = Grounded ? pCore->m_pTuning->m_GroundControlAccel : pCore->m_pTuning->m_AirControlAccel;
-  const float Friction = Grounded ? pCore->m_pTuning->m_GroundFriction : pCore->m_pTuning->m_AirFriction;
-
-  pCore->m_Direction = pCore->m_Input.m_Direction;
 
   if (pCore->m_Input.m_Jump) {
     if (!(pCore->m_Jumped & 1)) {
@@ -1160,14 +1158,20 @@ void cc_pre_tick(SCharacterCore *pCore) {
     pCore->m_HookPos = pCore->m_Pos;
   }
 
+  float MaxSpeed = pCore->m_pTuning->m_AirControlSpeed;
+  float Accel = pCore->m_pTuning->m_AirControlAccel;
+  float Friction = pCore->m_pTuning->m_AirFriction;
   if (Grounded) {
+    MaxSpeed = pCore->m_pTuning->m_GroundControlSpeed;
+    Accel = pCore->m_pTuning->m_GroundControlAccel;
+    Friction = pCore->m_pTuning->m_GroundFriction;
     pCore->m_Jumped &= ~2;
     pCore->m_JumpedTotal = 0;
   }
 
-  if (pCore->m_Direction < 0)
+  if (pCore->m_Input.m_Direction < 0)
     pCore->m_Vel = vsetx(pCore->m_Vel, saturate_add(-MaxSpeed, MaxSpeed, vgetx(pCore->m_Vel), -Accel));
-  else if (pCore->m_Direction > 0)
+  else if (pCore->m_Input.m_Direction > 0)
     pCore->m_Vel = vsetx(pCore->m_Vel, saturate_add(-MaxSpeed, MaxSpeed, vgetx(pCore->m_Vel), Accel));
   else
     pCore->m_Vel = vsetx(pCore->m_Vel, vgetx(pCore->m_Vel) * Friction);
@@ -1238,10 +1242,10 @@ void cc_pre_tick(SCharacterCore *pCore) {
       } else if (GoingToRetract) {
         pCore->m_HookState = HOOK_RETRACT_START;
       }
-      int NumOuts;
-      const vec2 *pTeleOuts = tele_outs(pCore->m_pCollision, teleNr, &NumOuts);
+      int NumOuts = pCore->m_pCollision->m_aNumTeleOuts[teleNr];
       if (GoingThroughTele && NumOuts > 0) {
         pCore->m_HookedPlayer = -1;
+        const vec2 *pTeleOuts = pCore->m_pCollision->m_apTeleOuts[teleNr];
 
         vec2 TargetDirection = vnormalize(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
         pCore->m_NewHook = true;
@@ -1271,8 +1275,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
           vfmul(vnormalize_nomask(vvsub(pCore->m_HookPos, pCore->m_Pos)), pCore->m_pTuning->m_HookDragAccel);
       if (vgety(HookVel) > 0)
         HookVel = vsety(HookVel, vgety(HookVel) * 0.3f);
-
-      if ((vgetx(HookVel) < 0 && pCore->m_Direction < 0) || (vgetx(HookVel) > 0 && pCore->m_Direction > 0))
+      if (pCore->m_Input.m_Direction != 0 && compare_sign_bits(vgetx(HookVel), pCore->m_Input.m_Direction))
         HookVel = vsetx(HookVel, vgetx(HookVel) * 0.95f);
       else
         HookVel = vsetx(HookVel, vgetx(HookVel) * 0.75f);

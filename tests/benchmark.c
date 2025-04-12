@@ -7,7 +7,7 @@
 #include <omp.h>
 #include <stdio.h>
 
-#define ITERATIONS 1000
+#define ITERATIONS 10000
 #define TICKS_PER_ITERATION s_TestRun.m_Ticks
 #define TOTAL_TICKS ITERATIONS *TICKS_PER_ITERATION
 #define NUM_RUNS 10
