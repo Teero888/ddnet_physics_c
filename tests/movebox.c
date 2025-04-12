@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
           vec2 Pos = s_TestRun.m_vStates[0][t].m_Pos;
           vec2 Vel = s_TestRun.m_vStates[0][t].m_Vel;
           bool Grounded = 0;
-          move_box(&Collision, &Pos, &Vel, vec2_init(0, 0), &Grounded);
+          move_box(&Collision, Pos, Vel, &Pos, &Vel, vec2_init(0, 0), &Grounded);
         }
       }
       ElapsedTime = omp_get_wtime() - StartTime;
@@ -133,7 +133,7 @@ int main(int argc, char *argv[]) {
           vec2 Pos = s_TestRun.m_vStates[0][t].m_Pos;
           vec2 Vel = s_TestRun.m_vStates[0][t].m_Vel;
           bool Grounded = 0;
-          move_box(&Collision, &Pos, &Vel, vec2_init(0, 0), &Grounded);
+          move_box(&Collision, Pos, Vel, &Pos, &Vel, vec2_init(0, 0), &Grounded);
         }
       }
       ElapsedTime = (double)clock() / CLOCKS_PER_SEC - StartTime;

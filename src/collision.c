@@ -694,7 +694,7 @@ bool is_hook_blocker(SCollision *pCollision, int Index, vec2 Pos0, vec2 Pos1) {
   return false;
 }
 
-static inline bool broad_check_char(SCollision *restrict pCollision, vec2 Start, vec2 End) {
+static inline bool broad_check_char(const SCollision *restrict pCollision, vec2 Start, vec2 End) {
   const vec2 minVec = _mm_min_ps(Start, End);
   const vec2 maxVec = _mm_max_ps(Start, End);
   const vec2 offset = _mm_set1_ps(HALFPHYSICALSIZE + 1.0f);
@@ -708,7 +708,7 @@ static inline bool broad_check_char(SCollision *restrict pCollision, vec2 Start,
          (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
 }
 
-static inline bool broad_check(SCollision *restrict pCollision, vec2 Start, vec2 End) {
+static inline bool broad_check(const SCollision *restrict pCollision, vec2 Start, vec2 End) {
   const vec2 minVec = _mm_min_ps(Start, End);
   const vec2 maxVec = _mm_max_ps(Start, End);
   const int MinX = (int)vgetx(minVec) >> 5;
@@ -719,7 +719,7 @@ static inline bool broad_check(SCollision *restrict pCollision, vec2 Start, vec2
          (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
 }
 
-static inline bool broad_check_tele(SCollision *restrict pCollision, vec2 Start, vec2 End) {
+static inline bool broad_check_tele(const SCollision *restrict pCollision, vec2 Start, vec2 End) {
   const vec2 minVec = _mm_min_ps(Start, End);
   const vec2 maxVec = _mm_max_ps(Start, End);
   const int MinX = (int)vgetx(minVec) >> 5;
@@ -951,11 +951,11 @@ bool intersect_line(SCollision *restrict pCollision, vec2 Pos0, vec2 Pos1, vec2 
   return false;
 }
 
-static inline bool check_point_int(SCollision *restrict pCollision, int x, int y) {
+static inline bool check_point_int(const SCollision *restrict pCollision, int x, int y) {
   return pCollision->m_pTileInfos[pCollision->m_pWidthLookup[y >> 5] + (x >> 5)] & INFO_ISSOLID;
 }
 
-static inline bool test_box_character(SCollision *restrict pCollision, int x, int y) {
+static inline bool test_box_character(const SCollision *restrict pCollision, int x, int y) {
   if (check_point_int(pCollision, x - HALFPHYSICALSIZE, y - HALFPHYSICALSIZE))
     return true;
   if (check_point_int(pCollision, x + HALFPHYSICALSIZE, y - HALFPHYSICALSIZE))
@@ -967,15 +967,21 @@ static inline bool test_box_character(SCollision *restrict pCollision, int x, in
   return false;
 }
 
-// float MaxDiff;
-void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos, vec2 *restrict pInoutVel,
-              vec2 Elasticity, bool *restrict pGrounded) {
-  vec2 Vel = *pInoutVel;
+static inline float calculate_precision(float x) {
+  union {
+    float f;
+    uint32_t i;
+  } bits;
+  bits.f = x;
+  uint32_t exponent = (bits.i >> 23) & 0xFF;
+  return s_aUlpTable[exponent];
+}
+void move_box(const SCollision *restrict pCollision, vec2 Pos, vec2 Vel, vec2 *restrict pOutPos,
+              vec2 *restrict pOutVel, vec2 Elasticity, bool *restrict pGrounded) {
   float Distance = vsqlength(Vel);
   if (Distance <= 0.00001f * 0.00001f)
     return;
 
-  vec2 Pos = *pInoutPos;
   vec2 NewPos = vvadd(Pos, Vel);
   const unsigned short Max = s_aMaxTable[(int)Distance];
   if (!broad_check_char(pCollision, Pos, NewPos)) {
@@ -983,21 +989,17 @@ void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos, vec2 *r
     const float NewPosY = vgety(NewPos) + 0.5f;
     const float INewPosX = (float)((int)NewPosX);
     const float INewPosY = (float)((int)NewPosY);
-    static const float Epsilon = 0.08f;
-    if (NewPosX - INewPosX > Epsilon && NewPosY - INewPosY > Epsilon &&
-        (INewPosX + 1.f) - NewPosX > Epsilon && (INewPosX + 1.f) - NewPosX > Epsilon) {
-      *pInoutPos = NewPos;
+    const float EpsilonX = calculate_precision(NewPosX) * (Max >> 1);
+    const float EpsilonY = calculate_precision(NewPosY) * (Max >> 1);
+    if (NewPosX - INewPosX > EpsilonX && NewPosY - INewPosY > EpsilonY &&
+        (INewPosX + 1.f) - NewPosX > EpsilonX && (INewPosY + 1.f) - NewPosY > EpsilonY) {
+      *pOutPos = NewPos;
       return;
     }
     const vec2 Frac = vfmul(Vel, s_aFractionTable[Max]);
     for (int i = 0; i <= Max; i++)
       Pos = vvadd(Pos, Frac);
-    *pInoutPos = Pos;
-    // if (vgetx(NewPos) - vgetx(Pos) > MaxDiff)
-    //   MaxDiff = vgetx(NewPos) - vgetx(Pos);
-    // if (vgety(NewPos) - vgety(Pos) > MaxDiff)
-    //   MaxDiff = vgety(NewPos) - vgety(Pos);
-    // printf("Max: %.20f\n", MaxDiff);
+    *pOutPos = Pos;
     return;
   }
 
@@ -1033,8 +1035,8 @@ void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos, vec2 *r
     Pos = NewPos;
   }
 
-  *pInoutPos = Pos;
-  *pInoutVel = Vel;
+  *pOutPos = Pos;
+  *pOutVel = Vel;
 }
 
 bool get_nearest_air_pos_player(SCollision *restrict pCollision, vec2 PlayerPos, vec2 *restrict pOutPos) {

@@ -25,6 +25,7 @@ enum {
   INFO_PICKUPNEXT = 1 << 2,
   INFO_CANGROUND = 1 << 3,
   INFO_CANHITKILL = 1 << 4,
+  INFO_CANHITSOLID = 1 << 5,
 };
 
 typedef struct TuningParams {
@@ -117,8 +118,8 @@ const vec2 *tele_outs(SCollision *restrict pCollision, int Number, int *restrict
 const vec2 *tele_check_outs(SCollision *restrict pCollision, int Number, int *restrict pOutNum);
 bool intersect_line(SCollision *restrict pCollision, vec2 Pos0, vec2 Pos1, vec2 *restrict pOutCollision,
                     vec2 *restrict pOutBeforeCollision);
-void move_box(SCollision *restrict pCollision, vec2 *restrict pInoutPos, vec2 *restrict pInoutVel,
-              vec2 Elasticity, bool *restrict pGrounded);
+void move_box(const SCollision *restrict pCollision, vec2 Pos, vec2 Vel, vec2 *restrict pOutPos,
+              vec2 *restrict pOutVel, vec2 Elasticity, bool *restrict pGrounded);
 bool get_nearest_air_pos_player(SCollision *pCollision, vec2 PlayerPos, vec2 *pOutPos);
 bool get_nearest_air_pos(SCollision *pCollision, vec2 Pos, vec2 PrevPos, vec2 *pOutPos);
 int get_index(SCollision *pCollision, vec2 PrevPos, vec2 Pos);

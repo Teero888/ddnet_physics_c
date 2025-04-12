@@ -459,7 +459,7 @@ void cc_move(SCharacterCore *pCore) {
 
   vec2 NewPos = pCore->m_Pos;
   bool Grounded = false;
-  move_box(pCore->m_pCollision, &NewPos, &pCore->m_Vel,
+  move_box(pCore->m_pCollision, NewPos, pCore->m_Vel, &NewPos, &pCore->m_Vel,
            vec2_init(pCore->m_pTuning->m_GroundElasticityX, pCore->m_pTuning->m_GroundElasticityY),
            &Grounded);
 
@@ -1117,9 +1117,10 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
   pCore->m_Vel = vadd_y(pCore->m_Vel, pCore->m_pTuning->m_Gravity);
 
-  float MaxSpeed = Grounded ? pCore->m_pTuning->m_GroundControlSpeed : pCore->m_pTuning->m_AirControlSpeed;
-  float Accel = Grounded ? pCore->m_pTuning->m_GroundControlAccel : pCore->m_pTuning->m_AirControlAccel;
-  float Friction = Grounded ? pCore->m_pTuning->m_GroundFriction : pCore->m_pTuning->m_AirFriction;
+  const float MaxSpeed =
+      Grounded ? pCore->m_pTuning->m_GroundControlSpeed : pCore->m_pTuning->m_AirControlSpeed;
+  const float Accel = Grounded ? pCore->m_pTuning->m_GroundControlAccel : pCore->m_pTuning->m_AirControlAccel;
+  const float Friction = Grounded ? pCore->m_pTuning->m_GroundFriction : pCore->m_pTuning->m_AirFriction;
 
   pCore->m_Direction = pCore->m_Input.m_Direction;
 
@@ -1338,7 +1339,9 @@ void cc_handle_ninja(SCharacterCore *pCore) {
 
     {
       bool _;
-      move_box(pCore->m_pCollision, &pCore->m_Pos, &pCore->m_Vel, GroundElasticity, &_);
+      move_box(pCore->m_pCollision, pCore->m_Pos, pCore->m_Vel, &pCore->m_Pos, &pCore->m_Vel,
+               GroundElasticity, &_);
+      cc_calc_indices(pCore);
     }
 
     pCore->m_Vel = vec2_init(0, 0);
