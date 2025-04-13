@@ -291,16 +291,16 @@ void cc_do_pickup(SCharacterCore *pCore) {
   const int ix = pCore->m_BlockPos.x;
   const int iy = pCore->m_BlockPos.y;
 
-  // getting the memory could be done in parralel/non-sequential
+  // TODO: Getting the memory could be done in parralel/non-sequential and clamps could be removed
   for (int dy = -1; dy <= 1; ++dy) {
     const int Idx = pCore->m_pCollision->m_pWidthLookup[iclamp(iy + dy, 0, Height - 1)];
     for (int dx = -1; dx <= 1; ++dx) {
       // NOTE: doing a copy here should be faster since it is only 3 bytes
-      SPickup Pickup = pCore->m_pCollision->m_pPickups[Idx + iclamp(ix + dx, 0, Width - 1)];
+      const SPickup Pickup = pCore->m_pCollision->m_pPickups[Idx + iclamp(ix + dx, 0, Width - 1)];
       if (Pickup.m_Type < 0)
         continue;
-      vec2 Offset = vec2_init(dx * 32, dy * 32);
-      if (vdistance(pCore->m_Pos, vvadd(pCore->m_Pos, Offset)) >= PICKUPSIZE + 6 + PHYSICALSIZE)
+      const vec2 OffsetPos = vvadd(pCore->m_Pos, vec2_init(dx * 32, dy * 32));
+      if (vsqdistance(pCore->m_Pos, OffsetPos) >= 48 * 48 && vdistance(pCore->m_Pos, OffsetPos) >= 48)
         continue;
       if (Pickup.m_Number > 0 && !pCore->m_pWorld->m_pSwitches[Pickup.m_Number].m_Status)
         continue;
@@ -401,7 +401,7 @@ bool is_switch_active_cb(int Number, void *pUser) {
   return pThis->m_pWorld->m_pSwitches && pThis->m_pWorld->m_pSwitches[Number].m_Status;
 }
 
-__attribute__((noinline)) void cc_quantize(SCharacterCore *pCore) {
+void cc_quantize(SCharacterCore *pCore) {
   // Common constants
   __m128 half = _mm_set1_ps(0.5f);
   __m128 zero = _mm_setzero_ps();
@@ -444,7 +444,6 @@ __attribute__((noinline)) void cc_quantize(SCharacterCore *pCore) {
 }
 
 void cc_move(SCharacterCore *pCore) {
-
   float RampValue = 1.f;
   const float VelMag = vlength(pCore->m_Vel) * 50;
   if (VelMag >= pCore->m_pTuning->m_VelrampStart)
@@ -510,12 +509,13 @@ void cc_move(SCharacterCore *pCore) {
   cc_calc_indices(pCore);
 }
 
-__attribute__((noinline)) void cc_world_tick_deferred(SCharacterCore *pCore) {
+void cc_world_tick_deferred(SCharacterCore *pCore) {
   cc_move(pCore);
   cc_quantize(pCore);
 }
 
 void cc_tick_deferred(SCharacterCore *pCore) {
+  // Multi-tee shit {{{
   if (pCore->m_pWorld->m_NumCharacters > 1)
     for (int i = 0; i < pCore->m_pWorld->m_NumCharacters; i++) {
       SCharacterCore *pCharCore = &pCore->m_pWorld->m_pCharacters[i];
@@ -562,7 +562,7 @@ void cc_tick_deferred(SCharacterCore *pCore) {
         }
       }
     }
-
+  ///}}}
   if (pCore->m_HookState != HOOK_FLYING) {
     pCore->m_NewHook = false;
   }
