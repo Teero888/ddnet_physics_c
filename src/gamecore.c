@@ -477,6 +477,7 @@ void cc_move(SCharacterCore *pCore) {
   if (RampValue != 1.f)
     pCore->m_Vel = vsetx(pCore->m_Vel, velX * (1.f / RampValue));
 
+  // Multi-tee shit {{{
   if (pCore->m_pWorld->m_NumCharacters > 1 && pCore->m_pTuning->m_PlayerCollision &&
       !pCore->m_CollisionDisabled && !pCore->m_Solo) {
     float Distance = vdistance(pCore->m_Pos, NewPos);
@@ -503,6 +504,7 @@ void cc_move(SCharacterCore *pCore) {
       }
     }
   }
+  //}}}
 
   pCore->m_Pos = NewPos;
   cc_calc_indices(pCore);
