@@ -954,6 +954,14 @@ static inline bool check_point_int(const SCollision *restrict pCollision, int x,
 }
 
 static inline bool test_box_character(const SCollision *restrict pCollision, int x, int y) {
+  // NOTE: doesn't work out of bounds
+  const int frac_x = x & 31;
+  const int frac_y = y & 31;
+  const uint32_t mask = (1U << 13) | (1U << 18); 
+  uint32_t check = (1U << frac_x) | (1U << frac_y);
+  if ((mask & check) == 0) 
+      return false;
+
   if (check_point_int(pCollision, x - HALFPHYSICALSIZE, y + HALFPHYSICALSIZE))
     return true;
   if (check_point_int(pCollision, x + HALFPHYSICALSIZE, y + HALFPHYSICALSIZE))
