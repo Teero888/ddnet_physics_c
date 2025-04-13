@@ -1851,11 +1851,6 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig) {
   pCore->m_NoWeakHookAndBounce = false;
 
   wc_create_all_entities(pCore);
-
-  // we assume you are actually going to use this world so we prefetch data.
-  // this makes things faster
-  __builtin_prefetch(s_aMaxTable, 0, 3);
-  __builtin_prefetch(pCollision->m_pBroadSolidBitField, 0, 3);
 }
 
 void wc_free(SWorldCore *pCore) {
@@ -2096,6 +2091,9 @@ void wc_copy_world(SWorldCore *restrict pTo, SWorldCore *restrict pFrom) {
   }
   for (int i = 0; i < pTo->m_NumSwitches; ++i)
     pTo->m_pSwitches[i] = pFrom->m_pSwitches[i];
+
+  __builtin_prefetch(s_aMaxTable, 0, 3);
+  __builtin_prefetch(pTo->m_pCollision->m_pBroadSolidBitField, 0, 3);
 }
 
 // }}}
