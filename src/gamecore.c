@@ -1,5 +1,6 @@
 #include "gamecore.h"
 #include "collision.h"
+#include "collision_tables.h"
 #include "map_loader.h"
 #include "vmath.h"
 #include <stdint.h>
@@ -358,7 +359,6 @@ void cc_do_pickup(SCharacterCore *pCore) {
       }
       default:
         __builtin_unreachable();
-        break;
       }
     }
   }
@@ -1851,6 +1851,11 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig) {
   pCore->m_NoWeakHookAndBounce = false;
 
   wc_create_all_entities(pCore);
+
+  // we assume you are actually going to use this world so we prefetch data.
+  // this makes things faster
+  __builtin_prefetch(s_aMaxTable, 0, 3);
+  __builtin_prefetch(pCollision->m_pBroadSolidBitField, 0, 3);
 }
 
 void wc_free(SWorldCore *pCore) {

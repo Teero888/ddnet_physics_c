@@ -1,5 +1,6 @@
 #include "../src/gamecore.h"
 #include "collision.h"
+#include "collision_tables.h"
 #include "data.h"
 #include "utils.h"
 #include <getopt.h>
@@ -7,10 +8,10 @@
 #include <omp.h>
 #include <stdio.h>
 
-#define ITERATIONS 3000
+#define ITERATIONS 1000
 #define TICKS_PER_ITERATION s_TestRun.m_Ticks
 #define TOTAL_TICKS ITERATIONS *TICKS_PER_ITERATION
-#define NUM_RUNS 10
+#define NUM_RUNS 30
 #define BAR_WIDTH 50
 
 // Real random numbers i rolled with my 2^32-1D dice

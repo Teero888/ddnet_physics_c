@@ -8,4 +8,5 @@ compile_commands.json
 .cache
 .vscode
 perf.*
+!perf.sh
 *.gcda
