@@ -59,8 +59,8 @@ enum {
 typedef struct Collision {
   SMapData m_MapData;
   unsigned int *m_pWidthLookup;
-  uint64_t *m_pBroadIndicesBitField;
   uint64_t *m_pBroadSolidBitField;
+  uint64_t *m_pBroadIndicesBitField;
   unsigned char *m_pTileInfos;
   SPickup *m_pPickups;
   unsigned char (*m_pMoveRestrictions)[5];

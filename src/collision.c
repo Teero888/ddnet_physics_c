@@ -693,20 +693,6 @@ bool is_hook_blocker(SCollision *pCollision, int Index, vec2 Pos0, vec2 Pos1) {
   return false;
 }
 
-static inline bool broad_check_char(const SCollision *restrict pCollision, vec2 Start, vec2 End) {
-  const vec2 minVec = _mm_min_ps(Start, End);
-  const vec2 maxVec = _mm_max_ps(Start, End);
-  const vec2 offset = _mm_set1_ps(HALFPHYSICALSIZE + 1.0f);
-  const vec2 minAdj = _mm_sub_ps(minVec, offset);
-  const vec2 maxAdj = _mm_add_ps(maxVec, offset);
-  const int MinX = (int)vgetx(minAdj) >> 5;
-  const int MinY = (int)vgety(minAdj) >> 5;
-  const int MaxX = (int)vgetx(maxAdj) >> 5;
-  const int MaxY = (int)vgety(maxAdj) >> 5;
-  return pCollision->m_pBroadSolidBitField[MinY * pCollision->m_MapData.m_Width + MinX] &
-         (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
-}
-
 static inline bool broad_check(const SCollision *restrict pCollision, vec2 Start, vec2 End) {
   const vec2 minVec = _mm_min_ps(Start, End);
   const vec2 maxVec = _mm_max_ps(Start, End);
@@ -973,7 +959,6 @@ static inline bool test_box_character(const SCollision *restrict pCollision, int
 
   return false;
 }
-
 void move_box(const SCollision *restrict pCollision, vec2 Pos, vec2 Vel, vec2 *restrict pOutPos,
               vec2 *restrict pOutVel, vec2 Elasticity, bool *restrict pGrounded) {
   float Distance = vsqlength(Vel);
@@ -982,7 +967,18 @@ void move_box(const SCollision *restrict pCollision, vec2 Pos, vec2 Vel, vec2 *r
 
   vec2 NewPos = vvadd(Pos, Vel);
   const unsigned short Max = s_aMaxTable[(int)Distance];
-  if (!broad_check_char(pCollision, Pos, NewPos)) {
+  const vec2 minVec = _mm_min_ps(Pos, NewPos);
+  const vec2 maxVec = _mm_max_ps(Pos, NewPos);
+  const vec2 offset = _mm_set1_ps(HALFPHYSICALSIZE + 1.0f);
+  const vec2 minAdj = _mm_sub_ps(minVec, offset);
+  const vec2 maxAdj = _mm_add_ps(maxVec, offset);
+  const int MinX = (int)vgetx(minAdj) >> 5;
+  const int MinY = (int)vgety(minAdj) >> 5;
+  const int MaxX = (int)vgetx(maxAdj) >> 5;
+  const int MaxY = (int)vgety(maxAdj) >> 5;
+  const int Mask = (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
+  const bool IsSolid = pCollision->m_pBroadSolidBitField[MinY * pCollision->m_MapData.m_Width + MinX] & Mask;
+  if (!IsSolid) {
     const float NewPosX = vgetx(NewPos) + 0.5f;
     const float NewPosY = vgety(NewPos) + 0.5f;
     const float INewPosX = (float)((int)NewPosX);

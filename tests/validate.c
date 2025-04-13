@@ -15,21 +15,15 @@ typedef struct {
 } STest;
 
 static const STest s_aTests[] = {
-    (STest){"jump",
-            "simple jumping up and down on ctf0 from top left red spawn",
-            &s_JumpTest},
-    (STest){"direction",
-            "simple direction changes on ctf0 from top left red spawn",
-            &s_DirectionTest},
+    (STest){"jump", "simple jumping up and down on ctf0 from top left red spawn", &s_JumpTest},
+    (STest){"direction", "simple direction changes on ctf0 from top left red spawn", &s_DirectionTest},
     (STest){"hook", "moving using just hook and no other inputs", &s_HookTest},
     /*     (STest){"grenade",
                 "moves to the first grenade on the left side of ctf0, picks it
        up " "and shoots randomly without moving", &s_GrenadeTest}, */
-    (STest){"stopper physics", "tests the stoppers on a random stopper map",
-            &s_StopperTest},
+    (STest){"stopper physics", "tests the stoppers on a random stopper map", &s_StopperTest},
 
-    (STest){"test run", "a simple real run example, grenade included",
-            &s_TestRun},
+    (STest){"test run", "a simple real run example, grenade included", &s_TestRun},
 };
 
 int main(void) {
@@ -53,8 +47,7 @@ int main(void) {
     bool Failed = false;
     for (int i = 0; i < pData->m_StartTick + pData->m_Ticks; ++i) {
       if (i >= pData->m_StartTick) {
-        cc_on_input(pChar,
-                    &pData->m_vStates[0][i - pData->m_StartTick].m_Input);
+        cc_on_input(pChar, &pData->m_vStates[0][i - pData->m_StartTick].m_Input);
       }
       PreviousVel = pChar->m_Vel;
       wc_tick(&World);
@@ -69,16 +62,13 @@ int main(void) {
                  "Found State: \n"
                  "\tPos: %.10f, %.10f\n"
                  "\tVel: %.10f, %.10f\n",
-                 vgetx(pData->m_vStates[0][Tick].m_Pos),
-                 vgety(pData->m_vStates[0][Tick].m_Pos),
-                 vgetx(pData->m_vStates[0][Tick].m_Vel),
-                 vgety(pData->m_vStates[0][Tick].m_Vel), vgetx(pChar->m_Pos),
-                 vgety(pChar->m_Pos), vgetx(pChar->m_Vel), vgety(pChar->m_Vel));
+                 vgetx(pData->m_vStates[0][Tick].m_Pos), vgety(pData->m_vStates[0][Tick].m_Pos),
+                 vgetx(pData->m_vStates[0][Tick].m_Vel), vgety(pData->m_vStates[0][Tick].m_Vel),
+                 vgetx(pChar->m_Pos), vgety(pChar->m_Pos), vgetx(pChar->m_Vel), vgety(pChar->m_Vel));
           printf("Previous State:\n"
                  "\tPos: %.10f, %.10f\n"
                  "\tVel: %.10f, %.10f\n",
-                 vgetx(pChar->m_PrevPos), vgety(pChar->m_PrevPos),
-                 vgetx(PreviousVel), vgety(PreviousVel));
+                 vgetx(pChar->m_PrevPos), vgety(pChar->m_PrevPos), vgetx(PreviousVel), vgety(PreviousVel));
           Failed = true;
           break;
         }
