@@ -954,14 +954,27 @@ static inline bool check_point_int(const SCollision *restrict pCollision, int x,
 }
 
 static inline bool test_box_character(const SCollision *restrict pCollision, int x, int y) {
-  if (check_point_int(pCollision, x - HALFPHYSICALSIZE, y + HALFPHYSICALSIZE))
+  // NOTE: doesn't work out of bounds
+  const int frac_x = x & 31;
+  const int frac_y = y & 31;
+
+  if (!(frac_x == 18 || frac_x == 13 || frac_y == 18 || frac_y == 13)) {
+    return false;
+  }
+
+  if ((frac_x == 13 || frac_y == 18) &&
+      check_point_int(pCollision, x - HALFPHYSICALSIZE, y + HALFPHYSICALSIZE))
     return true;
-  if (check_point_int(pCollision, x + HALFPHYSICALSIZE, y + HALFPHYSICALSIZE))
+  if ((frac_x == 18 || frac_y == 18) &&
+      check_point_int(pCollision, x + HALFPHYSICALSIZE, y + HALFPHYSICALSIZE))
     return true;
-  if (check_point_int(pCollision, x - HALFPHYSICALSIZE, y - HALFPHYSICALSIZE))
+  if ((frac_x == 13 || frac_y == 13) &&
+      check_point_int(pCollision, x - HALFPHYSICALSIZE, y - HALFPHYSICALSIZE))
     return true;
-  if (check_point_int(pCollision, x + HALFPHYSICALSIZE, y - HALFPHYSICALSIZE))
+  if ((frac_x == 18 || frac_y == 13) &&
+      check_point_int(pCollision, x + HALFPHYSICALSIZE, y - HALFPHYSICALSIZE))
     return true;
+
   return false;
 }
 
