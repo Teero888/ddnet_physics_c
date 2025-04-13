@@ -1017,17 +1017,6 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   }
 }
 
-static inline bool broad_check_stopper(SCollision *restrict pCollision, vec2 Start, vec2 End) {
-  const vec2 minVec = _mm_min_ps(Start, End);
-  const vec2 maxVec = _mm_max_ps(Start, End);
-  const int MinX = (int)vgetx(minVec) >> 5;
-  const int MinY = (int)vgety(minVec) >> 5;
-  const int MaxX = (int)vgetx(maxVec) >> 5;
-  const int MaxY = (int)vgety(maxVec) >> 5;
-  return pCollision->m_pBroadIndicesBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
-         (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
-}
-
 void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
   if (pCore->m_EndlessHook)
     pCore->m_HookTick = 0;
@@ -1062,14 +1051,21 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
 
   const vec2 PrevPos = pCore->m_PrevPos;
   const vec2 Pos = pCore->m_Pos;
-  if (broad_check_stopper(pCore->m_pCollision, PrevPos, Pos)) {
+  const int Width = pCore->m_pCollision->m_MapData.m_Width;
+  const vec2 minVec = _mm_min_ps(PrevPos, Pos);
+  const vec2 maxVec = _mm_max_ps(PrevPos, Pos);
+  const int MinX = (int)vgetx(minVec) >> 5;
+  const int MinY = (int)vgety(minVec) >> 5;
+  const int MaxX = (int)vgetx(maxVec) >> 5;
+  const int MaxY = (int)vgety(maxVec) >> 5;
+  if (pCore->m_pCollision->m_pBroadIndicesBitField[MinY * Width + MinX] &
+      (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX))) {
     bool Handled = false;
     const float d = vdistance(pCore->m_PrevPos, pCore->m_Pos);
     const int End = d + 1;
-    const int Width = pCore->m_pCollision->m_MapData.m_Width;
     int Index;
     if (!d) {
-      Index = pCore->m_pCollision->m_pWidthLookup[((int)vgety(Pos) >> 5)] + ((int)vgetx(Pos) >> 5);
+      Index = ((int)vgety(Pos) >> 5) * Width + ((int)vgetx(Pos) >> 5);
       if (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT) {
         cc_handle_tiles(pCore, Index);
         Handled = true;
@@ -1080,7 +1076,7 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
       for (int i = 0; i < End; i++) {
         float a = i / d;
         Tmp = vvfmix(PrevPos, Pos, a);
-        Index = pCore->m_pCollision->m_pWidthLookup[((int)vgety(Tmp) >> 5)] + ((int)vgetx(Tmp) >> 5);
+        Index = ((int)vgety(Tmp) >> 5) * Width + ((int)vgetx(Tmp) >> 5);
         if (LastIndex != Index && (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT)) {
           cc_handle_tiles(pCore, Index);
           LastIndex = Index;
@@ -2091,9 +2087,6 @@ void wc_copy_world(SWorldCore *restrict pTo, SWorldCore *restrict pFrom) {
   }
   for (int i = 0; i < pTo->m_NumSwitches; ++i)
     pTo->m_pSwitches[i] = pFrom->m_pSwitches[i];
-
-  __builtin_prefetch(s_aMaxTable, 0, 3);
-  __builtin_prefetch(pTo->m_pCollision->m_pBroadSolidBitField, 0, 3);
 }
 
 // }}}

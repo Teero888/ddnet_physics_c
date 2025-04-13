@@ -1,6 +1,5 @@
 #include "../src/gamecore.h"
 #include "collision.h"
-#include "collision_tables.h"
 #include "data.h"
 #include "utils.h"
 #include <getopt.h>
@@ -8,7 +7,7 @@
 #include <omp.h>
 #include <stdio.h>
 
-#define ITERATIONS 1000
+#define ITERATIONS 200
 #define TICKS_PER_ITERATION s_TestRun.m_Ticks
 #define TOTAL_TICKS ITERATIONS *TICKS_PER_ITERATION
 #define NUM_RUNS 30

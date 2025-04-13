@@ -819,7 +819,7 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos
   }
 
   for (int i = Start; i <= End; i++) {
-    int Index = aIndices[i];
+    const int Index = aIndices[i];
     __builtin_assume(Index > 0);
     if (Index == LastIndex)
       continue;
@@ -959,14 +959,15 @@ static inline bool test_box_character(const SCollision *restrict pCollision, int
 
   return false;
 }
+
 void move_box(const SCollision *restrict pCollision, vec2 Pos, vec2 Vel, vec2 *restrict pOutPos,
               vec2 *restrict pOutVel, vec2 Elasticity, bool *restrict pGrounded) {
   float Distance = vsqlength(Vel);
   if (Distance <= 0.00001f * 0.00001f)
     return;
 
+  const int Width = pCollision->m_MapData.m_Width;
   vec2 NewPos = vvadd(Pos, Vel);
-  const unsigned short Max = s_aMaxTable[(int)Distance];
   const vec2 minVec = _mm_min_ps(Pos, NewPos);
   const vec2 maxVec = _mm_max_ps(Pos, NewPos);
   const vec2 offset = _mm_set1_ps(HALFPHYSICALSIZE + 1.0f);
@@ -977,7 +978,8 @@ void move_box(const SCollision *restrict pCollision, vec2 Pos, vec2 Vel, vec2 *r
   const int MaxX = (int)vgetx(maxAdj) >> 5;
   const int MaxY = (int)vgety(maxAdj) >> 5;
   const int Mask = (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
-  const bool IsSolid = pCollision->m_pBroadSolidBitField[MinY * pCollision->m_MapData.m_Width + MinX] & Mask;
+  int IsSolid = pCollision->m_pBroadSolidBitField[MinY * Width + MinX] & Mask;
+  const unsigned short Max = s_aMaxTable[(int)Distance];
   if (!IsSolid) {
     const float NewPosX = vgetx(NewPos) + 0.5f;
     const float NewPosY = vgety(NewPos) + 0.5f;
