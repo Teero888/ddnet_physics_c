@@ -13837,3 +13837,19 @@ static const SValidation s_MapTest1 = {
             (SPlayerState){(SPlayerInput){0, 168, -107, 0, 0, 0, -1}, CTVEC2(0x1.172p+11, 0x1.371p+12), CTVEC2(-0x1p-8, 0x0p+0)},
         },
     }};
+
+typedef struct {
+  const char *m_Name;
+  const char *m_Description;
+  const SValidation *m_pValidationData;
+} STest;
+
+static const STest s_aTests[] = {
+    (STest){"jump", "simple jumping up and down on ctf0 from top left red spawn", &s_JumpTest},
+    (STest){"direction", "simple direction changes on ctf0 from top left red spawn", &s_DirectionTest},
+    (STest){"slow walk", "tests walking really slowly", &s_SlowWalkTest},
+    (STest){"hook", "moving using just hook and no other inputs", &s_HookTest},
+    (STest){"stopper physics", "tests the stoppers on a random stopper map", &s_StopperTest},
+    (STest){"map test 1", "a simple real run with freeze/unfreeze", &s_MapTest1},
+    (STest){"map test 2", "a simple real run, grenade included", &s_MapTest2},
+};

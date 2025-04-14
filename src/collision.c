@@ -163,7 +163,7 @@ static void init_distance_field(SCollision *pCollision) {
     hr_field[i] -= 1.5;
     hr_field[i] *= scale_to_world;
     hr_field[i] = fclamp(hr_field[i], 0, 255);
-    pCollision->m_pSolidDistanceField[i] = hr_field[i];
+    pCollision->m_pSolidDistanceField[i] = imax(hr_field[i] - 1, 0);
   }
   free(hr_field);
 }
@@ -364,14 +364,14 @@ bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) 
       for (int dy = 0; dy <= maxY; ++dy) {
         for (int dx = 0; dx <= maxX; ++dx) {
           const uint64_t BitIdx = (uint64_t)1 << (dy * 8 + dx);
-          for (int iy = y; iy < y + dy + 1; ++iy) {
+          for (int iy = y; iy <= y + dy; ++iy) {
             const unsigned char *pRowBroad = pCollision->m_pTileBroadCheck + pCollision->m_pWidthLookup[iy];
             const unsigned char *pRowInfos = pCollision->m_pTileInfos + pCollision->m_pWidthLookup[iy];
             const unsigned char *pRowTele =
                 pCollision->m_MapData.m_TeleLayer.m_pType
                     ? pCollision->m_MapData.m_TeleLayer.m_pType + pCollision->m_pWidthLookup[y]
                     : NULL;
-            for (int ix = x; ix < x + dx + 1; ++ix) {
+            for (int ix = x; ix <= x + dx; ++ix) {
               if (pRowBroad[ix])
                 pCollision->m_pBroadIndicesBitField[Idx] |= BitIdx;
               if (pRowInfos[ix] & INFO_ISSOLID)
@@ -385,21 +385,19 @@ bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) 
 
 // This works, validation not necessary currently
 #if 0
-      // Validate all sub-rectangles for solids atleast
       for (int dy = 0; dy <= maxY; ++dy) {
         for (int dx = 0; dx <= maxX; ++dx) {
-          // Compute Hit for this sub-rectangle
           bool Hit = false;
           for (int ay = y; ay <= y + dy; ++ay) {
             const unsigned char *rowStart = pCollision->m_pTileInfos + pCollision->m_pWidthLookup[ay];
             for (int ax = x; ax <= x + dx; ++ax) {
               if (rowStart[ax] & INFO_ISSOLID) {
                 Hit = true;
-                break; // No need to check further once a solid tile is found
+                break;
               }
             }
             if (Hit)
-              break; // Exit outer loop if Hit is true
+              break;
           }
 
           // Check the corresponding bit in the bitfield
@@ -413,6 +411,12 @@ bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) 
 #endif
     }
   }
+
+  // for (int i = 0; i < MapSize; ++i) {
+  //   if (i % Width == 0)
+  //     printf("\n");
+  //   printf(pCollision->m_pTileInfos[i] & INFO_ISSOLID ? "@" : "'");
+  // }
 
   if (!pMapData->m_TeleLayer.m_pType && !pCollision->m_NumSpawnPoints)
     return true;
@@ -725,7 +729,7 @@ static inline bool broad_check_tele(const SCollision *restrict pCollision, vec2 
          (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
 }
 
-#if 1
+#if 0
 // Original intersect code
 unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos0, vec2 Pos1,
                                        vec2 *restrict pOutCollision, unsigned char *restrict pTeleNr) {
@@ -770,7 +774,7 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos
 #else
 unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos0, vec2 Pos1,
                                        vec2 *restrict pOutCollision, unsigned char *restrict pTeleNr) {
-  if (!broad_check(pCollision, Pos0, Pos1) || (pTeleNr && !broad_check_tele(pCollision, Pos0, Pos1))) {
+  if (!broad_check(pCollision, Pos0, Pos1) && (pTeleNr && !broad_check_tele(pCollision, Pos0, Pos1))) {
     *pOutCollision = Pos1;
     return 0;
   }

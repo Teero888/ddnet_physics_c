@@ -8,22 +8,6 @@
 
 #define SIZE(x) sizeof(x) / sizeof(x[0])
 
-typedef struct {
-  const char *m_Name;
-  const char *m_Description;
-  const SValidation *m_pValidationData;
-} STest;
-
-static const STest s_aTests[] = {
-    (STest){"jump", "simple jumping up and down on ctf0 from top left red spawn", &s_JumpTest},
-    (STest){"direction", "simple direction changes on ctf0 from top left red spawn", &s_DirectionTest},
-    (STest){"slow walk", "tests walking really slowly", &s_SlowWalkTest},
-    (STest){"hook", "moving using just hook and no other inputs", &s_HookTest},
-    (STest){"stopper physics", "tests the stoppers on a random stopper map", &s_StopperTest},
-    (STest){"map test 1", "a simple real run with freeze/unfreeze", &s_MapTest1},
-    (STest){"map test 2", "a simple real run, grenade included", &s_MapTest2},
-};
-
 int main(void) {
   for (int Test = 0; (unsigned long)Test < SIZE(s_aTests); ++Test) {
     const SValidation *pData = s_aTests[Test].m_pValidationData;
