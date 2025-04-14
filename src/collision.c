@@ -213,6 +213,15 @@ bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) 
   for (int i = 0; i < Height; ++i)
     pCollision->m_pWidthLookup[i] = i * Width;
 
+  /*   if (pCollision->m_MapData.m_TeleLayer.m_pType) {
+      for (int y = 0; y < Height; ++y) {
+        for (int x = 0; x < Width; ++x) {
+          if (pCollision->m_MapData.m_TeleLayer.m_pType[y * Width + x])
+            printf("%d\n", pCollision->m_MapData.m_TeleLayer.m_pType[y * Width + x]);
+        }
+      }
+    } */
+
   for (int i = 0; i < NUM_TUNE_ZONES; ++i)
     init_tuning_params(&pCollision->m_aTuningList[i]);
   // Figure out important things
@@ -220,11 +229,13 @@ bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) 
   for (int i = 0; i < MapSize; ++i) {
     if (tile_exists(pCollision, i))
       pCollision->m_pTileInfos[i] |= INFO_TILENEXT;
-    int Tile = pCollision->m_MapData.m_GameLayer.m_pData[i];
+    const int Tile = pCollision->m_MapData.m_GameLayer.m_pData[i];
+    const int FTile =
+        pCollision->m_MapData.m_FrontLayer.m_pData ? pCollision->m_MapData.m_FrontLayer.m_pData[i] : 0;
     if (Tile == TILE_SOLID || Tile == TILE_NOHOOK)
       pCollision->m_pTileInfos[i] |= INFO_ISSOLID;
 
-    if (Tile >= 192 && Tile <= 194)
+    if ((Tile >= 192 && Tile <= 194) || (FTile >= 192 && FTile <= 194))
       ++pCollision->m_NumSpawnPoints;
     if (pMapData->m_TeleLayer.m_pType) {
       if (pMapData->m_TeleLayer.m_pType[i] == TILE_TELEOUT)
@@ -411,15 +422,18 @@ bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) 
     for (int x = 0; x < Width; ++x) {
       const int Idx = pCollision->m_pWidthLookup[y] + x;
       if (pCollision->m_NumSpawnPoints) {
-        if (pMapData->m_GameLayer.m_pData[Idx] >= 192 && pMapData->m_GameLayer.m_pData[Idx] <= 194)
+        if ((pMapData->m_GameLayer.m_pData[Idx] >= 192 && pMapData->m_GameLayer.m_pData[Idx] <= 194) ||
+            (pMapData->m_FrontLayer.m_pData && pMapData->m_FrontLayer.m_pData[Idx] >= 192 &&
+             pMapData->m_FrontLayer.m_pData[Idx] <= 194))
           pCollision->m_pSpawnPoints[SpawnPointIdx++] = vec2_init(x, y);
       }
       if (pMapData->m_TeleLayer.m_pType) {
         if (pMapData->m_TeleLayer.m_pType[Idx] == TILE_TELEOUT)
-          pCollision->m_apTeleOuts[pMapData->m_TeleLayer.m_pNumber[Idx]][TeleIdx++] = vec2_init(x, y);
+          pCollision->m_apTeleOuts[pMapData->m_TeleLayer.m_pNumber[Idx]][TeleIdx++] =
+              vec2_init(x * 32 + 16, y * 32 + 16);
         if (pMapData->m_TeleLayer.m_pType[Idx] == TILE_TELECHECKOUT)
           pCollision->m_apTeleCheckOuts[pMapData->m_TeleLayer.m_pNumber[Idx]][TeleCheckIdx++] =
-              vec2_init(x, y);
+              vec2_init(x * 32 + 16, y * 32 + 16);
       }
     }
   }
@@ -452,17 +466,13 @@ void free_collision(SCollision *pCollision) {
     _mm_free(pCollision->m_pTileInfos);
 
   // Free spawn points
-  if (pCollision->m_NumSpawnPoints && pCollision->m_pSpawnPoints)
+  if (pCollision->m_NumSpawnPoints)
     free(pCollision->m_pSpawnPoints);
 
   // Free tele layer arrays
-  if (pCollision->m_MapData.m_TeleLayer.m_pType) {
-    for (int i = 0; i < 256; ++i) {
-      if (pCollision->m_apTeleOuts[i])
-        free(pCollision->m_apTeleOuts[i]);
-      if (pCollision->m_apTeleCheckOuts[i])
-        free(pCollision->m_apTeleCheckOuts[i]);
-    }
+  for (int i = 0; i < 256; ++i) {
+    free(pCollision->m_apTeleOuts[i]);
+    free(pCollision->m_apTeleCheckOuts[i]);
   }
 
   // Zero everything
@@ -715,22 +725,20 @@ static inline bool broad_check_tele(const SCollision *restrict pCollision, vec2 
          (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
 }
 
-#if 0
+#if 1
 // Original intersect code
-unsigned char intersect_line_tele_hook(SCollision *restrict pCollision,
-                                       vec2 Pos0, vec2 Pos1,
-                                       vec2 *restrict pOutCollision,
-                                       int *restrict pTeleNr) {
+unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos0, vec2 Pos1,
+                                       vec2 *restrict pOutCollision, unsigned char *restrict pTeleNr) {
   float Distance = vdistance(Pos0, Pos1);
   int End = (Distance + 1);
   int dx = 0, dy = 0; // Offset for checking the "through" tile
-  ThroughOffset(Pos0, Pos1, &dx, &dy);
+  through_offset(Pos0, Pos1, &dx, &dy);
   for (int i = 0; i <= End; i++) {
     float a = i / (float)End;
     vec2 Pos = vvfmix(Pos0, Pos1, a);
     // Temporary position for checking collision
-    int ix = round_to_int(vgetx(Pos));
-    int iy = round_to_int(vgety(Pos));
+    int ix = vgetx(Pos) + 0.5f;
+    int iy = vgety(Pos) + 0.5f;
 
     int Index = get_pure_map_index(pCollision, Pos);
     if (pTeleNr) {
@@ -887,19 +895,6 @@ void get_speedup(SCollision *restrict pCollision, int Index, vec2 *restrict pDir
     *pMaxSpeed = pCollision->m_MapData.m_SpeedupLayer.m_pMaxSpeed[Index];
 }
 
-const vec2 *spawn_points(SCollision *restrict pCollision, int *restrict pOutNum) {
-  *pOutNum = pCollision->m_NumSpawnPoints;
-  return pCollision->m_pSpawnPoints;
-}
-const vec2 *tele_outs(SCollision *restrict pCollision, int Number, int *restrict pOutNum) {
-  *pOutNum = pCollision->m_aNumTeleOuts[Number];
-  return pCollision->m_apTeleOuts[Number];
-}
-const vec2 *tele_check_outs(SCollision *restrict pCollision, int Number, int *restrict pOutNum) {
-  *pOutNum = pCollision->m_aNumTeleCheckOuts[Number];
-  return pCollision->m_apTeleCheckOuts[Number];
-}
-
 // TODO: do the same optimization as in intersect_line_tele_hook
 bool intersect_line(SCollision *restrict pCollision, vec2 Pos0, vec2 Pos1, vec2 *restrict pOutCollision,
                     vec2 *restrict pOutBeforeCollision) {
@@ -966,7 +961,6 @@ void move_box(const SCollision *restrict pCollision, vec2 Pos, vec2 Vel, vec2 *r
   if (Distance <= 0.00001f * 0.00001f)
     return;
 
-  const int Width = pCollision->m_MapData.m_Width;
   vec2 NewPos = vvadd(Pos, Vel);
   const vec2 minVec = _mm_min_ps(Pos, NewPos);
   const vec2 maxVec = _mm_max_ps(Pos, NewPos);
@@ -978,7 +972,7 @@ void move_box(const SCollision *restrict pCollision, vec2 Pos, vec2 Vel, vec2 *r
   const int MaxX = (int)vgetx(maxAdj) >> 5;
   const int MaxY = (int)vgety(maxAdj) >> 5;
   const int Mask = (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
-  int IsSolid = pCollision->m_pBroadSolidBitField[MinY * Width + MinX] & Mask;
+  const int IsSolid = pCollision->m_pBroadSolidBitField[MinY * pCollision->m_MapData.m_Width + MinX] & Mask;
   const unsigned short Max = s_aMaxTable[(int)Distance];
   if (!IsSolid) {
     const float NewPosX = vgetx(NewPos) + 0.5f;

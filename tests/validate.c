@@ -17,13 +17,11 @@ typedef struct {
 static const STest s_aTests[] = {
     (STest){"jump", "simple jumping up and down on ctf0 from top left red spawn", &s_JumpTest},
     (STest){"direction", "simple direction changes on ctf0 from top left red spawn", &s_DirectionTest},
+    (STest){"slow walk", "tests walking really slowly", &s_SlowWalkTest},
     (STest){"hook", "moving using just hook and no other inputs", &s_HookTest},
-    /*     (STest){"grenade",
-                "moves to the first grenade on the left side of ctf0, picks it
-       up " "and shoots randomly without moving", &s_GrenadeTest}, */
     (STest){"stopper physics", "tests the stoppers on a random stopper map", &s_StopperTest},
-
-    (STest){"test run", "a simple real run example, grenade included", &s_TestRun},
+    (STest){"map test 1", "a simple real run with freeze/unfreeze", &s_MapTest1},
+    (STest){"map test 2", "a simple real run, grenade included", &s_MapTest2},
 };
 
 int main(void) {
@@ -55,7 +53,7 @@ int main(void) {
         int Tick = i - pData->m_StartTick;
         if (!vvcmp(pData->m_vStates[0][Tick].m_Pos, pChar->m_Pos) ||
             !vvcmp(pData->m_vStates[0][Tick].m_Vel, pChar->m_Vel)) {
-          printf("Test '%s' failed at step %d\n", s_aTests[Test].m_Name, Tick);
+          printf("Test '%s' failed at step %d, i = %d\n", s_aTests[Test].m_Name, Tick, i);
           printf("Expected State:\n"
                  "\tPos: %.10f, %.10f\n"
                  "\tVel: %.10f, %.10f\n"

@@ -1,6 +1,5 @@
 #include "gamecore.h"
 #include "collision.h"
-#include "collision_tables.h"
 #include "map_loader.h"
 #include "vmath.h"
 #include <stdint.h>
@@ -265,10 +264,10 @@ void prj_tick(SProjectile *pProj) {
     return;
   int x = get_index(pProj->m_Base.m_pCollision, PrevPos, CurPos);
   int z = is_teleport_weapon(pProj->m_Base.m_pCollision, x);
-  int NumTeleOuts;
-  if (z && tele_outs(pProj->m_Base.m_pCollision, z - 1, &NumTeleOuts)) {
-    pProj->m_Base.m_Pos = tele_outs(pProj->m_Base.m_pCollision, z - 1,
-                                    &NumTeleOuts)[pProj->m_Base.m_pWorld->m_GameTick % NumTeleOuts];
+  int Num = pProj->m_Base.m_pCollision->m_aNumTeleOuts[z];
+  if (z && Num > 0) {
+    pProj->m_Base.m_Pos =
+        pProj->m_Base.m_pCollision->m_apTeleOuts[z][pProj->m_Base.m_pWorld->m_GameTick % Num];
     pProj->m_StartTick = pProj->m_Base.m_pWorld->m_GameTick;
   }
 }
@@ -447,7 +446,8 @@ void cc_move(SCharacterCore *pCore) {
   float RampValue = 1.f;
   const float VelMag = vlength(pCore->m_Vel) * 50;
   if (VelMag >= pCore->m_pTuning->m_VelrampStart)
-    RampValue = expf(pCore->m_pTuning->m_VelrampValue * (VelMag - pCore->m_pTuning->m_VelrampStart));
+    RampValue = 1.0f / powf(pCore->m_pTuning->m_VelrampCurvature,
+                            (VelMag - pCore->m_pTuning->m_VelrampStart) / pCore->m_pTuning->m_VelrampRange);
 
   const float OldVel = vgetx(pCore->m_Vel) * RampValue;
   pCore->m_Vel = vsetx(pCore->m_Vel, OldVel);
@@ -935,11 +935,11 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   if (!pCore->m_pCollision->m_MapData.m_TeleLayer.m_pType)
     return;
 
-  int z = is_teleport(pCore->m_pCollision, MapIndex);
-  int Num;
   SConfig *pConfig = pCore->m_pWorld->m_pConfig;
-  if (z && tele_outs(pCore->m_pCollision, z - 1, &Num) && Num > 0) {
-    pCore->m_Pos = tele_outs(pCore->m_pCollision, z - 1, &Num)[pCore->m_pWorld->m_GameTick % Num];
+  int z = is_teleport(pCore->m_pCollision, MapIndex);
+  int Num = pCore->m_pCollision->m_aNumTeleOuts[z];
+  if (z && Num > 0) {
+    pCore->m_Pos = pCore->m_pCollision->m_apTeleOuts[z][pCore->m_pWorld->m_GameTick % Num];
     cc_calc_indices(pCore);
     if (!pConfig->m_SvTeleportHoldHook) {
       cc_reset_hook(pCore);
@@ -949,8 +949,9 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
     return;
   }
   int evilz = is_evil_teleport(pCore->m_pCollision, MapIndex);
-  if (evilz && tele_outs(pCore->m_pCollision, evilz, &Num) && Num > 0) {
-    pCore->m_Pos = tele_outs(pCore->m_pCollision, evilz - 1, &Num)[pCore->m_pWorld->m_GameTick % Num];
+  Num = pCore->m_pCollision->m_aNumTeleOuts[evilz];
+  if (evilz && Num > 0) {
+    pCore->m_Pos = pCore->m_pCollision->m_apTeleOuts[evilz][pCore->m_pWorld->m_GameTick % Num];
     cc_calc_indices(pCore);
     pCore->m_Vel = vec2_init(0, 0);
 
@@ -965,8 +966,8 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   }
   if (is_check_evil_teleport(pCore->m_pCollision, MapIndex)) {
     for (int k = pCore->m_TeleCheckpoint - 1; k >= 0; k--) {
-      if (tele_check_outs(pCore->m_pCollision, k, &Num)) {
-        pCore->m_Pos = tele_check_outs(pCore->m_pCollision, k, &Num)[pCore->m_pWorld->m_GameTick % Num];
+      if ((Num = pCore->m_pCollision->m_aNumTeleCheckOuts[k])) {
+        pCore->m_Pos = pCore->m_pCollision->m_apTeleCheckOuts[k][pCore->m_pWorld->m_GameTick % Num];
         cc_calc_indices(pCore);
         pCore->m_Vel = vec2_init(0, 0);
 
@@ -993,8 +994,8 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   }
   if (is_check_teleport(pCore->m_pCollision, MapIndex)) {
     for (int k = pCore->m_TeleCheckpoint - 1; k >= 0; k--) {
-      if (tele_check_outs(pCore->m_pCollision, k, &Num)) {
-        pCore->m_Pos = tele_check_outs(pCore->m_pCollision, k, &Num)[pCore->m_pWorld->m_GameTick % Num];
+      if ((Num = pCore->m_pCollision->m_aNumTeleCheckOuts[k])) {
+        pCore->m_Pos = pCore->m_pCollision->m_apTeleCheckOuts[k][pCore->m_pWorld->m_GameTick % Num];
         cc_calc_indices(pCore);
 
         if (!pConfig->m_SvTeleportHoldHook) {
@@ -1624,11 +1625,12 @@ void init_switchers(SWorldCore *pCore, int HighestSwitchNumber) {
 // NOTE: spawn points are not the same as in ddnet. other players will not be
 // respected
 bool wc_next_spawn(SWorldCore *pCore, vec2 *pOutPos) {
-  int Num;
-  const vec2 *pSpawnPoints = spawn_points(pCore->m_pCollision, &Num);
-  if (!pSpawnPoints)
+  if (!pCore->m_pCollision->m_pSpawnPoints)
     return false;
-  *pOutPos = vfadd(vfmul(pSpawnPoints[pCore->m_GameTick % Num], 32), 16);
+  *pOutPos = vfadd(
+      vfmul(pCore->m_pCollision->m_pSpawnPoints[pCore->m_GameTick % pCore->m_pCollision->m_NumSpawnPoints],
+            32),
+      16);
   return true;
 }
 

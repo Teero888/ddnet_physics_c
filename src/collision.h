@@ -113,9 +113,6 @@ unsigned char is_tune(SCollision *pCollision, int Index);
 bool is_speedup(SCollision *pCollision, int Index);
 void get_speedup(SCollision *restrict pCollision, int Index, vec2 *restrict pDir, int *restrict pForce,
                  int *restrict pMaxSpeed, int *restrict pType);
-const vec2 *spawn_points(SCollision *restrict pCollision, int *restrict pOutNum);
-const vec2 *tele_outs(SCollision *restrict pCollision, int Number, int *restrict pOutNum);
-const vec2 *tele_check_outs(SCollision *restrict pCollision, int Number, int *restrict pOutNum);
 bool intersect_line(SCollision *restrict pCollision, vec2 Pos0, vec2 Pos1, vec2 *restrict pOutCollision,
                     vec2 *restrict pOutBeforeCollision);
 void move_box(const SCollision *restrict pCollision, vec2 Pos, vec2 Vel, vec2 *restrict pOutPos,

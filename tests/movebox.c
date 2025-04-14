@@ -118,8 +118,8 @@ int main(int argc, char *argv[]) {
 #pragma omp parallel for
       for (int i = 0; i < ITERATIONS; ++i) {
         for (int t = 0; t < TICKS_PER_ITERATION; ++t) {
-          vec2 Pos = s_TestRun.m_vStates[0][t].m_Pos;
-          vec2 Vel = s_TestRun.m_vStates[0][t].m_Vel;
+          vec2 Pos = s_MapTest2.m_vStates[0][t].m_Pos;
+          vec2 Vel = s_MapTest2.m_vStates[0][t].m_Vel;
           bool Grounded = 0;
           move_box(&Collision, Pos, Vel, &Pos, &Vel, vec2_init(0, 0), &Grounded);
         }
@@ -129,8 +129,8 @@ int main(int argc, char *argv[]) {
       StartTime = omp_get_wtime();
       for (int i = 0; i < ITERATIONS; ++i) {
         for (int t = 0; t < TICKS_PER_ITERATION; ++t) {
-          vec2 Pos = s_TestRun.m_vStates[0][t].m_Pos;
-          vec2 Vel = s_TestRun.m_vStates[0][t].m_Vel;
+          vec2 Pos = s_MapTest2.m_vStates[0][t].m_Pos;
+          vec2 Vel = s_MapTest2.m_vStates[0][t].m_Vel;
           bool Grounded = 0;
           move_box(&Collision, Pos, Vel, &Pos, &Vel, vec2_init(0, 0), &Grounded);
         }

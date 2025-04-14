@@ -8,7 +8,7 @@
 #include <stdio.h>
 
 #define ITERATIONS 200
-#define TICKS_PER_ITERATION s_TestRun.m_Ticks
+#define TICKS_PER_ITERATION s_MapTest2.m_Ticks
 #define TOTAL_TICKS ITERATIONS *TICKS_PER_ITERATION
 #define NUM_RUNS 30
 #define BAR_WIDTH 50
@@ -160,11 +160,11 @@ int main(int argc, char *argv[]) {
         SWorldCore World = (SWorldCore){};
         wc_copy_world(&World, &StartWorld);
         for (int t = 0; t < TICKS_PER_ITERATION; ++t) {
-          cc_on_input(&World.m_pCharacters[0], &s_TestRun.m_vStates[0][t].m_Input);
+          cc_on_input(&World.m_pCharacters[0], &s_MapTest2.m_vStates[0][t].m_Input);
           wc_tick(&World);
         }
-        // if (!vvcmp(World.m_pCharacters[0].m_Pos, s_TestRun.m_vStates[0][TICKS_PER_ITERATION - 1].m_Pos) ||
-        //     !vvcmp(World.m_pCharacters[0].m_Vel, s_TestRun.m_vStates[0][TICKS_PER_ITERATION - 1].m_Vel)) {
+        // if (!vvcmp(World.m_pCharacters[0].m_Pos, s_MapTest2.m_vStates[0][TICKS_PER_ITERATION - 1].m_Pos) ||
+        //     !vvcmp(World.m_pCharacters[0].m_Vel, s_MapTest2.m_vStates[0][TICKS_PER_ITERATION - 1].m_Vel)) {
         //   printf("Run not valid.\n");
         //   exit(1);
         // }
@@ -184,11 +184,11 @@ int main(int argc, char *argv[]) {
           // Input.m_TargetX = aRandom[i % 256];
           // Input.m_TargetY = aRandom[255 - i % 256];
           // cc_on_input(&World.m_pCharacters[0], &Input);
-          cc_on_input(&World.m_pCharacters[0], &s_TestRun.m_vStates[0][t].m_Input);
+          cc_on_input(&World.m_pCharacters[0], &s_MapTest2.m_vStates[0][t].m_Input);
           wc_tick(&World);
         }
-        // if (!vvcmp(World.m_pCharacters[0].m_Pos, s_TestRun.m_vStates[0][TICKS_PER_ITERATION - 1].m_Pos) ||
-        //     !vvcmp(World.m_pCharacters[0].m_Vel, s_TestRun.m_vStates[0][TICKS_PER_ITERATION - 1].m_Vel)) {
+        // if (!vvcmp(World.m_pCharacters[0].m_Pos, s_MapTest2.m_vStates[0][TICKS_PER_ITERATION - 1].m_Pos) ||
+        //     !vvcmp(World.m_pCharacters[0].m_Vel, s_MapTest2.m_vStates[0][TICKS_PER_ITERATION - 1].m_Vel)) {
         //   printf("Run not valid.\n");
         //   exit(1);
         // }
