@@ -421,7 +421,7 @@ bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) 
   if (!pMapData->m_TeleLayer.m_pType && !pCollision->m_NumSpawnPoints)
     return true;
 
-  int TeleIdx = 0, TeleCheckIdx = 0, SpawnPointIdx = 0;
+  int aTeleIdx[256] = {0}, aTeleCheckIdx[256] = {0}, SpawnPointIdx = 0;
   for (int y = 0; y < Height; ++y) {
     for (int x = 0; x < Width; ++x) {
       const int Idx = pCollision->m_pWidthLookup[y] + x;
@@ -433,10 +433,12 @@ bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) 
       }
       if (pMapData->m_TeleLayer.m_pType) {
         if (pMapData->m_TeleLayer.m_pType[Idx] == TILE_TELEOUT)
-          pCollision->m_apTeleOuts[pMapData->m_TeleLayer.m_pNumber[Idx]][TeleIdx++] =
+          pCollision->m_apTeleOuts[pMapData->m_TeleLayer.m_pNumber[Idx]]
+                                  [aTeleIdx[pMapData->m_TeleLayer.m_pNumber[Idx]]++] =
               vec2_init(x * 32 + 16, y * 32 + 16);
         if (pMapData->m_TeleLayer.m_pType[Idx] == TILE_TELECHECKOUT)
-          pCollision->m_apTeleCheckOuts[pMapData->m_TeleLayer.m_pNumber[Idx]][TeleCheckIdx++] =
+          pCollision->m_apTeleCheckOuts[pMapData->m_TeleLayer.m_pNumber[Idx]]
+                                       [aTeleCheckIdx[pMapData->m_TeleLayer.m_pNumber[Idx]]++] =
               vec2_init(x * 32 + 16, y * 32 + 16);
       }
     }
@@ -658,7 +660,7 @@ static inline void through_offset(vec2 Pos0, vec2 Pos1, int *restrict pOffsetX, 
 }
 
 static inline bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY, vec2 Pos0,
-                          vec2 Pos1) {
+                              vec2 Pos1) {
   int pos = get_pure_map_index(pCollision, vec2_init(x, y));
   unsigned char *pFrontIdx = pCollision->m_MapData.m_FrontLayer.m_pData;
   unsigned char *pFrontFlgs = pCollision->m_MapData.m_FrontLayer.m_pFlags;
