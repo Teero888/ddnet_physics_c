@@ -15,36 +15,6 @@ This function is computationally expensive, especially since DDNet employs it in
 
 To optimize this, we ignore negative positions entirely. **Going out of bounds is undefined behavior in this version of the DDNet physics.** Therefore, we simplify the rounding to `(int)(f + 0.5f)`. This approach is acceptable because maps can be designed to ensure positions remain within bounds.
 
-## Velocity Ramp
-
-The default velocity ramp function is:
-
-```cpp
-float VelocityRamp(float Value, float Start, float Range, float Curvature)
-{
-    if(Value < Start)
-        return 1.0f;
-    return 1.0f / std::pow(Curvature, (Value - Start) / Range);
-}
-```
-
-It is called as follows:
-
-```cpp
-float RampValue = VelocityRamp(length(m_Vel) * 50, m_Tuning.m_VelrampStart, m_Tuning.m_VelrampRange, m_Tuning.m_VelrampCurvature);
-```
-
-Since velocity ramp tunes are mostly constant unless a different tune zone is entered, we optimize this by precomputing part of the calculation. Specifically, we precompute `-logf(Curvature) / Range` when changing tune zones and inline the computation, reducing it to:
-
-```c
-float RampValue = 1.f;
-const float VelMag = vlength(pCore->m_Vel) * 50;
-if (VelMag >= pCore->m_pTuning->m_VelrampStart)
-    RampValue = expf(pCore->m_pTuning->m_VelrampValue * (VelMag - pCore->m_pTuning->m_VelrampStart));
-```
-
-Here, `m_VelrampValue` is the precomputed part, approximately `-0.00016823611831060642f` for the default tune values.
-
 ## Tile Checks
 
 We precompute many combinations of tile checks and store them in a flattened `uint8_t` bitmap for fast access. For example, checking if a tile is solid (i.e., `TILE_SOLID` or `TILE_NOHOOK`) is simplified to:

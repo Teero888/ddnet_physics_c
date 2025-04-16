@@ -63,7 +63,7 @@ int main(void) {
     wc_free(&World);
     free_collision(&Collision);
     if (Failed)
-      break;
+      return 1;
   }
 
   return 0;

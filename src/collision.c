@@ -657,7 +657,8 @@ static inline void through_offset(vec2 Pos0, vec2 Pos1, int *restrict pOffsetX, 
   *pOffsetY = offsets[index][1];
 }
 
-bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY, vec2 Pos0, vec2 Pos1) {
+static inline bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY, vec2 Pos0,
+                          vec2 Pos1) {
   int pos = get_pure_map_index(pCollision, vec2_init(x, y));
   unsigned char *pFrontIdx = pCollision->m_MapData.m_FrontLayer.m_pData;
   unsigned char *pFrontFlgs = pCollision->m_MapData.m_FrontLayer.m_pFlags;
@@ -798,6 +799,7 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos
   const float fEnd = End;
   int dx = 0, dy = 0;
   through_offset(Pos0, Pos1, &dx, &dy);
+  // printf("dx:%d, dy:%d\n", dx, dy);
   int LastIndex = -1;
 
   int aIndices[88];

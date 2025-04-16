@@ -38,7 +38,7 @@ vec2 clamp_vel(int MoveRestriction, vec2 Vel) {
   return Vel;
 }
 
-float saturate_add(float Min, float Max, float Current, float Modifier) {
+static inline float saturate_add(float Min, float Max, float Current, float Modifier) {
   if (Modifier < 0) {
     if (Current < Min)
       return Current;
@@ -443,13 +443,23 @@ void cc_quantize(SCharacterCore *pCore) {
 }
 
 void cc_move(SCharacterCore *pCore) {
-  float RampValue = 1.f;
   const float VelMag = vlength(pCore->m_Vel) * 50;
+  float OldVel = vgetx(pCore->m_Vel);
+
+  // NOTE: this approximation is off by ~1e-8 so it does not work in some cases
+  // float RampValue = 1.f;
+  // if (VelMag >= pCore->m_pTuning->m_VelrampStart)
+  //   RampValue = expf(pCore->m_pTuning->m_VelrampValue * (VelMag - pCore->m_pTuning->m_VelrampStart));
+
+  float RampValue = 1.f;
   if (VelMag >= pCore->m_pTuning->m_VelrampStart)
     RampValue = 1.0f / powf(pCore->m_pTuning->m_VelrampCurvature,
                             (VelMag - pCore->m_pTuning->m_VelrampStart) / pCore->m_pTuning->m_VelrampRange);
 
-  const float OldVel = vgetx(pCore->m_Vel) * RampValue;
+  // if (OptRampValue != RampValue)
+  //   printf("Velmag: %.20f, Diffrerence: %.20f\n", VelMag, OptRampValue - RampValue);
+
+  OldVel = OldVel * RampValue;
   pCore->m_Vel = vsetx(pCore->m_Vel, OldVel);
 
   vec2 NewPos = pCore->m_Pos;
