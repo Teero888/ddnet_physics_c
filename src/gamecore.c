@@ -99,6 +99,217 @@ void ent_init(SEntity *pEnt, SWorldCore *pGameWorld, int ObjType, vec2 Pos) {
   pEnt->m_pNextTypeEntity = NULL;
 }
 
+void lsr_bounce(SLaser *pLaser);
+void lsr_init(SLaser *pLaser, SWorldCore *pGameWorld, int Type, int Owner, vec2 Pos, vec2 Dir,
+              float StartEnergy) {
+  memset(pLaser, 0, sizeof(SLaser));
+  ent_init(&pLaser->m_Base, pGameWorld, ENTTYPE_LASER, Pos);
+  pLaser->m_Owner = Owner;
+  pLaser->m_Energy = StartEnergy;
+  pLaser->m_Dir = Dir;
+  pLaser->m_pTuning =
+      &pGameWorld
+           ->m_pTunings[is_tune(pGameWorld->m_pCollision, get_map_index(pGameWorld->m_pCollision, Pos))];
+  lsr_bounce(pLaser);
+}
+
+SCharacterCore *wc_intersect_character(SWorldCore *pWorld, vec2 Pos0, vec2 Pos1, float Radius, vec2 *pNewPos,
+                                       const SCharacterCore *pNotThis, const SCharacterCore *pThisOnly);
+void cc_unfreeze(SCharacterCore *pCore);
+void cc_take_damage(SCharacterCore *pCore, vec2 Force);
+bool lsr_hit_character(SLaser *pLaser, vec2 From, vec2 To) {
+  static const vec2 StackedLaserShotgunBugSpeed = CTVEC2(-2147483648.0f, -2147483648.0f);
+  vec2 At;
+  SCharacterCore *pOwnerChar = &pLaser->m_Base.m_pWorld->m_pCharacters[pLaser->m_Owner];
+  SCharacterCore *pHit;
+  bool pDontHitSelf = pLaser->m_Bounces == 0 && !pLaser->m_WasTele;
+  if (pOwnerChar ? (!pOwnerChar->m_LaserHitDisabled && pLaser->m_Type == WEAPON_LASER) ||
+                       (!pOwnerChar->m_ShotgunHitDisabled && pLaser->m_Type == WEAPON_SHOTGUN)
+                 : pLaser->m_Base.m_pWorld->m_pConfig->m_SvHit)
+    pHit = wc_intersect_character(pLaser->m_Base.m_pWorld, pLaser->m_Base.m_Pos, To, 0.f, &At,
+                                  pDontHitSelf ? pOwnerChar : NULL, pOwnerChar);
+  else
+    pHit = wc_intersect_character(pLaser->m_Base.m_pWorld, pLaser->m_Base.m_Pos, To, 0.f, &At,
+                                  pDontHitSelf ? pOwnerChar : NULL, NULL);
+
+  if (!pHit || (pHit != pOwnerChar && pOwnerChar
+                    ? (pOwnerChar->m_LaserHitDisabled && pLaser->m_Type == WEAPON_LASER) ||
+                          (pOwnerChar->m_ShotgunHitDisabled && pLaser->m_Type == WEAPON_SHOTGUN)
+                    : !pLaser->m_Base.m_pWorld->m_pConfig->m_SvHit))
+    return false;
+  pLaser->m_From = From;
+  pLaser->m_Base.m_Pos = At;
+  pLaser->m_Energy = -1;
+  switch (pLaser->m_Type) {
+  case WEAPON_SHOTGUN: {
+    float Strength = pLaser->m_pTuning->m_ShotgunStrength;
+    const vec2 HitPos = pHit->m_Pos;
+    if (!vvcmp(pLaser->m_PrevPos, HitPos))
+      pHit->m_Vel = vvadd(pHit->m_Vel, vfmul(vnormalize(vvsub(pLaser->m_PrevPos, HitPos)), Strength));
+    else
+      pHit->m_Vel = StackedLaserShotgunBugSpeed;
+  }
+  case WEAPON_LASER: {
+    cc_unfreeze(pHit);
+  }
+  default:
+    __builtin_unreachable();
+  }
+  pHit->m_Vel = clamp_vel(pHit->m_MoveRestrictions, pHit->m_Vel);
+  return true;
+}
+
+void lsr_bounce(SLaser *pLaser) {
+  pLaser->m_EvalTick = pLaser->m_Base.m_pWorld->m_GameTick;
+
+  if (pLaser->m_Energy < 0) {
+    pLaser->m_Base.m_MarkedForDestroy = true;
+    return;
+  }
+  pLaser->m_PrevPos = pLaser->m_Base.m_Pos;
+  vec2 Coltile;
+
+  int Res;
+  uint8_t z;
+
+  if (pLaser->m_WasTele) {
+    pLaser->m_PrevPos = pLaser->m_TelePos;
+    pLaser->m_Base.m_Pos = pLaser->m_TelePos;
+    pLaser->m_TelePos = vec2_init(0, 0);
+  }
+
+  vec2 To = vvadd(pLaser->m_Base.m_Pos, vfmul(pLaser->m_Dir, pLaser->m_Energy));
+
+  Res = intersect_line_tele_weapon(pLaser->m_Base.m_pCollision, pLaser->m_Base.m_Pos, To, &Coltile, &To, &z);
+
+  if (Res) {
+    if (!lsr_hit_character(pLaser, pLaser->m_Base.m_Pos, To)) {
+      // intersected
+      pLaser->m_From = pLaser->m_Base.m_Pos;
+      pLaser->m_Base.m_Pos = To;
+
+      vec2 TempPos = pLaser->m_Base.m_Pos;
+      vec2 TempDir = pLaser->m_Dir * 4.0f;
+
+      int f = 0;
+      int Idx =
+          get_map_index(pLaser->m_Base.m_pCollision, vec2_init(vgetx(Coltile) + 0.5, vgety(Coltile) + 0.5));
+      if (Res == -1) {
+        f = get_tile_index(pLaser->m_Base.m_pCollision, Idx);
+        pLaser->m_Base.m_pCollision->m_MapData.m_GameLayer.m_pData[Idx] = TILE_SOLID;
+      }
+      move_point(pLaser->m_Base.m_pCollision, &TempPos, &TempDir, 1.0f);
+      if (Res == -1)
+        pLaser->m_Base.m_pCollision->m_MapData.m_GameLayer.m_pData[Idx] = f;
+
+      pLaser->m_Base.m_Pos = TempPos;
+      pLaser->m_Dir = vnormalize(TempDir);
+
+      const float Distance = vdistance(pLaser->m_From, pLaser->m_Base.m_Pos);
+      // Prevent infinite bounces
+      if (Distance == 0.0f && pLaser->m_ZeroEnergyBounceInLastTick) {
+        pLaser->m_Energy = -1;
+      } else
+        pLaser->m_Energy -= Distance + pLaser->m_pTuning->m_LaserBounceCost;
+      pLaser->m_ZeroEnergyBounceInLastTick = Distance == 0.0f;
+
+      int NumTeles = pLaser->m_Base.m_pCollision->m_aNumTeleOuts[z];
+      if (Res == TILE_TELEINWEAPON && NumTeles) {
+        pLaser->m_TelePos =
+            pLaser->m_Base.m_pCollision->m_apTeleOuts[z][pLaser->m_Base.m_pWorld->m_GameTick % NumTeles];
+        pLaser->m_WasTele = true;
+      } else {
+        pLaser->m_Bounces++;
+        pLaser->m_WasTele = false;
+      }
+      if (pLaser->m_Bounces > pLaser->m_pTuning->m_LaserBounceNum)
+        pLaser->m_Energy = -1;
+    }
+  } else {
+    if (!lsr_hit_character(pLaser, pLaser->m_Base.m_Pos, To)) {
+      pLaser->m_From = pLaser->m_Base.m_Pos;
+      pLaser->m_Base.m_Pos = To;
+      pLaser->m_Energy = -1;
+    }
+  }
+
+  SCharacterCore *pOwnerChar = &pLaser->m_Base.m_pWorld->m_pCharacters[pLaser->m_Owner];
+  if (pLaser->m_Energy <= 0 && !pLaser->m_TeleportCancelled && pOwnerChar && pOwnerChar->m_HasTelegunLaser &&
+      pLaser->m_Type == WEAPON_LASER) {
+    vec2 PossiblePos;
+    bool Found = false;
+
+    // Check if the laser hits a player.
+    bool pDontHitSelf = (pLaser->m_Bounces == 0 && !pLaser->m_WasTele);
+    vec2 At;
+    SCharacterCore *pHit;
+    if (pOwnerChar ? (!pOwnerChar->m_LaserHitDisabled && pLaser->m_Type == WEAPON_LASER)
+                   : pLaser->m_Base.m_pWorld->m_pConfig->m_SvHit)
+      pHit = wc_intersect_character(pLaser->m_Base.m_pWorld, pLaser->m_Base.m_Pos, To, 0.f, &At,
+                                    pDontHitSelf ? pOwnerChar : NULL, NULL);
+    else
+      pHit = wc_intersect_character(pLaser->m_Base.m_pWorld, pLaser->m_Base.m_Pos, To, 0.f, &At,
+                                    pDontHitSelf ? pOwnerChar : NULL, pOwnerChar);
+
+    if (pHit)
+      Found = get_nearest_air_pos_player(pLaser->m_Base.m_pCollision, pHit->m_Pos, &PossiblePos);
+    else
+      Found = get_nearest_air_pos(pLaser->m_Base.m_pCollision, pLaser->m_Base.m_Pos, pLaser->m_From,
+                                  &PossiblePos);
+
+    if (Found) {
+      pOwnerChar->m_TeleGunPos = PossiblePos;
+      pOwnerChar->m_TeleGunTeleport = true;
+      pOwnerChar->m_IsBlueTeleGunTeleport = pLaser->m_IsBlueTeleport;
+    }
+  } else if (pLaser->m_Owner >= 0) {
+    int MapIndex = get_pure_map_index(pLaser->m_Base.m_pCollision, Coltile);
+    int TileFIndex = pLaser->m_Base.m_pCollision->m_MapData.m_FrontLayer.m_pData
+                         ? get_front_tile_index(pLaser->m_Base.m_pCollision, MapIndex)
+                         : 0;
+    bool IsSwitchTeleGun = pLaser->m_Base.m_pCollision->m_MapData.m_SwitchLayer.m_pType
+                               ? get_switch_type(pLaser->m_Base.m_pCollision, MapIndex) == TILE_ALLOW_TELE_GUN
+                               : 0;
+    bool IsBlueSwitchTeleGun =
+        pLaser->m_Base.m_pCollision->m_MapData.m_SwitchLayer.m_pType
+            ? get_switch_type(pLaser->m_Base.m_pCollision, MapIndex) == TILE_ALLOW_BLUE_TELE_GUN
+            : 0;
+    int IsTeleInWeapon = pLaser->m_Base.m_pCollision->m_MapData.m_TeleLayer.m_pType
+                             ? is_teleport_weapon(pLaser->m_Base.m_pCollision, MapIndex)
+                             : 0;
+
+    if (!IsTeleInWeapon) {
+      if (IsSwitchTeleGun || IsBlueSwitchTeleGun) {
+        // Delay specifies which weapon the tile should work for.
+        // Delay = 0 means all.
+        int delay = get_switch_delay(pLaser->m_Base.m_pCollision, MapIndex);
+
+        if ((delay != 3 && delay != 0) && pLaser->m_Type == WEAPON_LASER) {
+          IsSwitchTeleGun = IsBlueSwitchTeleGun = false;
+        }
+      }
+
+      pLaser->m_IsBlueTeleport = TileFIndex == TILE_ALLOW_BLUE_TELE_GUN || IsBlueSwitchTeleGun;
+
+      // Teleport is canceled if the last bounce tile is not a TILE_ALLOW_TELE_GUN.
+      // Teleport also works if laser didn't bounce.
+      pLaser->m_TeleportCancelled =
+          pLaser->m_Type == WEAPON_LASER &&
+          (TileFIndex != TILE_ALLOW_TELE_GUN && TileFIndex != TILE_ALLOW_BLUE_TELE_GUN && !IsSwitchTeleGun &&
+           !IsBlueSwitchTeleGun);
+    }
+  }
+}
+
+void lsr_tick(SLaser *pLaser) {
+  if ((pLaser->m_Base.m_pWorld->m_GameTick - pLaser->m_EvalTick) >
+      (SERVER_TICK_SPEED * pLaser->m_pTuning->m_LaserBounceDelay / 1000.0f)) {
+    lsr_bounce(pLaser);
+    printf("laser bounced from (%.2f, %.2f) to (%.2f, %.2f)\n", vgetx(pLaser->m_PrevPos),
+           vgety(pLaser->m_PrevPos), vgetx(pLaser->m_Base.m_Pos), vgety(pLaser->m_Base.m_Pos));
+  }
+}
+
 void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner, vec2 Pos, vec2 Dir, int Span,
               bool Freeze, bool Explosive, int Layer, int Number) {
   memset(pProj, 0, sizeof(SProjectile));
@@ -1532,7 +1743,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   }
 
   case WEAPON_GRENADE: {
-    int Lifetime = (int)(SERVER_TICK_SPEED * pCore->m_pTuning->m_GrenadeLifetime);
+    const int Lifetime = (int)(SERVER_TICK_SPEED * pCore->m_pTuning->m_GrenadeLifetime);
     SProjectile *pNewProj = malloc(sizeof(SProjectile));
     prj_init(pNewProj, pCore->m_pWorld, WEAPON_GRENADE, pCore->m_Id, ProjStartPos, Direction, Lifetime, false,
              true, 0, 0);
@@ -1541,10 +1752,11 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   }
 
   case WEAPON_LASER: {
-    // float LaserReach = pCore->m_pTuning->m_LaserReach;
-    // TODO:
-    // new CLaser(GameWorld(), m_Pos, Direction, LaserReach, GetCid(),
-    //            WEAPON_LASER);
+    const float LaserReach = pCore->m_pTuning->m_LaserReach;
+    SLaser *pNewLaser = malloc(sizeof(SLaser));
+    lsr_init(pNewLaser, pCore->m_pWorld, WEAPON_LASER, pCore->m_Id, pCore->m_Pos, Direction, LaserReach);
+    wc_insert_entity(pCore->m_pWorld, (SEntity *)pNewLaser);
+    printf("Laser created at (%2.f, %2.f)\n", vgetx(pCore->m_Pos), vgety(pCore->m_Pos));
     break;
   }
 
@@ -1592,6 +1804,7 @@ void cc_tick(SCharacterCore *pCore) {
   cc_ddrace_postcore_tick(pCore);
 
   pCore->m_PrevPos = pCore->m_Pos;
+  printf("Character Pos: (%.2f, %.2f)\n", vgetx(pCore->m_Pos), vgety(pCore->m_Pos));
 }
 
 void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
@@ -1890,11 +2103,11 @@ void wc_tick(SWorldCore *pCore) {
   // TODO: do lasers!!! aka. like 10 different entities that all identify as
   // lasers
   // Tick lasers
-  // pEntity = pCore->m_apFirstEntityTypes[ENTTYPE_LASER];
-  // while (pEntity) {
-  //   laser_tick((SLaser *)pEntity);
-  //   pEntity = pEntity->m_pNextTypeEntity;
-  // }
+  pEntity = pCore->m_apFirstEntityTypes[ENTTYPE_LASER];
+  while (pEntity) {
+    lsr_tick((SLaser *)pEntity);
+    pEntity = pEntity->m_pNextTypeEntity;
+  }
 
   for (int i = 0; i < pCore->m_NumCharacters; ++i)
     cc_do_pickup((SCharacterCore *)&pCore->m_pCharacters[i]);

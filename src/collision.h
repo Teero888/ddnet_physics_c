@@ -65,8 +65,8 @@ typedef struct Collision {
   SPickup *m_pPickups;
   unsigned char (*m_pMoveRestrictions)[5];
   unsigned char *m_pTileBroadCheck;
-  unsigned char *m_pSolidDistanceField;
-  uint64_t *m_pBroadTeleHookInBitField;
+  unsigned char *m_pSolidTeleDistanceField;
+  uint64_t *m_pBroadTeleInBitField;
   vec2 *m_apTeleOuts[256];
   vec2 *m_apTeleCheckOuts[256];
   vec2 *m_pSpawnPoints;
@@ -103,9 +103,13 @@ unsigned char get_move_restrictions(SCollision *pCollision, void *pUser, vec2 Po
                                     int OverrideCenterTileIndex);
 int get_map_index(SCollision *pCollision, vec2 Pos);
 bool check_point(SCollision *pCollision, vec2 Pos);
+void move_point(SCollision *pCollision, vec2 *pInoutPos, vec2 *pInoutVel, float Elasticity);
 bool is_hook_blocker(SCollision *pCollision, int Index, vec2 Pos0, vec2 Pos1);
 unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos0, vec2 Pos1,
                                        vec2 *restrict pOutCollision, unsigned char *restrict pTeleNr);
+unsigned char intersect_line_tele_weapon(SCollision *restrict pCollision, vec2 Pos0, vec2 Pos1,
+                                         vec2 *restrict pOutCollision, vec2 *restrict pOutBeforeCollision,
+                                         unsigned char *restrict pTeleNr);
 
 bool test_box(SCollision *pCollision, vec2 Pos, vec2 Size);
 unsigned char is_tune(SCollision *pCollision, int Index);

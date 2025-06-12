@@ -119,7 +119,11 @@ static void init_distance_field(SCollision *pCollision) {
       const int orig_x = x / DISTANCE_FIELD_RESOLUTION;
       const int orig_y = y / DISTANCE_FIELD_RESOLUTION;
       const int orig_idx = orig_y * orig_width + orig_x;
-      hr_field[y * hr_width + x] = pInfos[orig_idx] & INFO_ISSOLID ? 0.0f : FLT_MAX;
+      const int tele =
+          pCollision->m_MapData.m_TeleLayer.m_pType ? pCollision->m_MapData.m_TeleLayer.m_pType[orig_idx] : 0;
+      hr_field[y * hr_width + x] =
+          (pInfos[orig_idx] & INFO_ISSOLID || tele == TILE_TELEINHOOK || tele == TILE_TELEINWEAPON) ? 0.0f
+                                                                                                    : FLT_MAX;
     }
   }
 
@@ -156,14 +160,13 @@ static void init_distance_field(SCollision *pCollision) {
     }
   }
 
-  pCollision->m_pSolidDistanceField = _mm_malloc(hr_width * hr_height, 64);
-
+  pCollision->m_pSolidTeleDistanceField = _mm_malloc(hr_width * hr_height, 64);
   const float scale_to_world = 32.f / DISTANCE_FIELD_RESOLUTION;
   for (int i = 0; i < hr_width * hr_height; ++i) {
     hr_field[i] -= 1.5;
     hr_field[i] *= scale_to_world;
     hr_field[i] = fclamp(hr_field[i], 0, 255);
-    pCollision->m_pSolidDistanceField[i] = imax(hr_field[i] - 1, 0);
+    pCollision->m_pSolidTeleDistanceField[i] = imax(hr_field[i] - 1, 0);
   }
   free(hr_field);
 }
@@ -199,10 +202,10 @@ bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) 
   pCollision->m_pBroadSolidBitField = _mm_malloc(MapSize * sizeof(uint64_t), 64);
   memset(pCollision->m_pBroadSolidBitField, 0, MapSize * sizeof(uint64_t));
 
-  pCollision->m_pBroadTeleHookInBitField =
+  pCollision->m_pBroadTeleInBitField =
       pCollision->m_MapData.m_TeleLayer.m_pType ? _mm_malloc(MapSize * sizeof(uint64_t), 64) : NULL;
-  if (pCollision->m_pBroadTeleHookInBitField)
-    memset(pCollision->m_pBroadTeleHookInBitField, 0, MapSize * sizeof(uint64_t));
+  if (pCollision->m_pBroadTeleInBitField)
+    memset(pCollision->m_pBroadTeleInBitField, 0, MapSize * sizeof(uint64_t));
 
   pCollision->m_pBroadIndicesBitField = _mm_malloc(MapSize * sizeof(uint64_t), 64);
   memset(pCollision->m_pBroadIndicesBitField, 0, MapSize * sizeof(uint64_t));
@@ -376,8 +379,8 @@ bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) 
                 pCollision->m_pBroadIndicesBitField[Idx] |= BitIdx;
               if (pRowInfos[ix] & INFO_ISSOLID)
                 pCollision->m_pBroadSolidBitField[Idx] |= BitIdx;
-              if (pRowTele && pRowTele[x] == TILE_TELEINHOOK)
-                pCollision->m_pBroadTeleHookInBitField[Idx] |= BitIdx;
+              if (pRowTele && (pRowTele[x] == TILE_TELEINHOOK || pRowTele[x] == TILE_TELEINWEAPON))
+                pCollision->m_pBroadTeleInBitField[Idx] |= BitIdx;
             }
           }
         }
@@ -456,16 +459,16 @@ void free_collision(SCollision *pCollision) {
     _mm_free(pCollision->m_pPickups);
   if (pCollision->m_pMoveRestrictions)
     _mm_free(pCollision->m_pMoveRestrictions);
-  if (pCollision->m_pSolidDistanceField)
-    _mm_free(pCollision->m_pSolidDistanceField);
+  if (pCollision->m_pSolidTeleDistanceField)
+    _mm_free(pCollision->m_pSolidTeleDistanceField);
   if (pCollision->m_pTileBroadCheck)
     _mm_free(pCollision->m_pTileBroadCheck);
   if (pCollision->m_pWidthLookup)
     _mm_free(pCollision->m_pWidthLookup);
   if (pCollision->m_pBroadSolidBitField)
     _mm_free(pCollision->m_pBroadSolidBitField);
-  if (pCollision->m_pBroadTeleHookInBitField)
-    _mm_free(pCollision->m_pBroadTeleHookInBitField);
+  if (pCollision->m_pBroadTeleInBitField)
+    _mm_free(pCollision->m_pBroadTeleInBitField);
   if (pCollision->m_pBroadIndicesBitField)
     _mm_free(pCollision->m_pBroadIndicesBitField);
   if (pCollision->m_pTileInfos)
@@ -687,6 +690,28 @@ static inline bool is_through(SCollision *pCollision, int x, int y, int OffsetX,
   return pTileIdx[offpos] == TILE_THROUGH || (pFrontIdx && pFrontIdx[offpos] == TILE_THROUGH);
 }
 
+void move_point(SCollision *pCollision, vec2 *pInoutPos, vec2 *pInoutVel, float Elasticity) {
+  vec2 Pos = *pInoutPos;
+  vec2 Vel = *pInoutVel;
+  if (check_point(pCollision, Pos + Vel)) {
+    int Affected = 0;
+    if (check_point(pCollision, vec2_init(vgetx(Pos) + vgetx(Vel), vgety(Pos)))) {
+      *pInoutVel = vsetx(*pInoutVel, vgetx(*pInoutVel) * -Elasticity);
+      Affected++;
+    }
+
+    if (check_point(pCollision, vec2_init(vgetx(Pos), vgety(Pos) + vgety(Vel)))) {
+      *pInoutVel = vsety(*pInoutVel, vgety(*pInoutVel) * -Elasticity);
+      Affected++;
+    }
+
+    if (Affected == 0)
+      *pInoutVel = vfmul(*pInoutVel, -Elasticity);
+    return;
+  }
+  *pInoutPos = Pos + Vel;
+}
+
 bool is_hook_blocker(SCollision *pCollision, int Index, vec2 Pos0, vec2 Pos1) {
   unsigned char *pTileIdx = pCollision->m_MapData.m_GameLayer.m_pData;
   unsigned char *pTileFlgs = pCollision->m_MapData.m_GameLayer.m_pFlags;
@@ -717,8 +742,20 @@ static inline bool broad_check(const SCollision *restrict pCollision, vec2 Start
   const int MinY = (int)vgety(minVec) >> 5;
   const int MaxX = (int)ceilf(vgetx(maxVec)) >> 5;
   const int MaxY = (int)ceilf(vgety(maxVec)) >> 5;
-  return pCollision->m_pBroadSolidBitField[MinY * pCollision->m_MapData.m_Width + MinX] &
-         (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
+  const int DiffY = (MaxY - MinY);
+  const int DiffX = (MaxX - MinX);
+  if (DiffY < 8 && DiffX < 8)
+    return pCollision->m_pBroadSolidBitField[MinY * pCollision->m_MapData.m_Width + MinX] &
+           (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
+  else {
+    for (int y = MinY; y <= MaxY; ++y) {
+      for (int x = MinX; x <= MaxX; ++x) {
+        if (pCollision->m_pTileInfos[y * pCollision->m_MapData.m_Width + x] & INFO_ISSOLID)
+          return true;
+      }
+    }
+  }
+  return false;
 }
 
 static inline bool broad_check_tele(const SCollision *restrict pCollision, vec2 Start, vec2 End) {
@@ -728,8 +765,22 @@ static inline bool broad_check_tele(const SCollision *restrict pCollision, vec2 
   const int MinY = (int)vgety(minVec) >> 5;
   const int MaxX = (int)ceilf(vgetx(maxVec)) >> 5;
   const int MaxY = (int)ceilf(vgety(maxVec)) >> 5;
-  return pCollision->m_pBroadTeleHookInBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
-         (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
+  const int DiffY = (MaxY - MinY);
+  const int DiffX = (MaxX - MinX);
+  if (DiffY < 8 && DiffX < 8)
+    return pCollision->m_pBroadTeleInBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
+           (uint64_t)1 << ((DiffY << 3) + DiffX);
+  else {
+    for (int y = MinY; y <= MaxY; ++y) {
+      for (int x = MinX; x <= MaxX; ++x) {
+        uint8_t Idx = pCollision->m_MapData.m_TeleLayer.m_pType[y * pCollision->m_MapData.m_Width + x];
+        // NOTE: can be made into an info layer
+        if (Idx == TILE_TELEINHOOK || Idx == TILE_TELEINWEAPON)
+          return true;
+      }
+    }
+  }
+  return false;
 }
 
 #if 0
@@ -781,19 +832,10 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos
     *pOutCollision = Pos1;
     return 0;
   }
-  /* if (vgetx(Pos0) < 0 || vgety(Pos0) < 0 || vgetx(Pos1) < 0 || vgety(Pos1) <
-    0) printf("PANIC, HOOK POS IS NEGATIVE: %.2f, %.2f, %.2f, %.2f\n",
-    vgetx(Pos0), vgety(Pos0), vgetx(Pos1), vgety(Pos1)); */
 
   const int Width = pCollision->m_MapData.m_Width;
   int Idx = ((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION + ((int)vgetx(Pos0));
-  unsigned char Start = pCollision->m_pSolidDistanceField[Idx];
-
-  // NOTE: doing this check to skip is slower apparently
-  // if (Start > 81 /* todo: replace with hook tune length later*/) {
-  //   *pOutCollision = Pos1;
-  //   return 0;
-  // }
+  unsigned char Start = pCollision->m_pSolidTeleDistanceField[Idx];
 
   const int End = s_aMaxTable[(int)vsqdistance(Pos0, Pos1)] + 1;
   Start = iclamp(Start, 0, End);
@@ -804,7 +846,7 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos
   // printf("dx:%d, dy:%d\n", dx, dy);
   int LastIndex = -1;
 
-  int aIndices[88];
+  int *aIndices = malloc(sizeof(int) * (End + 8));
 
   const float inv_fEnd = s_aFractionTable[End - 1];
   const float Pos0_x = vgetx(Pos0);
@@ -821,7 +863,7 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos
   const __m256i width_vec = _mm256_set1_epi32(Width);
 
 #pragma clang unroll(full)
-  for (int k = Start; k <= 80; k += 8) {
+  for (int k = Start; k <= End; k += 8) {
     __m256i i_vec = _mm256_set_epi32(k + 7, k + 6, k + 5, k + 4, k + 3, k + 2, k + 1, k);
     __m256 a_vec = _mm256_mul_ps(_mm256_cvtepi32_ps(i_vec), inv_fEnd_vec);
     __m256 Pos_x_vec = _mm256_add_ps(Pos0_x_vec, _mm256_mul_ps(a_vec, diff_x_vec));
@@ -844,6 +886,7 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos
       *pTeleNr = is_teleport_hook(pCollision, Index);
       if (*pTeleNr) {
         *pOutCollision = vvfmix(Pos0, Pos1, i / fEnd);
+        free(aIndices);
         return TILE_TELEINHOOK;
       }
     }
@@ -852,17 +895,99 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos
       const vec2 Pos = vvfmix(Pos0, Pos1, i / fEnd);
       if (!is_through(pCollision, (int)(vgetx(Pos) + 0.5), (int)(vgety(Pos) + 0.5), dx, dy, Pos0, Pos1)) {
         *pOutCollision = Pos;
+        free(aIndices);
         return pCollision->m_MapData.m_GameLayer.m_pData[Index];
       }
     } else if (is_hook_blocker(pCollision, Index, Pos0, Pos1)) {
       *pOutCollision = vvfmix(Pos0, Pos1, i / fEnd);
+      free(aIndices);
       return TILE_NOHOOK;
     }
   }
   *pOutCollision = Pos1;
+  free(aIndices);
   return 0;
 }
 #endif
+
+unsigned char intersect_line_tele_weapon(SCollision *restrict pCollision, vec2 Pos0, vec2 Pos1,
+                                         vec2 *restrict pOutCollision, vec2 *restrict pOutBeforeCollision,
+                                         unsigned char *restrict pTeleNr) {
+  if (!broad_check(pCollision, Pos0, Pos1) && (pTeleNr && !broad_check_tele(pCollision, Pos0, Pos1))) {
+    *pOutCollision = Pos1;
+    return 0;
+  }
+
+  const int Width = pCollision->m_MapData.m_Width;
+  int Idx = ((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION + ((int)vgetx(Pos0));
+  unsigned char Start = pCollision->m_pSolidTeleDistanceField[Idx];
+
+  const int End = s_aMaxTable[(int)vsqdistance(Pos0, Pos1)] + 1;
+  Start = iclamp(Start, 0, End);
+  Start -= Start % 4;
+  const float fEnd = End;
+  int dx = 0, dy = 0;
+  through_offset(Pos0, Pos1, &dx, &dy);
+  int LastIndex = -1;
+
+  int *aIndices = malloc(sizeof(int) * (End + 8));
+
+  const float inv_fEnd = s_aFractionTable[End - 1];
+  const float Pos0_x = vgetx(Pos0);
+  const float Pos0_y = vgety(Pos0);
+  const float diff_x = vgetx(Pos1) - Pos0_x;
+  const float diff_y = vgety(Pos1) - Pos0_y;
+
+  const __m256 Pos0_x_vec = _mm256_set1_ps(Pos0_x);
+  const __m256 Pos0_y_vec = _mm256_set1_ps(Pos0_y);
+  const __m256 diff_x_vec = _mm256_set1_ps(diff_x);
+  const __m256 diff_y_vec = _mm256_set1_ps(diff_y);
+  const __m256 inv_fEnd_vec = _mm256_set1_ps(inv_fEnd);
+  const __m256 half_vec = _mm256_set1_ps(0.5f);
+  const __m256i width_vec = _mm256_set1_epi32(Width);
+
+#pragma clang unroll(full)
+  for (int k = Start; k <= End; k += 8) {
+    __m256i i_vec = _mm256_set_epi32(k + 7, k + 6, k + 5, k + 4, k + 3, k + 2, k + 1, k);
+    __m256 a_vec = _mm256_mul_ps(_mm256_cvtepi32_ps(i_vec), inv_fEnd_vec);
+    __m256 Pos_x_vec = _mm256_add_ps(Pos0_x_vec, _mm256_mul_ps(a_vec, diff_x_vec));
+    __m256 Pos_y_vec = _mm256_add_ps(Pos0_y_vec, _mm256_mul_ps(a_vec, diff_y_vec));
+    __m256 Pos_x_plus_half = _mm256_add_ps(Pos_x_vec, half_vec);
+    __m256 Pos_y_plus_half = _mm256_add_ps(Pos_y_vec, half_vec);
+    __m256i ix_vec = _mm256_srai_epi32(_mm256_cvttps_epi32(Pos_x_plus_half), 5);
+    __m256i iy_vec = _mm256_srai_epi32(_mm256_cvttps_epi32(Pos_y_plus_half), 5);
+    __m256i index_vec = _mm256_add_epi32(_mm256_mullo_epi32(iy_vec, width_vec), ix_vec);
+    _mm256_storeu_si256((__m256i *)&aIndices[k], index_vec);
+  }
+
+  for (int i = Start; i <= End; i++) {
+    const int Index = aIndices[i];
+    __builtin_assume(Index > 0);
+    if (Index == LastIndex)
+      continue;
+    LastIndex = Index;
+    if (pTeleNr) {
+      *pTeleNr = is_teleport_weapon(pCollision, Index);
+      if (*pTeleNr) {
+        *pOutCollision = vvfmix(Pos0, Pos1, i / fEnd);
+        *pOutBeforeCollision = vvfmix(Pos0, Pos1, imax(i - 1, 0) / fEnd);
+        free(aIndices);
+        return TILE_TELEINWEAPON;
+      }
+    }
+
+    if (check_point_idx(pCollision, Index)) {
+      *pOutCollision = vvfmix(Pos0, Pos1, i / fEnd);
+      *pOutBeforeCollision = vvfmix(Pos0, Pos1, imax(i - 1, 0) / fEnd);
+      free(aIndices);
+      return pCollision->m_MapData.m_GameLayer.m_pData[Index];
+    }
+  }
+  *pOutCollision = Pos1;
+  *pOutBeforeCollision = Pos1;
+  free(aIndices);
+  return 0;
+}
 
 bool test_box(SCollision *pCollision, vec2 Pos, vec2 Size) {
   float SizeX = vgetx(Size) * 0.5f;

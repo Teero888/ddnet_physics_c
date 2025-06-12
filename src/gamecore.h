@@ -62,6 +62,24 @@ typedef struct Projectile {
   bool m_IsSolo;
 } SProjectile;
 
+typedef struct Laser {
+  SEntity m_Base;
+  STuningParams *m_pTuning;
+  vec2 m_From;
+  vec2 m_Dir;
+  vec2 m_TelePos;
+  vec2 m_PrevPos;
+  bool m_WasTele;
+  float m_Energy;
+  int m_Bounces;
+  int m_EvalTick;
+  int m_Owner;
+  bool m_ZeroEnergyBounceInLastTick;
+  int m_Type;
+  bool m_TeleportCancelled;
+  bool m_IsBlueTeleport;
+} SLaser;
+
 // }}}
 
 // SCharacter {{{
