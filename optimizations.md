@@ -23,7 +23,7 @@ We precompute many combinations of tile checks and store them in a flattened `ui
 pCollision->m_pTileInfos[pCollision->m_pWidthLookup[Ny] + Nx] & INFO_ISSOLID
 ```
 
-While experimenting, [Tater](https://github.com/sjrc6/) and I tried using a width lookup instead of performing the multiplication `pCollision->m_MapData.m_Width * Ny + Nx`. According to my profiler, this is faster in some cases but not all, which is why you’ll see it used selectively throughout the codebase.
+While experimenting, [Tater](https://github.com/sjrc6/) and I tried using a width lookup instead of performing the multiplication `pCollision->m_MapData.width * Ny + Nx`. According to my profiler, this is faster in some cases but not all, which is why you’ll see it used selectively throughout the codebase.
 
 ## Pickups
 

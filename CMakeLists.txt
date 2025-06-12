@@ -10,7 +10,7 @@ project(ddnet_physics_c99 LANGUAGES C)
 find_package(ZLIB REQUIRED)
 find_package(OpenMP REQUIRED)
 
-#-- - Sanitizer Options -- -
+# --- Sanitizer Options ---
 option(USE_ASAN "Enable AddressSanitizer" OFF)
 option(USE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
 option(USE_TSAN "Enable ThreadSanitizer (incompatible with ASan)" OFF)
@@ -51,18 +51,19 @@ endif()
 
 file(GLOB SRC_SOURCES CONFIGURE_DEPENDS
     src/*.c
-    libs/ddnet_maploader_c/map_loader.c
 )
 
 set(COMMON_INCLUDES
     src
-    libs/ddnet_maploader_c
 )
+
+# Add the ddnet_maploader_c subdirectory once (if it defines other targets)
+add_subdirectory(libs/ddnet_maploader_c)
 
 function(configure_target target_name)
     add_executable(${target_name} tests/${target_name}.c ${SRC_SOURCES})
     target_include_directories(${target_name} PRIVATE ${COMMON_INCLUDES})
-    target_link_libraries(${target_name} PRIVATE ZLIB::ZLIB)
+    target_link_libraries(${target_name} PRIVATE ZLIB::ZLIB m ddnet_map_loader)
 
     if(SANITIZERS_ENABLED)
         target_compile_options(${target_name} PRIVATE ${SANITIZER_COMPILE_FLAGS})
@@ -70,7 +71,6 @@ function(configure_target target_name)
     endif()
 
     target_compile_options(${target_name} PRIVATE -g -msse4.2 -mavx -mavx2 -mfma)
-    target_link_libraries(${target_name} PRIVATE m)
 
     add_custom_command(TARGET ${target_name} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory

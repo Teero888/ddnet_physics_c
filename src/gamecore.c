@@ -1,6 +1,6 @@
 #include "gamecore.h"
 #include "collision.h"
-#include "map_loader.h"
+#include <ddnet_map_loader.h>
 #include "vmath.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -196,11 +196,11 @@ void lsr_bounce(SLaser *pLaser) {
           get_map_index(pLaser->m_Base.m_pCollision, vec2_init(vgetx(Coltile) + 0.5, vgety(Coltile) + 0.5));
       if (Res == -1) {
         f = get_tile_index(pLaser->m_Base.m_pCollision, Idx);
-        pLaser->m_Base.m_pCollision->m_MapData.m_GameLayer.m_pData[Idx] = TILE_SOLID;
+        pLaser->m_Base.m_pCollision->m_MapData.game_layer.data[Idx] = TILE_SOLID;
       }
       move_point(pLaser->m_Base.m_pCollision, &TempPos, &TempDir, 1.0f);
       if (Res == -1)
-        pLaser->m_Base.m_pCollision->m_MapData.m_GameLayer.m_pData[Idx] = f;
+        pLaser->m_Base.m_pCollision->m_MapData.game_layer.data[Idx] = f;
 
       pLaser->m_Base.m_Pos = TempPos;
       pLaser->m_Dir = vnormalize(TempDir);
@@ -264,17 +264,17 @@ void lsr_bounce(SLaser *pLaser) {
     }
   } else if (pLaser->m_Owner >= 0) {
     int MapIndex = get_pure_map_index(pLaser->m_Base.m_pCollision, Coltile);
-    int TileFIndex = pLaser->m_Base.m_pCollision->m_MapData.m_FrontLayer.m_pData
+    int TileFIndex = pLaser->m_Base.m_pCollision->m_MapData.front_layer.data
                          ? get_front_tile_index(pLaser->m_Base.m_pCollision, MapIndex)
                          : 0;
-    bool IsSwitchTeleGun = pLaser->m_Base.m_pCollision->m_MapData.m_SwitchLayer.m_pType
+    bool IsSwitchTeleGun = pLaser->m_Base.m_pCollision->m_MapData.switch_layer.type
                                ? get_switch_type(pLaser->m_Base.m_pCollision, MapIndex) == TILE_ALLOW_TELE_GUN
                                : 0;
     bool IsBlueSwitchTeleGun =
-        pLaser->m_Base.m_pCollision->m_MapData.m_SwitchLayer.m_pType
+        pLaser->m_Base.m_pCollision->m_MapData.switch_layer.type
             ? get_switch_type(pLaser->m_Base.m_pCollision, MapIndex) == TILE_ALLOW_BLUE_TELE_GUN
             : 0;
-    int IsTeleInWeapon = pLaser->m_Base.m_pCollision->m_MapData.m_TeleLayer.m_pType
+    int IsTeleInWeapon = pLaser->m_Base.m_pCollision->m_MapData.tele_layer.type
                              ? is_teleport_weapon(pLaser->m_Base.m_pCollision, MapIndex)
                              : 0;
 
@@ -401,12 +401,12 @@ void prj_tick(SProjectile *pProj) {
     if (pOwnerChar && ((pProj->m_Type == WEAPON_GRENADE && pOwnerChar->m_HasTelegunGrenade) ||
                        (pProj->m_Type == WEAPON_GUN && pOwnerChar->m_HasTelegunGun))) {
       int MapIndex = get_pure_map_index(pProj->m_Base.m_pCollision, pTargetChr ? pTargetChr->m_Pos : ColPos);
-      int TileFIndex = pProj->m_Base.m_pCollision->m_MapData.m_FrontLayer.m_pData
+      int TileFIndex = pProj->m_Base.m_pCollision->m_MapData.front_layer.data
                            ? get_front_tile_index(pProj->m_Base.m_pCollision, MapIndex)
                            : 0;
       bool IsSwitchTeleGun = false;
       bool IsBlueSwitchTeleGun = false;
-      if (pProj->m_Base.m_pCollision->m_MapData.m_SwitchLayer.m_pType) {
+      if (pProj->m_Base.m_pCollision->m_MapData.switch_layer.type) {
         IsSwitchTeleGun = get_switch_type(pProj->m_Base.m_pCollision, MapIndex) == TILE_ALLOW_TELE_GUN;
         IsBlueSwitchTeleGun =
             get_switch_type(pProj->m_Base.m_pCollision, MapIndex) == TILE_ALLOW_BLUE_TELE_GUN;
@@ -471,7 +471,7 @@ void prj_tick(SProjectile *pProj) {
     return;
   }
 
-  if (!pProj->m_Base.m_pCollision->m_MapData.m_TeleLayer.m_pType)
+  if (!pProj->m_Base.m_pCollision->m_MapData.tele_layer.type)
     return;
   int x = get_index(pProj->m_Base.m_pCollision, PrevPos, CurPos);
   int z = is_teleport_weapon(pProj->m_Base.m_pCollision, x);
@@ -490,15 +490,15 @@ static inline void cc_calc_indices(SCharacterCore *pCore) {
   const int y = ((int)vgety(pCore->m_Pos) >> 5);
   pCore->m_BlockPos.x = x;
   pCore->m_BlockPos.y = y;
-  pCore->m_BlockIdx = y * pCore->m_pCollision->m_MapData.m_Width + x;
+  pCore->m_BlockIdx = y * pCore->m_pCollision->m_MapData.width + x;
 }
 
 void cc_do_pickup(SCharacterCore *pCore) {
   if (!(pCore->m_pCollision->m_pTileInfos[pCore->m_BlockIdx] & INFO_PICKUPNEXT))
     return;
 
-  const int Width = pCore->m_pCollision->m_MapData.m_Width;
-  const int Height = pCore->m_pCollision->m_MapData.m_Width;
+  const int Width = pCore->m_pCollision->m_MapData.width;
+  const int Height = pCore->m_pCollision->m_MapData.width;
   const int ix = pCore->m_BlockPos.x;
   const int iy = pCore->m_BlockPos.y;
 
@@ -824,7 +824,7 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
        get_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset2)) == TILE_DEATH ||
        get_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset3)) == TILE_DEATH ||
        get_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset4)) == TILE_DEATH ||
-       (pCore->m_pCollision->m_MapData.m_FrontLayer.m_pData &&
+       (pCore->m_pCollision->m_MapData.front_layer.data &&
         (get_front_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset1)) == TILE_DEATH ||
          get_front_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset2)) == TILE_DEATH ||
          get_front_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset3)) == TILE_DEATH ||
@@ -952,10 +952,10 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
     return;
   }
   int TileIndex = get_tile_index(pCore->m_pCollision, MapIndex);
-  int TileFIndex = pCore->m_pCollision->m_MapData.m_FrontLayer.m_pData
+  int TileFIndex = pCore->m_pCollision->m_MapData.front_layer.data
                        ? get_front_tile_index(pCore->m_pCollision, MapIndex)
                        : 0;
-  if (pCore->m_pCollision->m_MapData.m_TeleLayer.m_pType) {
+  if (pCore->m_pCollision->m_MapData.tele_layer.type) {
     int TeleCheckpoint = is_tele_checkpoint(pCore->m_pCollision, MapIndex);
     if (TeleCheckpoint)
       pCore->m_TeleCheckpoint = TeleCheckpoint;
@@ -1153,7 +1153,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
     }
   }
 
-  if (!pCore->m_pCollision->m_MapData.m_TeleLayer.m_pType)
+  if (!pCore->m_pCollision->m_MapData.tele_layer.type)
     return;
 
   SConfig *pConfig = pCore->m_pWorld->m_pConfig;
@@ -1273,7 +1273,7 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
 
   const vec2 PrevPos = pCore->m_PrevPos;
   const vec2 Pos = pCore->m_Pos;
-  const int Width = pCore->m_pCollision->m_MapData.m_Width;
+  const int Width = pCore->m_pCollision->m_MapData.width;
   const vec2 minVec = _mm_min_ps(PrevPos, Pos);
   const vec2 maxVec = _mm_max_ps(PrevPos, Pos);
   const int MinX = (int)vgetx(minVec) >> 5;
@@ -1423,7 +1423,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
     unsigned char teleNr = 0;
     unsigned char Hit =
         intersect_line_tele_hook(pCore->m_pCollision, pCore->m_HookPos, NewPos, &NewPos,
-                                 pCore->m_pCollision->m_MapData.m_TeleLayer.m_pType ? &teleNr : NULL);
+                                 pCore->m_pCollision->m_MapData.tele_layer.type ? &teleNr : NULL);
 
     if (Hit) {
       if (Hit == TILE_NOHOOK)
@@ -1804,7 +1804,7 @@ void cc_tick(SCharacterCore *pCore) {
   cc_ddrace_postcore_tick(pCore);
 
   pCore->m_PrevPos = pCore->m_Pos;
-  printf("Character Pos: (%.2f, %.2f)\n", vgetx(pCore->m_Pos), vgety(pCore->m_Pos));
+  // printf("Character Pos: (%.2f, %.2f)\n", vgetx(pCore->m_Pos), vgety(pCore->m_Pos));
 }
 
 void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
@@ -2009,13 +2009,13 @@ bool wc_on_entity(SWorldCore *pCore, int Index, int x, int y, int Layer, int Fla
 }
 
 void wc_create_all_entities(SWorldCore *pCore) {
-  for (int y = 0; y < pCore->m_pCollision->m_MapData.m_Height; y++) {
-    for (int x = 0; x < pCore->m_pCollision->m_MapData.m_Width; x++) {
+  for (int y = 0; y < pCore->m_pCollision->m_MapData.height; y++) {
+    for (int x = 0; x < pCore->m_pCollision->m_MapData.width; x++) {
       const int Index = pCore->m_pCollision->m_pWidthLookup[y] + x;
 
       // Game layer
       {
-        const int GameIndex = pCore->m_pCollision->m_MapData.m_GameLayer.m_pData[Index];
+        const int GameIndex = pCore->m_pCollision->m_MapData.game_layer.data[Index];
         if (GameIndex == TILE_NPC) {
           pCore->m_pTunings[0].m_PlayerCollision = 0;
         } else if (GameIndex == TILE_EHOOK) {
@@ -2026,12 +2026,12 @@ void wc_create_all_entities(SWorldCore *pCore) {
           pCore->m_pTunings[0].m_PlayerHooking = 0;
         } else if (GameIndex >= ENTITY_OFFSET) {
           wc_on_entity(pCore, GameIndex - ENTITY_OFFSET, x, y, LAYER_GAME,
-                       pCore->m_pCollision->m_MapData.m_GameLayer.m_pFlags[Index], 0);
+                       pCore->m_pCollision->m_MapData.game_layer.flags[Index], 0);
         }
       }
 
-      if (pCore->m_pCollision->m_MapData.m_FrontLayer.m_pData) {
-        const int FrontIndex = pCore->m_pCollision->m_MapData.m_FrontLayer.m_pData[Index];
+      if (pCore->m_pCollision->m_MapData.front_layer.data) {
+        const int FrontIndex = pCore->m_pCollision->m_MapData.front_layer.data[Index];
         if (FrontIndex == TILE_NPC) {
           pCore->m_pTunings[0].m_PlayerCollision = 0;
         } else if (FrontIndex == TILE_EHOOK) {
@@ -2042,16 +2042,16 @@ void wc_create_all_entities(SWorldCore *pCore) {
           pCore->m_pTunings[0].m_PlayerHooking = 0;
         } else if (FrontIndex >= ENTITY_OFFSET) {
           wc_on_entity(pCore, FrontIndex - ENTITY_OFFSET, x, y, LAYER_FRONT,
-                       pCore->m_pCollision->m_MapData.m_FrontLayer.m_pFlags[Index], 0);
+                       pCore->m_pCollision->m_MapData.front_layer.flags[Index], 0);
         }
       }
 
-      if (pCore->m_pCollision->m_MapData.m_SwitchLayer.m_pType) {
-        const int SwitchType = pCore->m_pCollision->m_MapData.m_SwitchLayer.m_pType[Index];
+      if (pCore->m_pCollision->m_MapData.switch_layer.type) {
+        const int SwitchType = pCore->m_pCollision->m_MapData.switch_layer.type[Index];
         if (SwitchType >= ENTITY_OFFSET) {
           wc_on_entity(pCore, SwitchType - ENTITY_OFFSET, x, y, LAYER_SWITCH,
-                       pCore->m_pCollision->m_MapData.m_SwitchLayer.m_pFlags[Index],
-                       pCore->m_pCollision->m_MapData.m_SwitchLayer.m_pNumber[Index]);
+                       pCore->m_pCollision->m_MapData.switch_layer.flags[Index],
+                       pCore->m_pCollision->m_MapData.switch_layer.number[Index]);
         }
       }
     }

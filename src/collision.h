@@ -1,7 +1,7 @@
 #ifndef LIB_COLLISION_H
 #define LIB_COLLISION_H
 
-#include "../libs/ddnet_maploader_c/map_loader.h"
+#include <ddnet_map_loader.h>
 #include "stdbool.h"
 #include "vmath.h"
 #include <stdint.h>
@@ -57,7 +57,7 @@ enum {
 };
 
 typedef struct Collision {
-  SMapData m_MapData;
+  map_data_t m_MapData;
   unsigned int *m_pWidthLookup;
   uint64_t *m_pBroadSolidBitField;
   uint64_t *m_pBroadIndicesBitField;
