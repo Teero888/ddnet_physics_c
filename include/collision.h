@@ -79,7 +79,7 @@ typedef struct Collision {
   bool m_MoveRestrictionsFound;
 } SCollision;
 
-bool init_collision(SCollision *restrict pCollision, const char *restrict pMap);
+bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict__ pMap);
 void free_collision(SCollision *pCollision);
 int get_pure_map_index(SCollision *pCollision, mvec2 Pos);
 unsigned char move_restrictions(unsigned char Direction, unsigned char Tile, unsigned char Flags);
@@ -105,21 +105,21 @@ int get_map_index(SCollision *pCollision, mvec2 Pos);
 bool check_point(SCollision *pCollision, mvec2 Pos);
 void move_point(SCollision *pCollision, mvec2 *pInoutPos, mvec2 *pInoutVel, float Elasticity);
 bool is_hook_blocker(SCollision *pCollision, int Index, mvec2 Pos0, mvec2 Pos1);
-unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, mvec2 Pos0, mvec2 Pos1,
-                                       mvec2 *restrict pOutCollision, unsigned char *restrict pTeleNr);
-unsigned char intersect_line_tele_weapon(SCollision *restrict pCollision, mvec2 Pos0, mvec2 Pos1,
-                                         mvec2 *restrict pOutCollision, mvec2 *restrict pOutBeforeCollision,
-                                         unsigned char *restrict pTeleNr);
+unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
+                                       mvec2 *__restrict__ pOutCollision, unsigned char *__restrict__ pTeleNr);
+unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
+                                         mvec2 *__restrict__ pOutCollision, mvec2 *__restrict__ pOutBeforeCollision,
+                                         unsigned char *__restrict__ pTeleNr);
 
 bool test_box(SCollision *pCollision, mvec2 Pos, mvec2 Size);
 unsigned char is_tune(SCollision *pCollision, int Index);
 bool is_speedup(SCollision *pCollision, int Index);
-void get_speedup(SCollision *restrict pCollision, int Index, mvec2 *restrict pDir, int *restrict pForce,
-                 int *restrict pMaxSpeed, int *restrict pType);
-bool intersect_line(SCollision *restrict pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *restrict pOutCollision,
-                    mvec2 *restrict pOutBeforeCollision);
-void move_box(const SCollision *restrict pCollision, mvec2 Pos, mvec2 Vel, mvec2 *restrict pOutPos,
-              mvec2 *restrict pOutVel, mvec2 Elasticity, bool *restrict pGrounded);
+void get_speedup(SCollision *__restrict__ pCollision, int Index, mvec2 *__restrict__ pDir, int *__restrict__ pForce,
+                 int *__restrict__ pMaxSpeed, int *__restrict__ pType);
+bool intersect_line(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
+                    mvec2 *__restrict__ pOutBeforeCollision);
+void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, mvec2 *__restrict__ pOutPos,
+              mvec2 *__restrict__ pOutVel, mvec2 Elasticity, bool *__restrict__ pGrounded);
 bool get_nearest_air_pos_player(SCollision *pCollision, mvec2 PlayerPos, mvec2 *pOutPos);
 bool get_nearest_air_pos(SCollision *pCollision, mvec2 Pos, mvec2 PrevPos, mvec2 *pOutPos);
 int get_index(SCollision *pCollision, mvec2 PrevPos, mvec2 Pos);

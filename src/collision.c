@@ -177,7 +177,7 @@ static void init_tuning_params(STuningParams *pTunings) {
 #undef MACRO_TUNING_PARAM
 }
 
-bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) {
+bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict__ pMap) {
   pCollision->m_MapData = load_map(pMap);
   if (!pCollision->m_MapData.game_layer.data)
     return false;
@@ -606,7 +606,7 @@ inline unsigned char get_front_collision_at(SCollision *pCollision, mvec2 Pos) {
   return Idx * (Idx - 1 <= TILE_NOLASER - 1);
 }
 
-inline unsigned char get_move_restrictions(SCollision *restrict pCollision, void *restrict pUser, mvec2 Pos,
+inline unsigned char get_move_restrictions(SCollision *__restrict__ pCollision, void *__restrict__ pUser, mvec2 Pos,
                                            int OverrideCenterTileIndex) {
 
   if (!pCollision->m_MoveRestrictionsFound && !pCollision->m_MapData.door_layer.index)
@@ -649,7 +649,7 @@ static inline bool check_point_idx(SCollision *pCollision, int Idx) {
   return pCollision->m_pTileInfos[Idx] & INFO_ISSOLID;
 }
 
-static inline void through_offset(mvec2 Pos0, mvec2 Pos1, int *restrict pOffsetX, int *restrict pOffsetY) {
+static inline void through_offset(mvec2 Pos0, mvec2 Pos1, int *__restrict__ pOffsetX, int *__restrict__ pOffsetY) {
   static const int offsets[8][2] = {{32, 0}, {0, 32},  {-32, 0}, {0, 32},
                                     {32, 0}, {0, -32}, {-32, 0}, {0, -32}};
   const float dx = vgetx(Pos0) - vgetx(Pos1);
@@ -732,7 +732,7 @@ bool is_hook_blocker(SCollision *pCollision, int Index, mvec2 Pos0, mvec2 Pos1) 
   return false;
 }
 
-static inline bool broad_check(const SCollision *restrict pCollision, mvec2 Start, mvec2 End) {
+static inline bool broad_check(const SCollision *__restrict__ pCollision, mvec2 Start, mvec2 End) {
   const mvec2 minVec = _mm_min_ps(Start, End);
   const mvec2 maxVec = _mm_max_ps(Start, End);
   const int MinX = (int)vgetx(minVec) >> 5;
@@ -755,7 +755,7 @@ static inline bool broad_check(const SCollision *restrict pCollision, mvec2 Star
   return false;
 }
 
-static inline bool broad_check_tele(const SCollision *restrict pCollision, mvec2 Start, mvec2 End) {
+static inline bool broad_check_tele(const SCollision *__restrict__ pCollision, mvec2 Start, mvec2 End) {
   const mvec2 minVec = _mm_min_ps(Start, End);
   const mvec2 maxVec = _mm_max_ps(Start, End);
   const int MinX = (int)vgetx(minVec) >> 5;
@@ -782,8 +782,8 @@ static inline bool broad_check_tele(const SCollision *restrict pCollision, mvec2
 
 #if 0
 // Original intersect code
-unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos0, vec2 Pos1,
-                                       vec2 *restrict pOutCollision, unsigned char *restrict pTeleNr) {
+unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, vec2 Pos0, vec2 Pos1,
+                                       vec2 *__restrict__ pOutCollision, unsigned char *__restrict__ pTeleNr) {
   float Distance = vdistance(Pos0, Pos1);
   int End = (Distance + 1);
   int dx = 0, dy = 0; // Offset for checking the "through" tile
@@ -823,8 +823,8 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, vec2 Pos
   return 0;
 }
 #else
-unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, mvec2 Pos0, mvec2 Pos1,
-                                       mvec2 *restrict pOutCollision, unsigned char *restrict pTeleNr) {
+unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
+                                       mvec2 *__restrict__ pOutCollision, unsigned char *__restrict__ pTeleNr) {
   if (!broad_check(pCollision, Pos0, Pos1) && (pTeleNr && !broad_check_tele(pCollision, Pos0, Pos1))) {
     *pOutCollision = Pos1;
     return 0;
@@ -906,9 +906,9 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, mvec2 Po
 }
 #endif
 
-unsigned char intersect_line_tele_weapon(SCollision *restrict pCollision, mvec2 Pos0, mvec2 Pos1,
-                                         mvec2 *restrict pOutCollision, mvec2 *restrict pOutBeforeCollision,
-                                         unsigned char *restrict pTeleNr) {
+unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
+                                         mvec2 *__restrict__ pOutCollision, mvec2 *__restrict__ pOutBeforeCollision,
+                                         unsigned char *__restrict__ pTeleNr) {
   if (!broad_check(pCollision, Pos0, Pos1) && (pTeleNr && !broad_check_tele(pCollision, Pos0, Pos1))) {
     *pOutCollision = Pos1;
     return 0;
@@ -1014,8 +1014,8 @@ bool is_speedup(SCollision *pCollision, int Index) {
   return pCollision->m_MapData.speedup_layer.type && pCollision->m_MapData.speedup_layer.force[Index] > 0;
 }
 
-void get_speedup(SCollision *restrict pCollision, int Index, mvec2 *restrict pDir, int *restrict pForce,
-                 int *restrict pMaxSpeed, int *restrict pType) {
+void get_speedup(SCollision *__restrict__ pCollision, int Index, mvec2 *__restrict__ pDir, int *__restrict__ pForce,
+                 int *__restrict__ pMaxSpeed, int *__restrict__ pType) {
   float Angle = pCollision->m_MapData.speedup_layer.angle[Index] * (PI / 180.0f);
   *pForce = pCollision->m_MapData.speedup_layer.force[Index];
   *pType = pCollision->m_MapData.speedup_layer.type[Index];
@@ -1025,8 +1025,8 @@ void get_speedup(SCollision *restrict pCollision, int Index, mvec2 *restrict pDi
 }
 
 // TODO: do the same optimization as in intersect_line_tele_hook
-bool intersect_line(SCollision *restrict pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *restrict pOutCollision,
-                    mvec2 *restrict pOutBeforeCollision) {
+bool intersect_line(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
+                    mvec2 *__restrict__ pOutBeforeCollision) {
   if (!broad_check(pCollision, Pos0, Pos1)) {
     *pOutCollision = Pos1;
     *pOutBeforeCollision = Pos1;
@@ -1059,11 +1059,11 @@ bool intersect_line(SCollision *restrict pCollision, mvec2 Pos0, mvec2 Pos1, mve
   return false;
 }
 
-static inline bool check_point_int(const SCollision *restrict pCollision, int x, int y) {
+static inline bool check_point_int(const SCollision *__restrict__ pCollision, int x, int y) {
   return pCollision->m_pTileInfos[pCollision->m_pWidthLookup[y >> 5] + (x >> 5)] & INFO_ISSOLID;
 }
 
-static inline bool test_box_character(const SCollision *restrict pCollision, int x, int y) {
+static inline bool test_box_character(const SCollision *__restrict__ pCollision, int x, int y) {
   // NOTE: doesn't work out of bounds
   const int frac_x = x & 31;
   const int frac_y = y & 31;
@@ -1084,8 +1084,8 @@ static inline bool test_box_character(const SCollision *restrict pCollision, int
   return false;
 }
 
-void move_box(const SCollision *restrict pCollision, mvec2 Pos, mvec2 Vel, mvec2 *restrict pOutPos,
-              mvec2 *restrict pOutVel, mvec2 Elasticity, bool *restrict pGrounded) {
+void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, mvec2 *__restrict__ pOutPos,
+              mvec2 *__restrict__ pOutVel, mvec2 Elasticity, bool *__restrict__ pGrounded) {
   float Distance = vsqlength(Vel);
   if (Distance <= 0.00001f * 0.00001f)
     return;
@@ -1164,7 +1164,7 @@ void move_box(const SCollision *restrict pCollision, mvec2 Pos, mvec2 Vel, mvec2
   *pOutVel = Vel;
 }
 
-bool get_nearest_air_pos_player(SCollision *restrict pCollision, mvec2 PlayerPos, mvec2 *restrict pOutPos) {
+bool get_nearest_air_pos_player(SCollision *__restrict__ pCollision, mvec2 PlayerPos, mvec2 *__restrict__ pOutPos) {
   for (int dist = 5; dist >= -1; dist--) {
     *pOutPos = vec2_init(vgetx(PlayerPos), vgety(PlayerPos) - dist);
     if (!test_box(pCollision, *pOutPos, PHYSICALSIZEVEC))
@@ -1173,7 +1173,7 @@ bool get_nearest_air_pos_player(SCollision *restrict pCollision, mvec2 PlayerPos
   return false;
 }
 
-bool get_nearest_air_pos(SCollision *restrict pCollision, mvec2 Pos, mvec2 PrevPos, mvec2 *restrict pOutPos) {
+bool get_nearest_air_pos(SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 PrevPos, mvec2 *__restrict__ pOutPos) {
   for (int k = 0; k < 16 && check_point(pCollision, Pos); k++) {
     Pos = vvsub(Pos, vnormalize(vvsub(PrevPos, Pos)));
   }

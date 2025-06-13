@@ -39,8 +39,8 @@ bool is_switch_active_cb(int Number, void *pUser);
 typedef struct Entity {
   struct WorldCore *m_pWorld;
   SCollision *m_pCollision;
-  struct Entity *restrict m_pPrevTypeEntity;
-  struct Entity *restrict m_pNextTypeEntity;
+  struct Entity *__restrict__ m_pPrevTypeEntity;
+  struct Entity *__restrict__ m_pNextTypeEntity;
   mvec2 m_Pos;
   int m_ObjType;
   int m_Number;
@@ -213,7 +213,7 @@ typedef struct WorldCore {
 
 void init_config(SConfig *pConfig);
 void wc_init(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig);
-void wc_copy_world(SWorldCore *restrict pTo, SWorldCore *restrict pFrom);
+void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom);
 void wc_tick(SWorldCore *pCore);
 void wc_free(SWorldCore *pCore);
 

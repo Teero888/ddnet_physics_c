@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-set(CMAKE_C_COMPILER clang)
+# set(CMAKE_C_COMPILER clang)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
@@ -8,6 +8,7 @@ project(ddnet_physics LANGUAGES C)
 
 # Option to enable aggressive optimizations
 option(ENABLE_AGGRESSIVE_OPTIM "Enable aggressive optimizations with LTO and native tuning" OFF)
+option(COMPILE_TESTS "Whether to compile tests" OFF)
 
 # Define the static library
 add_library(ddnet_physics STATIC
@@ -46,5 +47,7 @@ endif()
 add_subdirectory(libs/ddnet_map_loader)
 target_link_libraries(ddnet_physics PRIVATE ddnet_map_loader)
 
-# Add subdirectory for tests
-add_subdirectory(tests)
+if(COMPILE_TESTS)
+    # Add subdirectory for tests
+    add_subdirectory(tests)
+endif()

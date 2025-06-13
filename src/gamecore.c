@@ -2255,7 +2255,7 @@ void wc_remove_entity(SWorldCore *pWorld, SEntity *pEnt) {
   pEnt->m_pPrevTypeEntity = NULL;
 }
 
-void wc_copy_world(SWorldCore *restrict pTo, SWorldCore *restrict pFrom) {
+void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom) {
   pTo->m_GameTick = pFrom->m_GameTick;
   pTo->m_pCollision = pFrom->m_pCollision;
   pTo->m_pConfig = pFrom->m_pConfig;
