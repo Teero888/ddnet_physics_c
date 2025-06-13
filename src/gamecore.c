@@ -103,7 +103,7 @@ void lsr_bounce(SLaser *pLaser);
 void lsr_init(SLaser *pLaser, SWorldCore *pGameWorld, int Type, int Owner, mvec2 Pos, mvec2 Dir,
               float StartEnergy) {
   memset(pLaser, 0, sizeof(SLaser));
-  ent_init(&pLaser->m_Base, pGameWorld, ENTTYPE_LASER, Pos);
+  ent_init(&pLaser->m_Base, pGameWorld, WORLD_ENTTYPE_LASER, Pos);
   pLaser->m_Owner = Owner;
   pLaser->m_Energy = StartEnergy;
   pLaser->m_Dir = Dir;
@@ -315,7 +315,7 @@ void lsr_tick(SLaser *pLaser) {
 void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner, mvec2 Pos, mvec2 Dir, int Span,
               bool Freeze, bool Explosive, int Layer, int Number) {
   memset(pProj, 0, sizeof(SProjectile));
-  ent_init(&pProj->m_Base, pGameWorld, ENTTYPE_PROJECTILE, Pos);
+  ent_init(&pProj->m_Base, pGameWorld, WORLD_ENTTYPE_PROJECTILE, Pos);
   pProj->m_Type = Type;
   pProj->m_Direction = Dir;
   pProj->m_LifeSpan = Span;
@@ -2077,7 +2077,7 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig) {
 }
 
 void wc_free(SWorldCore *pCore) {
-  for (int i = 0; i < NUM_ENTTYPES; ++i) {
+  for (int i = 0; i < NUM_WORLD_ENTTYPES; ++i) {
     SEntity *pEntity = pCore->m_apFirstEntityTypes[i];
     while (pEntity) {
       SEntity *pFree = pEntity;
@@ -2096,7 +2096,7 @@ void wc_tick(SWorldCore *pCore) {
   // Tick entities
 
   // Tick projectiles
-  SEntity *pEntity = pCore->m_apFirstEntityTypes[ENTTYPE_PROJECTILE];
+  SEntity *pEntity = pCore->m_apFirstEntityTypes[WORLD_ENTTYPE_PROJECTILE];
   while (pEntity) {
     prj_tick((SProjectile *)pEntity);
     pEntity = pEntity->m_pNextTypeEntity;
@@ -2105,7 +2105,7 @@ void wc_tick(SWorldCore *pCore) {
   // TODO: do lasers!!! aka. like 10 different entities that all identify as
   // lasers
   // Tick lasers
-  pEntity = pCore->m_apFirstEntityTypes[ENTTYPE_LASER];
+  pEntity = pCore->m_apFirstEntityTypes[WORLD_ENTTYPE_LASER];
   while (pEntity) {
     lsr_tick((SLaser *)pEntity);
     pEntity = pEntity->m_pNextTypeEntity;
@@ -2128,7 +2128,7 @@ void wc_tick(SWorldCore *pCore) {
     cc_world_tick_deferred(&pCore->m_pCharacters[i]);
 
   // Remove all entities that are marked for destroy
-  for (int i = 0; i < NUM_ENTTYPES; ++i) {
+  for (int i = 0; i < NUM_WORLD_ENTTYPES; ++i) {
     SEntity *pEntity = pCore->m_apFirstEntityTypes[i];
     while (pEntity) {
       SEntity *pFree = pEntity;
@@ -2263,7 +2263,7 @@ void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom)
 
   // delete the previous entities
 #pragma clang loop unroll(full)
-  for (int i = 0; i < NUM_ENTTYPES; ++i) {
+  for (int i = 0; i < NUM_WORLD_ENTTYPES; ++i) {
     SEntity *pEntity = pTo->m_apFirstEntityTypes[i];
     while (pEntity) {
       SEntity *pFree = pEntity;
@@ -2274,17 +2274,17 @@ void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom)
 
   // insert new entities
 #pragma clang loop unroll(full)
-  for (int i = 0; i < NUM_ENTTYPES; ++i) {
+  for (int i = 0; i < NUM_WORLD_ENTTYPES; ++i) {
     SEntity *pEntity = pFrom->m_apFirstEntityTypes[i];
     while (pEntity) {
       switch (i) {
-      case ENTTYPE_PROJECTILE: {
+      case WORLD_ENTTYPE_PROJECTILE: {
         SEntity *pNew = malloc(sizeof(SProjectile));
         memcpy(pNew, pEntity, sizeof(SProjectile));
         wc_insert_entity(pTo, pNew);
         break;
       }
-      case ENTTYPE_LASER: {
+      case WORLD_ENTTYPE_LASER: {
         SEntity *pNew = malloc(sizeof(SLaser));
         memcpy(pNew, pEntity, sizeof(SLaser));
         wc_insert_entity(pTo, pNew);

@@ -30,7 +30,7 @@ typedef struct {
   unsigned char m_WantedWeapon;
 } SPlayerInput;
 
-enum { ENTTYPE_PROJECTILE = 0, ENTTYPE_LASER, NUM_ENTTYPES };
+enum { WORLD_ENTTYPE_PROJECTILE = 0, WORLD_ENTTYPE_LASER, NUM_WORLD_ENTTYPES };
 
 bool is_switch_active_cb(int Number, void *pUser);
 
@@ -191,7 +191,7 @@ typedef struct WorldCore {
   STuningParams *m_pTunings;
 
   SEntity *m_pNextTraverseEntity;
-  SEntity *m_apFirstEntityTypes[NUM_ENTTYPES];
+  SEntity *m_apFirstEntityTypes[NUM_WORLD_ENTTYPES];
 
   // Store and tick characters seperately from other entities since
   // the amount of players mostly only gets set once for simulations
