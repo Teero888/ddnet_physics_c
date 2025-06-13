@@ -4,8 +4,8 @@
 // Each test has a maximum on one minute playtime and 4 players for now
 typedef struct {
   SPlayerInput m_Input;
-  vec2 m_Pos;
-  vec2 m_Vel;
+  mvec2 m_Pos;
+  mvec2 m_Vel;
 } SPlayerState;
 typedef struct {
   char m_aMapName[32];

@@ -24,7 +24,7 @@ int main(void) {
     wc_init(&World, &Collision, &Config);
 
     SCharacterCore *pChar = wc_add_character(&World);
-    vec2 PreviousVel;
+    mvec2 PreviousVel;
 
     bool Failed = false;
     for (int i = 0; i < pData->m_StartTick + pData->m_Ticks; ++i) {

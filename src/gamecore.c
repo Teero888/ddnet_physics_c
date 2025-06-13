@@ -21,7 +21,7 @@ void init_config(SConfig *pConfig) {
 
 // Physics helper functions {{{
 
-vec2 clamp_vel(int MoveRestriction, vec2 Vel) {
+mvec2 clamp_vel(int MoveRestriction, mvec2 Vel) {
   float x = vgetx(Vel);
   float y = vgety(Vel);
 
@@ -56,8 +56,8 @@ static inline float saturate_add(float Min, float Max, float Current, float Modi
   }
 }
 
-vec2 calc_pos(vec2 Pos, vec2 Velocity, float Curvature, float Speed, float Time) {
-  vec2 n = Pos;
+mvec2 calc_pos(mvec2 Pos, mvec2 Velocity, float Curvature, float Speed, float Time) {
+  mvec2 n = Pos;
   Time *= Speed;
   n = vadd_x(n, vgetx(Velocity) * Time);
   n = vadd_y(n, vgety(Velocity) * Time + Curvature / 10000 * (Time * Time));
@@ -89,7 +89,7 @@ enum {
 
 // Entities {{{
 
-void ent_init(SEntity *pEnt, SWorldCore *pGameWorld, int ObjType, vec2 Pos) {
+void ent_init(SEntity *pEnt, SWorldCore *pGameWorld, int ObjType, mvec2 Pos) {
   pEnt->m_pWorld = pGameWorld;
   pEnt->m_ObjType = ObjType;
   pEnt->m_Pos = Pos;
@@ -100,7 +100,7 @@ void ent_init(SEntity *pEnt, SWorldCore *pGameWorld, int ObjType, vec2 Pos) {
 }
 
 void lsr_bounce(SLaser *pLaser);
-void lsr_init(SLaser *pLaser, SWorldCore *pGameWorld, int Type, int Owner, vec2 Pos, vec2 Dir,
+void lsr_init(SLaser *pLaser, SWorldCore *pGameWorld, int Type, int Owner, mvec2 Pos, mvec2 Dir,
               float StartEnergy) {
   memset(pLaser, 0, sizeof(SLaser));
   ent_init(&pLaser->m_Base, pGameWorld, ENTTYPE_LASER, Pos);
@@ -114,13 +114,13 @@ void lsr_init(SLaser *pLaser, SWorldCore *pGameWorld, int Type, int Owner, vec2 
   lsr_bounce(pLaser);
 }
 
-SCharacterCore *wc_intersect_character(SWorldCore *pWorld, vec2 Pos0, vec2 Pos1, float Radius, vec2 *pNewPos,
+SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius, mvec2 *pNewPos,
                                        const SCharacterCore *pNotThis, const SCharacterCore *pThisOnly);
 void cc_unfreeze(SCharacterCore *pCore);
-void cc_take_damage(SCharacterCore *pCore, vec2 Force);
-bool lsr_hit_character(SLaser *pLaser, vec2 From, vec2 To) {
-  static const vec2 StackedLaserShotgunBugSpeed = CTVEC2(-2147483648.0f, -2147483648.0f);
-  vec2 At;
+void cc_take_damage(SCharacterCore *pCore, mvec2 Force);
+bool lsr_hit_character(SLaser *pLaser, mvec2 From, mvec2 To) {
+  static const mvec2 StackedLaserShotgunBugSpeed = CTVEC2(-2147483648.0f, -2147483648.0f);
+  mvec2 At;
   SCharacterCore *pOwnerChar = &pLaser->m_Base.m_pWorld->m_pCharacters[pLaser->m_Owner];
   SCharacterCore *pHit;
   bool pDontHitSelf = pLaser->m_Bounces == 0 && !pLaser->m_WasTele;
@@ -144,7 +144,7 @@ bool lsr_hit_character(SLaser *pLaser, vec2 From, vec2 To) {
   switch (pLaser->m_Type) {
   case WEAPON_SHOTGUN: {
     float Strength = pLaser->m_pTuning->m_ShotgunStrength;
-    const vec2 HitPos = pHit->m_Pos;
+    const mvec2 HitPos = pHit->m_Pos;
     if (!vvcmp(pLaser->m_PrevPos, HitPos))
       pHit->m_Vel = vvadd(pHit->m_Vel, vfmul(vnormalize(vvsub(pLaser->m_PrevPos, HitPos)), Strength));
     else
@@ -171,7 +171,7 @@ void lsr_bounce(SLaser *pLaser) {
     return;
   }
   pLaser->m_PrevPos = pLaser->m_Base.m_Pos;
-  vec2 Coltile;
+  mvec2 Coltile;
 
   int Res;
   uint8_t z;
@@ -182,7 +182,7 @@ void lsr_bounce(SLaser *pLaser) {
     pLaser->m_TelePos = vec2_init(0, 0);
   }
 
-  vec2 To = vvadd(pLaser->m_Base.m_Pos, vfmul(pLaser->m_Dir, pLaser->m_Energy));
+  mvec2 To = vvadd(pLaser->m_Base.m_Pos, vfmul(pLaser->m_Dir, pLaser->m_Energy));
 
   Res = intersect_line_tele_weapon(pLaser->m_Base.m_pCollision, pLaser->m_Base.m_Pos, To, &Coltile, &To, &z);
 
@@ -192,8 +192,8 @@ void lsr_bounce(SLaser *pLaser) {
       pLaser->m_From = pLaser->m_Base.m_Pos;
       pLaser->m_Base.m_Pos = To;
 
-      vec2 TempPos = pLaser->m_Base.m_Pos;
-      vec2 TempDir = pLaser->m_Dir * 4.0f;
+      mvec2 TempPos = pLaser->m_Base.m_Pos;
+      mvec2 TempDir = pLaser->m_Dir * 4.0f;
 
       int f = 0;
       int Idx =
@@ -240,12 +240,12 @@ void lsr_bounce(SLaser *pLaser) {
   SCharacterCore *pOwnerChar = &pLaser->m_Base.m_pWorld->m_pCharacters[pLaser->m_Owner];
   if (pLaser->m_Energy <= 0 && !pLaser->m_TeleportCancelled && pOwnerChar && pOwnerChar->m_HasTelegunLaser &&
       pLaser->m_Type == WEAPON_LASER) {
-    vec2 PossiblePos;
+    mvec2 PossiblePos;
     bool Found = false;
 
     // Check if the laser hits a player.
     bool pDontHitSelf = (pLaser->m_Bounces == 0 && !pLaser->m_WasTele);
-    vec2 At;
+    mvec2 At;
     SCharacterCore *pHit;
     if (pOwnerChar ? (!pOwnerChar->m_LaserHitDisabled && pLaser->m_Type == WEAPON_LASER)
                    : pLaser->m_Base.m_pWorld->m_pConfig->m_SvHit)
@@ -311,7 +311,7 @@ void lsr_tick(SLaser *pLaser) {
     lsr_bounce(pLaser);
 }
 
-void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner, vec2 Pos, vec2 Dir, int Span,
+void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner, mvec2 Pos, mvec2 Dir, int Span,
               bool Freeze, bool Explosive, int Layer, int Number) {
   memset(pProj, 0, sizeof(SProjectile));
   ent_init(&pProj->m_Base, pGameWorld, ENTTYPE_PROJECTILE, Pos);
@@ -330,7 +330,7 @@ void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner, v
   pProj->m_IsSolo = pGameWorld->m_pCharacters[Owner].m_Solo;
 }
 
-vec2 prj_get_pos(SProjectile *pProj, float Time) {
+mvec2 prj_get_pos(SProjectile *pProj, float Time) {
   float Curvature = 0;
   float Speed = 0;
 
@@ -353,19 +353,19 @@ vec2 prj_get_pos(SProjectile *pProj, float Time) {
 
   return calc_pos(pProj->m_Base.m_Pos, pProj->m_Direction, Curvature, Speed, Time);
 }
-SCharacterCore *wc_intersect_character(SWorldCore *pWorld, vec2 Pos0, vec2 Pos1, float Radius, vec2 *pNewPos,
+SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius, mvec2 *pNewPos,
                                        const SCharacterCore *pNotThis, const SCharacterCore *pThisOnly);
 bool cc_freeze(SCharacterCore *pCore, int Seconds);
 
-void wc_create_explosion(SWorldCore *pWorld, vec2 Pos, int Owner);
+void wc_create_explosion(SWorldCore *pWorld, mvec2 Pos, int Owner);
 
 void prj_tick(SProjectile *pProj) {
   float Pt = (pProj->m_Base.m_pWorld->m_GameTick - pProj->m_StartTick - 1) / (float)SERVER_TICK_SPEED;
   float Ct = (pProj->m_Base.m_pWorld->m_GameTick - pProj->m_StartTick) / (float)SERVER_TICK_SPEED;
-  vec2 PrevPos = prj_get_pos(pProj, Pt);
-  vec2 CurPos = prj_get_pos(pProj, Ct);
-  vec2 ColPos;
-  vec2 NewPos;
+  mvec2 PrevPos = prj_get_pos(pProj, Pt);
+  mvec2 CurPos = prj_get_pos(pProj, Ct);
+  mvec2 ColPos;
+  mvec2 NewPos;
   bool Collide = intersect_line(pProj->m_Base.m_pCollision, PrevPos, CurPos, &ColPos, &NewPos);
   SCharacterCore *pOwnerChar = NULL;
 
@@ -427,7 +427,7 @@ void prj_tick(SProjectile *pProj) {
       if (TileFIndex == TILE_ALLOW_TELE_GUN || TileFIndex == TILE_ALLOW_BLUE_TELE_GUN || IsSwitchTeleGun ||
           IsBlueSwitchTeleGun || pTargetChr) {
         bool Found;
-        vec2 PossiblePos;
+        mvec2 PossiblePos;
 
         if (!Collide)
           Found = get_nearest_air_pos_player(pProj->m_Base.m_pCollision,
@@ -511,7 +511,7 @@ void cc_do_pickup(SCharacterCore *pCore) {
       const SPickup Pickup = pCore->m_pCollision->m_pPickups[Idx + iclamp(ix + dx, 0, Width - 1)];
       if (Pickup.m_Type < 0)
         continue;
-      const vec2 OffsetPos = vvadd(pCore->m_Pos, vec2_init(dx * 32, dy * 32));
+      const mvec2 OffsetPos = vvadd(pCore->m_Pos, vec2_init(dx * 32, dy * 32));
       if (vsqdistance(pCore->m_Pos, OffsetPos) >= 48 * 48 && vdistance(pCore->m_Pos, OffsetPos) >= 48)
         continue;
       if (Pickup.m_Number > 0 && !pCore->m_pWorld->m_pSwitches[Pickup.m_Number].m_Status)
@@ -674,7 +674,7 @@ void cc_move(SCharacterCore *pCore) {
   OldVel = OldVel * RampValue;
   pCore->m_Vel = vsetx(pCore->m_Vel, OldVel);
 
-  vec2 NewPos = pCore->m_Pos;
+  mvec2 NewPos = pCore->m_Pos;
   bool Grounded = false;
   move_box(pCore->m_pCollision, NewPos, pCore->m_Vel, &NewPos, &pCore->m_Vel,
            vec2_init(pCore->m_pTuning->m_GroundElasticityX, pCore->m_pTuning->m_GroundElasticityY),
@@ -704,10 +704,10 @@ void cc_move(SCharacterCore *pCore) {
     float Distance = vdistance(pCore->m_Pos, NewPos);
     if (Distance > 0) {
       int End = Distance + 1;
-      vec2 LastPos = pCore->m_Pos;
+      mvec2 LastPos = pCore->m_Pos;
       for (int i = 0; i < End; i++) {
         float a = i / Distance;
-        vec2 Pos = vvfmix(pCore->m_Pos, NewPos, a);
+        mvec2 Pos = vvfmix(pCore->m_Pos, NewPos, a);
         for (int p = 0; p < pCore->m_pWorld->m_NumCharacters; p++) {
           SCharacterCore *pCharCore = &pCore->m_pWorld->m_pCharacters[p];
           if (pCharCore == pCore || pCharCore->m_Solo || pCharCore->m_CollisionDisabled)
@@ -746,7 +746,7 @@ void cc_tick_deferred(SCharacterCore *pCore) {
 
       float Distance = vdistance(pCore->m_Pos, pCharCore->m_Pos);
       if (Distance > 0) {
-        vec2 Dir = vnormalize(vvsub(pCore->m_Pos, pCharCore->m_Pos));
+        mvec2 Dir = vnormalize(vvsub(pCore->m_Pos, pCharCore->m_Pos));
 
         bool CanCollide = (!pCore->m_CollisionDisabled && !pCharCore->m_CollisionDisabled &&
                            pCore->m_pTuning->m_PlayerCollision);
@@ -766,7 +766,7 @@ void cc_tick_deferred(SCharacterCore *pCore) {
             float HookAccel = pCore->m_pTuning->m_HookDragAccel * (Distance / pCore->m_pTuning->m_HookLength);
             float DragSpeed = pCore->m_pTuning->m_HookDragSpeed;
 
-            vec2 Temp;
+            mvec2 Temp;
             Temp = clamp_vel(pCharCore->m_MoveRestrictions,
                              vec2_init(saturate_add(-DragSpeed, DragSpeed, vgetx(pCharCore->m_Vel),
                                                     HookAccel * vgetx(Dir) * 1.5f),
@@ -816,10 +816,10 @@ void cc_ddracetick(SCharacterCore *pCore) {
 }
 
 void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
-  static const vec2 DeathOffset1 = {DEATH, -DEATH, 0.f, 0.f};
-  static const vec2 DeathOffset2 = {DEATH, DEATH, 0.f, 0.f};
-  static const vec2 DeathOffset3 = {-DEATH, -DEATH, 0.f, 0.f};
-  static const vec2 DeathOffset4 = {-DEATH, DEATH, 0.f, 0.f};
+  static const mvec2 DeathOffset1 = {DEATH, -DEATH, 0.f, 0.f};
+  static const mvec2 DeathOffset2 = {DEATH, DEATH, 0.f, 0.f};
+  static const mvec2 DeathOffset3 = {-DEATH, -DEATH, 0.f, 0.f};
+  static const mvec2 DeathOffset4 = {-DEATH, DEATH, 0.f, 0.f};
   if (pCore->m_pCollision->m_pTileInfos[Index] & INFO_CANHITKILL &&
       (get_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset1)) == TILE_DEATH ||
        get_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset2)) == TILE_DEATH ||
@@ -837,7 +837,7 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
     return;
 
   if (is_speedup(pCore->m_pCollision, Index)) {
-    vec2 Direction, TempVel = pCore->m_Vel;
+    mvec2 Direction, TempVel = pCore->m_Vel;
     int Force, Type, MaxSpeed = 0;
     get_speedup(pCore->m_pCollision, Index, &Direction, &Force, &MaxSpeed, &Type);
 
@@ -939,7 +939,7 @@ void cc_reset_pickups(SCharacterCore *pCore) {
 }
 
 void wc_release_hooked(SWorldCore *pCore, int Id);
-bool wc_next_spawn(SWorldCore *pCore, vec2 *pOutPos);
+bool wc_next_spawn(SWorldCore *pCore, mvec2 *pOutPos);
 
 void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   int MapIndex = Index;
@@ -1201,7 +1201,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
         return;
       }
     }
-    vec2 SpawnPos;
+    mvec2 SpawnPos;
     if (wc_next_spawn(pCore->m_pWorld, &SpawnPos)) {
       pCore->m_Pos = SpawnPos;
       cc_calc_indices(pCore);
@@ -1227,7 +1227,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
         return;
       }
     }
-    vec2 SpawnPos;
+    mvec2 SpawnPos;
     if (wc_next_spawn(pCore->m_pWorld, &SpawnPos)) {
       pCore->m_Pos = SpawnPos;
       cc_calc_indices(pCore);
@@ -1272,11 +1272,11 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
 
   cc_handle_skippable_tiles(pCore, pCore->m_BlockIdx);
 
-  const vec2 PrevPos = pCore->m_PrevPos;
-  const vec2 Pos = pCore->m_Pos;
+  const mvec2 PrevPos = pCore->m_PrevPos;
+  const mvec2 Pos = pCore->m_Pos;
   const int Width = pCore->m_pCollision->m_MapData.width;
-  const vec2 minVec = _mm_min_ps(PrevPos, Pos);
-  const vec2 maxVec = _mm_max_ps(PrevPos, Pos);
+  const mvec2 minVec = _mm_min_ps(PrevPos, Pos);
+  const mvec2 maxVec = _mm_max_ps(PrevPos, Pos);
   const int MinX = (int)vgetx(minVec) >> 5;
   const int MinY = (int)vgety(minVec) >> 5;
   const int MaxX = (int)vgetx(maxVec) >> 5;
@@ -1295,7 +1295,7 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
       }
     } else {
       int LastIndex = -1;
-      vec2 Tmp;
+      mvec2 Tmp;
       for (int i = 0; i < End; i++) {
         float a = i / d;
         Tmp = vvfmix(PrevPos, Pos, a);
@@ -1365,7 +1365,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
   if (pCore->m_Input.m_Hook) {
     if (pCore->m_HookState == HOOK_IDLE) {
-      vec2 TargetDirection = vnormalize_nomask(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
+      mvec2 TargetDirection = vnormalize_nomask(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
 
       pCore->m_HookState = HOOK_FLYING;
       pCore->m_HookPos = vvadd(pCore->m_Pos, vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
@@ -1405,11 +1405,11 @@ void cc_pre_tick(SCharacterCore *pCore) {
   } else if (pCore->m_HookState == HOOK_RETRACT_END) {
     pCore->m_HookState = HOOK_RETRACTED;
   } else if (pCore->m_HookState == HOOK_FLYING) {
-    vec2 HookBase = pCore->m_Pos;
+    mvec2 HookBase = pCore->m_Pos;
     if (pCore->m_NewHook) {
       HookBase = pCore->m_HookTeleBase;
     }
-    vec2 NewPos = vvadd(pCore->m_HookPos, vfmul(pCore->m_HookDir, pCore->m_pTuning->m_HookFireSpeed));
+    mvec2 NewPos = vvadd(pCore->m_HookPos, vfmul(pCore->m_HookDir, pCore->m_pTuning->m_HookFireSpeed));
 
     if (vsqdistance(HookBase, NewPos) >= pCore->m_pTuning->m_HookLength * pCore->m_pTuning->m_HookLength)
       if (vdistance(HookBase, NewPos) > pCore->m_pTuning->m_HookLength) {
@@ -1444,7 +1444,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
         if (pEntity == pCore || pEntity->m_Solo || pCore->m_Solo)
           continue;
 
-        vec2 ClosestPoint;
+        mvec2 ClosestPoint;
         if (closest_point_on_line(pCore->m_HookPos, NewPos, pEntity->m_Pos, &ClosestPoint)) {
           if (vdistance(pEntity->m_Pos, ClosestPoint) < PHYSICALSIZE + 2.0f) {
             if (pCore->m_HookedPlayer == -1 || vdistance(pCore->m_HookPos, pEntity->m_Pos) < Distance) {
@@ -1466,9 +1466,9 @@ void cc_pre_tick(SCharacterCore *pCore) {
       int NumOuts = pCore->m_pCollision->m_aNumTeleOuts[teleNr];
       if (GoingThroughTele && NumOuts > 0) {
         pCore->m_HookedPlayer = -1;
-        const vec2 *pTeleOuts = pCore->m_pCollision->m_apTeleOuts[teleNr];
+        const mvec2 *pTeleOuts = pCore->m_pCollision->m_apTeleOuts[teleNr];
 
-        vec2 TargetDirection = vnormalize(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
+        mvec2 TargetDirection = vnormalize(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
         pCore->m_NewHook = true;
         pCore->m_HookPos = vvadd(pTeleOuts[pCore->m_pWorld->m_GameTick % NumOuts],
                                  vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
@@ -1492,7 +1492,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
       }
     } else if (vsqdistance(pCore->m_HookPos, pCore->m_Pos) > 46 * 46 ||
                vdistance(pCore->m_HookPos, pCore->m_Pos) > 46.0f) {
-      vec2 HookVel =
+      mvec2 HookVel =
           vfmul(vnormalize_nomask(vvsub(pCore->m_HookPos, pCore->m_Pos)), pCore->m_pTuning->m_HookDragAccel);
       if (vgety(HookVel) > 0)
         HookVel = vsety(HookVel, vgety(HookVel) * 0.3f);
@@ -1501,7 +1501,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
       else
         HookVel = vsetx(HookVel, vgetx(HookVel) * 0.75f);
 
-      vec2 NewVel = vvadd(pCore->m_Vel, HookVel);
+      mvec2 NewVel = vvadd(pCore->m_Vel, HookVel);
 
       // doing a square length compare doesn't change physics apparently
       const float NewVelLength = vsqlength(NewVel);
@@ -1531,7 +1531,7 @@ void cc_remove_ninja(SCharacterCore *pCore) {
   pCore->m_aWeaponGot[WEAPON_NINJA] = false;
 }
 
-void cc_take_damage(SCharacterCore *pCore, vec2 Force) {
+void cc_take_damage(SCharacterCore *pCore, mvec2 Force) {
   pCore->m_Vel = clamp_vel(pCore->m_MoveRestrictions, vvadd(pCore->m_Vel, Force));
 }
 
@@ -1557,8 +1557,8 @@ void cc_handle_ninja(SCharacterCore *pCore) {
   if (pCore->m_Ninja.m_CurrentMoveTime > 0) {
     // Set velocity
     pCore->m_Vel = vfmul(pCore->m_Ninja.m_ActivationDir, NINJA_VELOCITY);
-    vec2 OldPos = pCore->m_Pos;
-    vec2 GroundElasticity =
+    mvec2 OldPos = pCore->m_Pos;
+    mvec2 GroundElasticity =
         vec2_init(pCore->m_pTuning->m_GroundElasticityX, pCore->m_pTuning->m_GroundElasticityY);
 
     {
@@ -1617,7 +1617,7 @@ void cc_handle_jetpack(SCharacterCore *pCore) {
   if (!(pCore->m_LatestInput.m_Fire & 1) || pCore->m_FreezeTime)
     return;
 
-  const vec2 Direction =
+  const mvec2 Direction =
       vnormalize(vec2_init(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY));
   float Strength = pCore->m_pTuning->m_JetpackStrength;
   cc_take_damage(pCore, vfmul(Direction, -(Strength / 100.f / 6.11f)));
@@ -1661,9 +1661,9 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   if (!WillFire)
     return;
 
-  const vec2 Direction =
+  const mvec2 Direction =
       vnormalize_nomask(vec2_init(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY));
-  const vec2 ProjStartPos = vvadd(pCore->m_Pos, vfmul(Direction, PHYSICALSIZE * 0.75f));
+  const mvec2 ProjStartPos = vvadd(pCore->m_Pos, vfmul(Direction, PHYSICALSIZE * 0.75f));
 
   switch (pCore->m_ActiveWeapon) {
   case WEAPON_HAMMER: {
@@ -1687,7 +1687,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 
         // set his velocity to fast upward (for now)
 
-        vec2 Dir;
+        mvec2 Dir;
         if (vsqlength(vvsub(pTarget->m_Pos, pCore->m_Pos)) > 0.0f)
           Dir = vnormalize(vvsub(pTarget->m_Pos, pCore->m_Pos));
         else
@@ -1695,10 +1695,10 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 
         float Strength = pCore->m_pTuning->m_HammerStrength;
 
-        vec2 Temp = vvadd(pTarget->m_Vel, vfmul(vnormalize(vvadd(Dir, vec2_init(0.f, -1.1f))), 10.0f));
+        mvec2 Temp = vvadd(pTarget->m_Vel, vfmul(vnormalize(vvadd(Dir, vec2_init(0.f, -1.1f))), 10.0f));
         Temp = vvsub(clamp_vel(pTarget->m_MoveRestrictions, Temp), pTarget->m_Vel);
 
-        vec2 Force = vfmul(vvadd(vec2_init(0.f, -1.0f), Temp), Strength);
+        mvec2 Force = vfmul(vvadd(vec2_init(0.f, -1.0f), Temp), Strength);
 
         cc_take_damage(pTarget, Force);
         cc_unfreeze(pTarget);
@@ -1846,7 +1846,7 @@ void init_switchers(SWorldCore *pCore, int HighestSwitchNumber) {
 
 // NOTE: spawn points are not the same as in ddnet. other players will not be
 // respected
-bool wc_next_spawn(SWorldCore *pCore, vec2 *pOutPos) {
+bool wc_next_spawn(SWorldCore *pCore, mvec2 *pOutPos) {
   if (!pCore->m_pCollision->m_pSpawnPoints)
     return false;
   *pOutPos = vfadd(
@@ -1863,7 +1863,7 @@ void wc_release_hooked(SWorldCore *pCore, int Id) {
 }
 
 bool wc_on_entity(SWorldCore *pCore, int Index, int x, int y, int Layer, int Flags, int Number) {
-  const vec2 Pos = vec2_init(x * 32.0f + 16.0f, y * 32.0f + 16.0f);
+  const mvec2 Pos = vec2_init(x * 32.0f + 16.0f, y * 32.0f + 16.0f);
 
   int aSides[8];
   aSides[0] = entity(pCore->m_pCollision, x, y + 1, Layer);
@@ -2151,7 +2151,7 @@ SCharacterCore *wc_add_character(SWorldCore *pWorld) {
   cc_init(pChar, pWorld);
   pChar->m_Id = pWorld->m_NumCharacters - 1;
 
-  vec2 SpawnPos;
+  mvec2 SpawnPos;
   if (wc_next_spawn(pWorld, &SpawnPos)) {
     pChar->m_Pos = SpawnPos;
     pChar->m_PrevPos = SpawnPos;
@@ -2161,16 +2161,16 @@ SCharacterCore *wc_add_character(SWorldCore *pWorld) {
   return pChar;
 }
 
-void wc_create_explosion(SWorldCore *pWorld, vec2 Pos, int Owner) {
+void wc_create_explosion(SWorldCore *pWorld, mvec2 Pos, int Owner) {
 #define EXPLOSION_RADIUS 135.0f
 #define EXPLOSION_INNER_RADIUS 48.0f
   for (int i = 0; i < pWorld->m_NumCharacters; i++) {
     SCharacterCore *pChr = &pWorld->m_pCharacters[i];
-    vec2 Diff = vvsub(pChr->m_Pos, Pos);
+    mvec2 Diff = vvsub(pChr->m_Pos, Pos);
     float l = vlength(Diff);
     if (l >= EXPLOSION_RADIUS + PHYSICALSIZE)
       continue;
-    vec2 ForceDir = vec2_init(0, 1);
+    mvec2 ForceDir = vec2_init(0, 1);
     if (l)
       ForceDir = vnormalize_nomask(Diff);
     l = 1 - fclamp((l - EXPLOSION_INNER_RADIUS) / (EXPLOSION_RADIUS - EXPLOSION_INNER_RADIUS), 0.0f, 1.0f);
@@ -2192,7 +2192,7 @@ void wc_create_explosion(SWorldCore *pWorld, vec2 Pos, int Owner) {
   }
 }
 
-SCharacterCore *wc_intersect_character(SWorldCore *pWorld, vec2 Pos0, vec2 Pos1, float Radius, vec2 *pNewPos,
+SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius, mvec2 *pNewPos,
                                        const SCharacterCore *pNotThis, const SCharacterCore *pThisOnly) {
   float ClosestLen = vdistance(Pos0, Pos1) * 100.0f;
   SCharacterCore *pClosest = NULL;
@@ -2205,7 +2205,7 @@ SCharacterCore *wc_intersect_character(SWorldCore *pWorld, vec2 Pos0, vec2 Pos1,
     if (pThisOnly && pEntity != pThisOnly)
       continue;
 
-    vec2 IntersectPos;
+    mvec2 IntersectPos;
     if (closest_point_on_line(Pos0, Pos1, pEntity->m_Pos, &IntersectPos)) {
       float Len = vdistance(pEntity->m_Pos, IntersectPos);
       if (Len < PHYSICALSIZE + Radius) {

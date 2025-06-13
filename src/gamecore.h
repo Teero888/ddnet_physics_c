@@ -41,7 +41,7 @@ typedef struct Entity {
   SCollision *m_pCollision;
   struct Entity *restrict m_pPrevTypeEntity;
   struct Entity *restrict m_pNextTypeEntity;
-  vec2 m_Pos;
+  mvec2 m_Pos;
   int m_ObjType;
   int m_Number;
   int m_Layer;
@@ -50,7 +50,7 @@ typedef struct Entity {
 
 typedef struct Projectile {
   SEntity m_Base;
-  vec2 m_Direction;
+  mvec2 m_Direction;
   STuningParams *m_pTuning;
   int m_LifeSpan;
   int m_Owner;
@@ -65,10 +65,10 @@ typedef struct Projectile {
 typedef struct Laser {
   SEntity m_Base;
   STuningParams *m_pTuning;
-  vec2 m_From;
-  vec2 m_Dir;
-  vec2 m_TelePos;
-  vec2 m_PrevPos;
+  mvec2 m_From;
+  mvec2 m_Dir;
+  mvec2 m_TelePos;
+  mvec2 m_PrevPos;
   bool m_WasTele;
   float m_Energy;
   int m_Bounces;
@@ -88,16 +88,16 @@ typedef struct CharacterCore {
   struct WorldCore *m_pWorld;
   SCollision *m_pCollision;
   int m_Id;
-  vec2 m_PrevPos;
-  vec2 m_Pos;
-  vec2 m_Vel;
+  mvec2 m_PrevPos;
+  mvec2 m_Pos;
+  mvec2 m_Vel;
 
   uivec2 m_BlockPos;
   int m_BlockIdx;
 
-  vec2 m_HookPos;
-  vec2 m_HookDir;
-  vec2 m_HookTeleBase;
+  mvec2 m_HookPos;
+  mvec2 m_HookDir;
+  mvec2 m_HookTeleBase;
   int m_HookTick;
   int m_HookState;
 
@@ -106,7 +106,7 @@ typedef struct CharacterCore {
 
   // ninja
   struct {
-    vec2 m_ActivationDir;
+    mvec2 m_ActivationDir;
     int m_ActivationTick;
     int m_CurrentMoveTime;
     int m_OldVelAmount;
@@ -159,7 +159,7 @@ typedef struct CharacterCore {
   // we might have more than 255 player ids
   int m_HookedPlayer;
 
-  vec2 m_TeleGunPos;
+  mvec2 m_TeleGunPos;
   bool m_TeleGunTeleport;
   bool m_IsBlueTeleGunTeleport;
 
