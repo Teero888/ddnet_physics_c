@@ -1,8 +1,8 @@
 #include <stdio.h>
 
-#include "../src/collision.h"
-#include "../src/gamecore.h"
-#include "vmath.h"
+#include "../include/collision.h"
+#include "../include/gamecore.h"
+#include "../include/vmath.h"
 
 int main(void) {
   SCollision Collision;

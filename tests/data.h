@@ -1,5 +1,5 @@
-#include "../src/gamecore.h"
-#include "../src/vmath.h"
+#include "../include/gamecore.h"
+#include "../include/vmath.h"
 
 // Each test has a maximum on one minute playtime and 4 players for now
 typedef struct {

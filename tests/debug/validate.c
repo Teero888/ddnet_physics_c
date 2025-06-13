@@ -1,6 +1,6 @@
-#include "../src/collision.h"
-#include "../src/gamecore.h"
-#include "../src/vmath.h"
+#include "../include/collision.h"
+#include "../include/gamecore.h"
+#include "../include/vmath.h"
 #include "data.h"
 #include <stdio.h>
 

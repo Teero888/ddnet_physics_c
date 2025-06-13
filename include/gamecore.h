@@ -6,7 +6,7 @@
 
 typedef struct Config {
 #define MACRO_CONFIG_INT(Name, Def) int m_##Name;
-#include "config.h"
+#include "../src/config.h"
 #undef MACRO_CONFIG_INT
 } SConfig;
 

@@ -1,7 +1,7 @@
-#include "../src/gamecore.h"
-#include "collision.h"
-#include "data.h"
-#include "utils.h"
+#include "../include/gamecore.h"
+#include "../include/collision.h"
+#include "../data.h"
+#include "../utils.h"
 #include <getopt.h>
 #include <math.h>
 #include <omp.h>

@@ -1,6 +1,6 @@
-#include "gamecore.h"
-#include "collision.h"
-#include "vmath.h"
+#include "../include/gamecore.h"
+#include "../include/collision.h"
+#include "../include/vmath.h"
 #include <ddnet_map_loader.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -114,8 +114,9 @@ void lsr_init(SLaser *pLaser, SWorldCore *pGameWorld, int Type, int Owner, mvec2
   lsr_bounce(pLaser);
 }
 
-SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius, mvec2 *pNewPos,
-                                       const SCharacterCore *pNotThis, const SCharacterCore *pThisOnly);
+SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius,
+                                       mvec2 *pNewPos, const SCharacterCore *pNotThis,
+                                       const SCharacterCore *pThisOnly);
 void cc_unfreeze(SCharacterCore *pCore);
 void cc_take_damage(SCharacterCore *pCore, mvec2 Force);
 bool lsr_hit_character(SLaser *pLaser, mvec2 From, mvec2 To) {
@@ -353,8 +354,9 @@ mvec2 prj_get_pos(SProjectile *pProj, float Time) {
 
   return calc_pos(pProj->m_Base.m_Pos, pProj->m_Direction, Curvature, Speed, Time);
 }
-SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius, mvec2 *pNewPos,
-                                       const SCharacterCore *pNotThis, const SCharacterCore *pThisOnly);
+SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius,
+                                       mvec2 *pNewPos, const SCharacterCore *pNotThis,
+                                       const SCharacterCore *pThisOnly);
 bool cc_freeze(SCharacterCore *pCore, int Seconds);
 
 void wc_create_explosion(SWorldCore *pWorld, mvec2 Pos, int Owner);
@@ -523,7 +525,7 @@ void cc_do_pickup(SCharacterCore *pCore) {
         break;
 
       case POWERUP_ARMOR:
-#pragma clang unroll(full)
+#pragma clang loop unroll(full)
         for (int j = WEAPON_SHOTGUN; j < NUM_WEAPONS; j++) {
           pCore->m_aWeaponGot[j] = false;
         }
@@ -1365,7 +1367,8 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
   if (pCore->m_Input.m_Hook) {
     if (pCore->m_HookState == HOOK_IDLE) {
-      mvec2 TargetDirection = vnormalize_nomask(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
+      mvec2 TargetDirection =
+          vnormalize_nomask(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
 
       pCore->m_HookState = HOOK_FLYING;
       pCore->m_HookPos = vvadd(pCore->m_Pos, vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
@@ -2192,8 +2195,9 @@ void wc_create_explosion(SWorldCore *pWorld, mvec2 Pos, int Owner) {
   }
 }
 
-SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius, mvec2 *pNewPos,
-                                       const SCharacterCore *pNotThis, const SCharacterCore *pThisOnly) {
+SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius,
+                                       mvec2 *pNewPos, const SCharacterCore *pNotThis,
+                                       const SCharacterCore *pThisOnly) {
   float ClosestLen = vdistance(Pos0, Pos1) * 100.0f;
   SCharacterCore *pClosest = NULL;
 
@@ -2258,7 +2262,7 @@ void wc_copy_world(SWorldCore *restrict pTo, SWorldCore *restrict pFrom) {
   pTo->m_pTunings = pFrom->m_pTunings;
 
   // delete the previous entities
-#pragma clang unroll(full)
+#pragma clang loop unroll(full)
   for (int i = 0; i < NUM_ENTTYPES; ++i) {
     SEntity *pEntity = pTo->m_apFirstEntityTypes[i];
     while (pEntity) {
@@ -2269,7 +2273,7 @@ void wc_copy_world(SWorldCore *restrict pTo, SWorldCore *restrict pFrom) {
   }
 
   // insert new entities
-#pragma clang unroll(full)
+#pragma clang loop unroll(full)
   for (int i = 0; i < NUM_ENTTYPES; ++i) {
     SEntity *pEntity = pFrom->m_apFirstEntityTypes[i];
     while (pEntity) {

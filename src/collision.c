@@ -1,8 +1,8 @@
-#include "collision.h"
+#include "../include/collision.h"
+#include "../include/gamecore.h"
+#include "../include/vmath.h"
 #include "collision_tables.h"
-#include "gamecore.h"
 #include "limits.h"
-#include "vmath.h"
 #include <ddnet_map_loader.h>
 #include <float.h>
 #include <immintrin.h>
@@ -612,9 +612,9 @@ inline unsigned char get_move_restrictions(SCollision *restrict pCollision, void
   if (!pCollision->m_MoveRestrictionsFound && !pCollision->m_MapData.door_layer.index)
     return 0;
   static const mvec2 DIRECTIONS[NUM_MR_DIRS] = {CTVEC2(0, 0), CTVEC2(18, 0), CTVEC2(0, 18), CTVEC2(-18, 0),
-                                               CTVEC2(0, -18)};
+                                                CTVEC2(0, -18)};
   unsigned char Restrictions = 0;
-#pragma clang unroll(full)
+#pragma clang loop unroll(full)
   for (int d = 0; d < NUM_MR_DIRS; d++) {
     int ModMapIndex = get_pure_map_index(pCollision, vvadd(Pos, DIRECTIONS[d]));
     if (d == MR_DIR_HERE && OverrideCenterTileIndex >= 0)
@@ -859,7 +859,6 @@ unsigned char intersect_line_tele_hook(SCollision *restrict pCollision, mvec2 Po
   const __m256 half_vec = _mm256_set1_ps(0.5f);
   const __m256i width_vec = _mm256_set1_epi32(Width);
 
-#pragma clang unroll(full)
   for (int k = Start; k <= End; k += 8) {
     __m256i i_vec = _mm256_set_epi32(k + 7, k + 6, k + 5, k + 4, k + 3, k + 2, k + 1, k);
     __m256 a_vec = _mm256_mul_ps(_mm256_cvtepi32_ps(i_vec), inv_fEnd_vec);
@@ -945,7 +944,6 @@ unsigned char intersect_line_tele_weapon(SCollision *restrict pCollision, mvec2 
   const __m256 half_vec = _mm256_set1_ps(0.5f);
   const __m256i width_vec = _mm256_set1_epi32(Width);
 
-#pragma clang unroll(full)
   for (int k = Start; k <= End; k += 8) {
     __m256i i_vec = _mm256_set_epi32(k + 7, k + 6, k + 5, k + 4, k + 3, k + 2, k + 1, k);
     __m256 a_vec = _mm256_mul_ps(_mm256_cvtepi32_ps(i_vec), inv_fEnd_vec);
