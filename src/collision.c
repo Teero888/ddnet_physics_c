@@ -2,8 +2,8 @@
 #include "collision_tables.h"
 #include "gamecore.h"
 #include "limits.h"
-#include <ddnet_map_loader.h>
 #include "vmath.h"
+#include <ddnet_map_loader.h>
 #include <float.h>
 #include <immintrin.h>
 #include <mm_malloc.h>
@@ -233,8 +233,7 @@ bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) 
     if (tile_exists(pCollision, i))
       pCollision->m_pTileInfos[i] |= INFO_TILENEXT;
     const int Tile = pCollision->m_MapData.game_layer.data[i];
-    const int FTile =
-        pCollision->m_MapData.front_layer.data ? pCollision->m_MapData.front_layer.data[i] : 0;
+    const int FTile = pCollision->m_MapData.front_layer.data ? pCollision->m_MapData.front_layer.data[i] : 0;
     if (Tile == TILE_SOLID || Tile == TILE_NOHOOK)
       pCollision->m_pTileInfos[i] |= INFO_ISSOLID;
 
@@ -316,8 +315,7 @@ bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) 
           if (pCollision->m_pPickups[dIdx].m_Type > 0)
             pCollision->m_pTileInfos[Idx] |= INFO_PICKUPNEXT;
           if (pCollision->m_MapData.game_layer.data[dIdx] == TILE_DEATH ||
-              (pCollision->m_MapData.front_layer.data &&
-               pCollision->m_MapData.front_layer.data[dIdx]))
+              (pCollision->m_MapData.front_layer.data && pCollision->m_MapData.front_layer.data[dIdx]))
             pCollision->m_pTileInfos[Idx] |= INFO_CANHITKILL;
         }
       }
@@ -436,8 +434,8 @@ bool init_collision(SCollision *restrict pCollision, const char *restrict pMap) 
       }
       if (pMapData->tele_layer.type) {
         if (pMapData->tele_layer.type[Idx] == TILE_TELEOUT)
-          pCollision->m_apTeleOuts[pMapData->tele_layer.number[Idx]]
-                                  [aTeleIdx[pMapData->tele_layer.number[Idx]]++] =
+          pCollision
+              ->m_apTeleOuts[pMapData->tele_layer.number[Idx]][aTeleIdx[pMapData->tele_layer.number[Idx]]++] =
               vec2_init(x * 32 + 16, y * 32 + 16);
         if (pMapData->tele_layer.type[Idx] == TILE_TELECHECKOUT)
           pCollision->m_apTeleCheckOuts[pMapData->tele_layer.number[Idx]]
@@ -622,8 +620,7 @@ inline unsigned char get_move_restrictions(SCollision *restrict pCollision, void
     if (d == MR_DIR_HERE && OverrideCenterTileIndex >= 0)
       ModMapIndex = OverrideCenterTileIndex;
     Restrictions |= pCollision->m_pMoveRestrictions[ModMapIndex][d];
-    if (pCollision->m_MapData.door_layer.index &&
-        pCollision->m_MapData.door_layer.index[ModMapIndex]) {
+    if (pCollision->m_MapData.door_layer.index && pCollision->m_MapData.door_layer.index[ModMapIndex]) {
       if (is_switch_active_cb(pCollision->m_MapData.door_layer.number[ModMapIndex], pUser)) {
         Restrictions |= move_restrictions(d, pCollision->m_MapData.door_layer.index[ModMapIndex],
                                           pCollision->m_MapData.door_layer.flags[ModMapIndex]);
@@ -922,7 +919,8 @@ unsigned char intersect_line_tele_weapon(SCollision *restrict pCollision, vec2 P
   int Idx = ((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION + ((int)vgetx(Pos0));
   unsigned char Start = pCollision->m_pSolidTeleDistanceField[Idx];
 
-  const int End = s_aMaxTable[(int)vsqdistance(Pos0, Pos1)] + 1;
+  // we can't use the precomputed table here because lasers can get indefinently long
+  const int End = vdistance(Pos0, Pos1) + 1;
   Start = iclamp(Start, 0, End);
   Start -= Start % 4;
   const float fEnd = End;
@@ -932,7 +930,8 @@ unsigned char intersect_line_tele_weapon(SCollision *restrict pCollision, vec2 P
 
   int *aIndices = malloc(sizeof(int) * (End + 8));
 
-  const float inv_fEnd = s_aFractionTable[End - 1];
+  // we can't use the precomputed table here because lasers can get indefinently long
+  const float inv_fEnd = 1.f / End;
   const float Pos0_x = vgetx(Pos0);
   const float Pos0_y = vgety(Pos0);
   const float diff_x = vgetx(Pos1) - Pos0_x;
@@ -1014,8 +1013,7 @@ unsigned char is_tune(SCollision *pCollision, int Index) {
 }
 
 bool is_speedup(SCollision *pCollision, int Index) {
-  return pCollision->m_MapData.speedup_layer.type &&
-         pCollision->m_MapData.speedup_layer.force[Index] > 0;
+  return pCollision->m_MapData.speedup_layer.type && pCollision->m_MapData.speedup_layer.force[Index] > 0;
 }
 
 void get_speedup(SCollision *restrict pCollision, int Index, vec2 *restrict pDir, int *restrict pForce,

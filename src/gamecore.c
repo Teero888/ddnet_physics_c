@@ -1,7 +1,7 @@
 #include "gamecore.h"
 #include "collision.h"
-#include <ddnet_map_loader.h>
 #include "vmath.h"
+#include <ddnet_map_loader.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -107,6 +107,7 @@ void lsr_init(SLaser *pLaser, SWorldCore *pGameWorld, int Type, int Owner, vec2 
   pLaser->m_Owner = Owner;
   pLaser->m_Energy = StartEnergy;
   pLaser->m_Dir = Dir;
+  pLaser->m_Type = Type;
   pLaser->m_pTuning =
       &pGameWorld
            ->m_pTunings[is_tune(pGameWorld->m_pCollision, get_map_index(pGameWorld->m_pCollision, Pos))];
@@ -148,12 +149,15 @@ bool lsr_hit_character(SLaser *pLaser, vec2 From, vec2 To) {
       pHit->m_Vel = vvadd(pHit->m_Vel, vfmul(vnormalize(vvsub(pLaser->m_PrevPos, HitPos)), Strength));
     else
       pHit->m_Vel = StackedLaserShotgunBugSpeed;
+    break;
   }
   case WEAPON_LASER: {
     cc_unfreeze(pHit);
+    break;
   }
   default:
     __builtin_unreachable();
+    break;
   }
   pHit->m_Vel = clamp_vel(pHit->m_MoveRestrictions, pHit->m_Vel);
   return true;
@@ -303,11 +307,8 @@ void lsr_bounce(SLaser *pLaser) {
 
 void lsr_tick(SLaser *pLaser) {
   if ((pLaser->m_Base.m_pWorld->m_GameTick - pLaser->m_EvalTick) >
-      (SERVER_TICK_SPEED * pLaser->m_pTuning->m_LaserBounceDelay / 1000.0f)) {
+      (SERVER_TICK_SPEED * pLaser->m_pTuning->m_LaserBounceDelay / 1000.0f))
     lsr_bounce(pLaser);
-    printf("laser bounced from (%.2f, %.2f) to (%.2f, %.2f)\n", vgetx(pLaser->m_PrevPos),
-           vgety(pLaser->m_PrevPos), vgetx(pLaser->m_Base.m_Pos), vgety(pLaser->m_Base.m_Pos));
-  }
 }
 
 void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner, vec2 Pos, vec2 Dir, int Span,
@@ -1756,7 +1757,6 @@ void cc_fire_weapon(SCharacterCore *pCore) {
     SLaser *pNewLaser = malloc(sizeof(SLaser));
     lsr_init(pNewLaser, pCore->m_pWorld, WEAPON_LASER, pCore->m_Id, pCore->m_Pos, Direction, LaserReach);
     wc_insert_entity(pCore->m_pWorld, (SEntity *)pNewLaser);
-    printf("Laser created at (%2.f, %2.f)\n", vgetx(pCore->m_Pos), vgety(pCore->m_Pos));
     break;
   }
 
@@ -1804,7 +1804,6 @@ void cc_tick(SCharacterCore *pCore) {
   cc_ddrace_postcore_tick(pCore);
 
   pCore->m_PrevPos = pCore->m_Pos;
-  // printf("Character Pos: (%.2f, %.2f)\n", vgetx(pCore->m_Pos), vgety(pCore->m_Pos));
 }
 
 void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
