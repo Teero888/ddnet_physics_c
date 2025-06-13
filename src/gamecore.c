@@ -2277,13 +2277,13 @@ void wc_copy_world(SWorldCore *restrict pTo, SWorldCore *restrict pFrom) {
       case ENTTYPE_PROJECTILE: {
         SEntity *pNew = malloc(sizeof(SProjectile));
         memcpy(pNew, pEntity, sizeof(SProjectile));
-        wc_insert_entity(pTo, pEntity);
+        wc_insert_entity(pTo, pNew);
         break;
       }
       case ENTTYPE_LASER: {
         SEntity *pNew = malloc(sizeof(SLaser));
         memcpy(pNew, pEntity, sizeof(SLaser));
-        wc_insert_entity(pTo, pEntity);
+        wc_insert_entity(pTo, pNew);
         break;
       }
       }
