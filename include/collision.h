@@ -1,7 +1,11 @@
 #ifndef LIB_COLLISION_H
 #define LIB_COLLISION_H
 
-#include <ddnet_map_loader.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "../libs/ddnet_map_loader/ddnet_map_loader.h"
 #include "stdbool.h"
 #include "vmath.h"
 #include <stdint.h>
@@ -106,18 +110,20 @@ bool check_point(SCollision *pCollision, mvec2 Pos);
 void move_point(SCollision *pCollision, mvec2 *pInoutPos, mvec2 *pInoutVel, float Elasticity);
 bool is_hook_blocker(SCollision *pCollision, int Index, mvec2 Pos0, mvec2 Pos1);
 unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
-                                       mvec2 *__restrict__ pOutCollision, unsigned char *__restrict__ pTeleNr);
+                                       mvec2 *__restrict__ pOutCollision,
+                                       unsigned char *__restrict__ pTeleNr);
 unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
-                                         mvec2 *__restrict__ pOutCollision, mvec2 *__restrict__ pOutBeforeCollision,
+                                         mvec2 *__restrict__ pOutCollision,
+                                         mvec2 *__restrict__ pOutBeforeCollision,
                                          unsigned char *__restrict__ pTeleNr);
 
 bool test_box(SCollision *pCollision, mvec2 Pos, mvec2 Size);
 unsigned char is_tune(SCollision *pCollision, int Index);
 bool is_speedup(SCollision *pCollision, int Index);
-void get_speedup(SCollision *__restrict__ pCollision, int Index, mvec2 *__restrict__ pDir, int *__restrict__ pForce,
-                 int *__restrict__ pMaxSpeed, int *__restrict__ pType);
-bool intersect_line(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
-                    mvec2 *__restrict__ pOutBeforeCollision);
+void get_speedup(SCollision *__restrict__ pCollision, int Index, mvec2 *__restrict__ pDir,
+                 int *__restrict__ pForce, int *__restrict__ pMaxSpeed, int *__restrict__ pType);
+bool intersect_line(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
+                    mvec2 *__restrict__ pOutCollision, mvec2 *__restrict__ pOutBeforeCollision);
 void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, mvec2 *__restrict__ pOutPos,
               mvec2 *__restrict__ pOutVel, mvec2 Elasticity, bool *__restrict__ pGrounded);
 bool get_nearest_air_pos_player(SCollision *pCollision, mvec2 PlayerPos, mvec2 *pOutPos);
@@ -125,4 +131,9 @@ bool get_nearest_air_pos(SCollision *pCollision, mvec2 Pos, mvec2 PrevPos, mvec2
 int get_index(SCollision *pCollision, mvec2 PrevPos, mvec2 Pos);
 unsigned char mover_speed(SCollision *pCollision, int x, int y, mvec2 *pSpeed);
 int entity(SCollision *pCollision, int x, int y, int Layer);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif // LIB_COLLISION_H

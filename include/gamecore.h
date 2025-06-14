@@ -1,5 +1,11 @@
 #ifndef LIB_GAMECORE_H
 #define LIB_GAMECORE_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 #include "collision.h"
 #include "stdbool.h"
 #include "vmath.h"
@@ -219,5 +225,9 @@ void wc_free(SWorldCore *pCore);
 
 void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput);
 SCharacterCore *wc_add_character(SWorldCore *pWorld);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // LIB_GAMECORE_H

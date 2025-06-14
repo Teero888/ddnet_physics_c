@@ -12,13 +12,13 @@ option(COMPILE_TESTS "Whether to compile tests" OFF)
 
 # Define the static library
 add_library(ddnet_physics STATIC
-    src/collision.c
-    src/gamecore.c
     include/collision.h
     include/gamecore.h
     include/vmath.h
+    src/collision.c
     src/collision_tables.h
     src/config.h
+    src/gamecore.c
     src/tuning.h
 )
 

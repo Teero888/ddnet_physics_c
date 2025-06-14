@@ -1,6 +1,10 @@
 #ifndef LIB_VMATH_H
 #define LIB_VMATH_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <immintrin.h>
 #include <math.h>
 #include <stdbool.h>
@@ -144,5 +148,9 @@ static inline bool closest_point_on_line(mvec2 line_pointA, mvec2 line_pointB, m
   }
   return false;
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
