@@ -1,4 +1,4 @@
-#define SERVER_TICK_SPEED 50
+#define GAME_TICK_SPEED 50
 
 #ifndef MACRO_TUNING_PARAM
 #define MACRO_TUNING_PARAM(Name, Value) ;
@@ -6,11 +6,11 @@
 
 // physics tuning
 MACRO_TUNING_PARAM(GroundControlSpeed, 10.0f)
-MACRO_TUNING_PARAM(GroundControlAccel, 100.0f / SERVER_TICK_SPEED)
+MACRO_TUNING_PARAM(GroundControlAccel, 100.0f / GAME_TICK_SPEED)
 MACRO_TUNING_PARAM(GroundFriction, 0.5f)
 MACRO_TUNING_PARAM(GroundJumpImpulse, 13.2f)
 MACRO_TUNING_PARAM(AirJumpImpulse, 12.0f)
-MACRO_TUNING_PARAM(AirControlSpeed, 250.0f / SERVER_TICK_SPEED)
+MACRO_TUNING_PARAM(AirControlSpeed, 250.0f / GAME_TICK_SPEED)
 MACRO_TUNING_PARAM(AirControlAccel, 1.5f)
 MACRO_TUNING_PARAM(AirFriction, 0.95f)
 MACRO_TUNING_PARAM(HookLength, 380.0f)

@@ -305,7 +305,7 @@ void lsr_bounce(SLaser *pLaser) {
 
 void lsr_tick(SLaser *pLaser) {
   if ((pLaser->m_Base.m_pWorld->m_GameTick - pLaser->m_EvalTick) >
-      (SERVER_TICK_SPEED * pLaser->m_pTuning->m_LaserBounceDelay / 1000.0f))
+      (GAME_TICK_SPEED * pLaser->m_pTuning->m_LaserBounceDelay / 1000.0f))
     lsr_bounce(pLaser);
 }
 
@@ -357,8 +357,8 @@ bool cc_freeze(SCharacterCore *pCore, int Seconds);
 void wc_create_explosion(SWorldCore *pWorld, mvec2 Pos, int Owner);
 
 void prj_tick(SProjectile *pProj) {
-  float Pt = (pProj->m_Base.m_pWorld->m_GameTick - pProj->m_StartTick - 1) / (float)SERVER_TICK_SPEED;
-  float Ct = (pProj->m_Base.m_pWorld->m_GameTick - pProj->m_StartTick) / (float)SERVER_TICK_SPEED;
+  float Pt = (pProj->m_Base.m_pWorld->m_GameTick - pProj->m_StartTick - 1) / (float)GAME_TICK_SPEED;
+  float Ct = (pProj->m_Base.m_pWorld->m_GameTick - pProj->m_StartTick) / (float)GAME_TICK_SPEED;
   mvec2 PrevPos = prj_get_pos(pProj, Pt);
   mvec2 CurPos = prj_get_pos(pProj, Ct);
   mvec2 ColPos;
@@ -911,10 +911,10 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
 }
 
 bool cc_freeze(SCharacterCore *pCore, int Seconds) {
-  if (Seconds <= 0 || pCore->m_FreezeTime > Seconds * SERVER_TICK_SPEED)
+  if (Seconds <= 0 || pCore->m_FreezeTime > Seconds * GAME_TICK_SPEED)
     return false;
   if (pCore->m_FreezeTime == 0) {
-    pCore->m_FreezeTime = Seconds * SERVER_TICK_SPEED;
+    pCore->m_FreezeTime = Seconds * GAME_TICK_SPEED;
     return true;
   }
   return false;
@@ -1086,12 +1086,12 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
       pSwitch->m_LastUpdateTick = Tick;
     } else if (Type == TILE_SWITCHTIMEDOPEN && Number > 0) {
       pSwitch->m_Status = true;
-      pSwitch->m_EndTick = Tick + 1 + Delay * SERVER_TICK_SPEED;
+      pSwitch->m_EndTick = Tick + 1 + Delay * GAME_TICK_SPEED;
       pSwitch->m_Type = TILE_SWITCHTIMEDOPEN;
       pSwitch->m_LastUpdateTick = Tick;
     } else if (Type == TILE_SWITCHTIMEDCLOSE && Number > 0) {
       pSwitch->m_Status = false;
-      pSwitch->m_EndTick = Tick + 1 + Delay * SERVER_TICK_SPEED;
+      pSwitch->m_EndTick = Tick + 1 + Delay * GAME_TICK_SPEED;
       pSwitch->m_Type = TILE_SWITCHTIMEDCLOSE;
       pSwitch->m_LastUpdateTick = Tick;
     } else if (Type == TILE_SWITCHCLOSE && Number > 0) {
@@ -1144,12 +1144,12 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
     } else if (Type == TILE_ADD_TIME && !pCore->m_LastPenalty) {
       int min = Delay;
       int sec = Number;
-      pCore->m_StartTime -= (min * 60 + sec) * SERVER_TICK_SPEED;
+      pCore->m_StartTime -= (min * 60 + sec) * GAME_TICK_SPEED;
       pCore->m_LastPenalty = true;
     } else if (Type == TILE_SUBTRACT_TIME && !pCore->m_LastBonus) {
       int min = Delay;
       int sec = Number;
-      pCore->m_StartTime += (min * 60 + sec) * SERVER_TICK_SPEED;
+      pCore->m_StartTime += (min * 60 + sec) * GAME_TICK_SPEED;
       if (pCore->m_StartTime > Tick)
         pCore->m_StartTime = Tick;
       pCore->m_LastBonus = true;
@@ -1380,7 +1380,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
       pCore->m_HookPos = vvadd(pCore->m_Pos, vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
       pCore->m_HookDir = TargetDirection;
       pCore->m_HookedPlayer = -1;
-      pCore->m_HookTick = (float)SERVER_TICK_SPEED * (1.25f - pCore->m_pTuning->m_HookDuration);
+      pCore->m_HookTick = (float)GAME_TICK_SPEED * (1.25f - pCore->m_pTuning->m_HookDuration);
     }
   } else {
     pCore->m_HookedPlayer = -1;
@@ -1519,7 +1519,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
     }
 
     pCore->m_HookTick++;
-    if (pCore->m_HookedPlayer != -1 && (pCore->m_HookTick > SERVER_TICK_SPEED + SERVER_TICK_SPEED / 5 ||
+    if (pCore->m_HookedPlayer != -1 && (pCore->m_HookTick > GAME_TICK_SPEED + GAME_TICK_SPEED / 5 ||
                                         (pCore->m_HookedPlayer >= pCore->m_pWorld->m_NumCharacters))) {
       pCore->m_HookedPlayer = -1;
       pCore->m_HookState = HOOK_RETRACTED;
@@ -1546,7 +1546,7 @@ void cc_take_damage(SCharacterCore *pCore, mvec2 Force) {
 void cc_handle_ninja(SCharacterCore *pCore) {
 
   if ((pCore->m_pWorld->m_GameTick - pCore->m_Ninja.m_ActivationTick) >
-      (NINJA_DURATION * SERVER_TICK_SPEED / 1000)) {
+      (NINJA_DURATION * GAME_TICK_SPEED / 1000)) {
     // time's up, return
     cc_remove_ninja(pCore);
     return;
@@ -1718,7 +1718,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
     // if we Hit anything, we have to wait for the reload
     if (Hits) {
       float FireDelay = pCore->m_pTuning->m_HammerHitFireDelay;
-      pCore->m_ReloadTimer = FireDelay * SERVER_TICK_SPEED / 1000;
+      pCore->m_ReloadTimer = FireDelay * GAME_TICK_SPEED / 1000;
     }
     break;
   }
@@ -1727,7 +1727,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
     if (!pCore->m_Jetpack) {
       // TODO: we need bullets only for telegun
       // int Lifetime =
-      //     (int)(SERVER_TICK_SPEED *
+      //     (int)(GAME_TICK_SPEED *
       //     pCore->m_pTuning->m_GunLifetime);
       // new CProjectile(GameWorld(),
       //                 WEAPON_GUN,   // Type
@@ -1752,7 +1752,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   }
 
   case WEAPON_GRENADE: {
-    const int Lifetime = (int)(SERVER_TICK_SPEED * pCore->m_pTuning->m_GrenadeLifetime);
+    const int Lifetime = (int)(GAME_TICK_SPEED * pCore->m_pTuning->m_GrenadeLifetime);
     SProjectile *pNewProj = malloc(sizeof(SProjectile));
     prj_init(pNewProj, pCore->m_pWorld, WEAPON_GRENADE, pCore->m_Id, ProjStartPos, Direction, Lifetime, false,
              true, 0, 0);
@@ -1773,7 +1773,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
     pCore->m_NumObjectsHit = 0;
 
     pCore->m_Ninja.m_ActivationDir = Direction;
-    pCore->m_Ninja.m_CurrentMoveTime = (NINJA_MOVETIME * SERVER_TICK_SPEED) / 1000;
+    pCore->m_Ninja.m_CurrentMoveTime = (NINJA_MOVETIME * GAME_TICK_SPEED) / 1000;
     pCore->m_Ninja.m_OldVelAmount = vlength(pCore->m_Vel);
     break;
   }
@@ -1784,7 +1784,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   // reloadtimer can be changed earlier by hammer so check again
   if (!pCore->m_ReloadTimer) {
     pCore->m_ReloadTimer =
-        (*(&pCore->m_pTuning->m_HammerFireDelay + pCore->m_ActiveWeapon) * SERVER_TICK_SPEED) / 1000;
+        (*(&pCore->m_pTuning->m_HammerFireDelay + pCore->m_ActiveWeapon) * GAME_TICK_SPEED) / 1000;
   }
 }
 
