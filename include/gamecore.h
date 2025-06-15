@@ -5,7 +5,6 @@
 extern "C" {
 #endif
 
-
 #include "collision.h"
 #include "stdbool.h"
 #include "vmath.h"
@@ -34,6 +33,7 @@ typedef struct {
   unsigned char m_Fire;
   unsigned char m_Hook;
   unsigned char m_WantedWeapon;
+  unsigned char m_TeleOut;
 } SPlayerInput;
 
 enum { WORLD_ENTTYPE_PROJECTILE = 0, WORLD_ENTTYPE_LASER, NUM_WORLD_ENTTYPES };
@@ -174,6 +174,9 @@ typedef struct CharacterCore {
   int m_aHitObjects[10];
   int m_NumObjectsHit;
 
+  int m_StartTick;
+  int m_FinishTick;
+
 } SCharacterCore;
 // }}}
 
@@ -225,6 +228,12 @@ void wc_free(SWorldCore *pCore);
 
 void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput);
 SCharacterCore *wc_add_character(SWorldCore *pWorld);
+
+// utility functions you might need
+mvec2 prj_get_pos(SProjectile *pProj, float Time);
+SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius,
+                                       mvec2 *pNewPos, const SCharacterCore *pNotThis,
+                                       const SCharacterCore *pThisOnly);
 
 #ifdef __cplusplus
 }

@@ -114,9 +114,6 @@ void lsr_init(SLaser *pLaser, SWorldCore *pGameWorld, int Type, int Owner, mvec2
   lsr_bounce(pLaser);
 }
 
-SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius,
-                                       mvec2 *pNewPos, const SCharacterCore *pNotThis,
-                                       const SCharacterCore *pThisOnly);
 void cc_unfreeze(SCharacterCore *pCore);
 void cc_take_damage(SCharacterCore *pCore, mvec2 Force);
 bool lsr_hit_character(SLaser *pLaser, mvec2 From, mvec2 To) {
@@ -354,9 +351,7 @@ mvec2 prj_get_pos(SProjectile *pProj, float Time) {
 
   return calc_pos(pProj->m_Base.m_Pos, pProj->m_Direction, Curvature, Speed, Time);
 }
-SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius,
-                                       mvec2 *pNewPos, const SCharacterCore *pNotThis,
-                                       const SCharacterCore *pThisOnly);
+
 bool cc_freeze(SCharacterCore *pCore, int Seconds);
 
 void wc_create_explosion(SWorldCore *pWorld, mvec2 Pos, int Owner);
@@ -486,8 +481,6 @@ void prj_tick(SProjectile *pProj) {
   }
 }
 
-bool cc_freeze(SCharacterCore *pCore, int Seconds);
-
 static inline void cc_calc_indices(SCharacterCore *pCore) {
   const int x = ((int)vgetx(pCore->m_Pos) >> 5);
   const int y = ((int)vgety(pCore->m_Pos) >> 5);
@@ -590,6 +583,9 @@ void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   pCore->m_aWeaponGot[0] = true;
   pCore->m_aWeaponGot[1] = true;
   pCore->m_LatestInput.m_TargetY = -1;
+
+  pCore->m_StartTick = -1;
+  pCore->m_FinishTick = -1;
 
   // The world assigns ids to the core
   pCore->m_Id = -1;
@@ -964,6 +960,16 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
       pCore->m_TeleCheckpoint = TeleCheckpoint;
   }
 
+  // Handle start and finish
+  if ((TileIndex == TILE_START || TileFIndex == TILE_START))
+    if (pCore->m_StartTick == -1 || !pCore->m_pWorld->m_pConfig->m_SvSoloServer) {
+      pCore->m_StartTick = pCore->m_pWorld->m_GameTick;
+      pCore->m_FinishTick = -1;
+    }
+  if ((TileIndex == TILE_FINISH || TileFIndex == TILE_FINISH) && pCore->m_StartTick != -1) {
+    pCore->m_FinishTick = pCore->m_pWorld->m_GameTick;
+  }
+
   if ((TileIndex == TILE_FREEZE || TileFIndex == TILE_FREEZE) && !pCore->m_DeepFrozen) {
     cc_freeze(pCore, pCore->m_pWorld->m_pConfig->m_SvFreezeDelay);
   } else if ((TileIndex == TILE_UNFREEZE || TileFIndex == TILE_UNFREEZE) && !pCore->m_DeepFrozen)
@@ -1163,7 +1169,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   int z = is_teleport(pCore->m_pCollision, MapIndex);
   int Num = pCore->m_pCollision->m_aNumTeleOuts[z];
   if (z && Num > 0) {
-    pCore->m_Pos = pCore->m_pCollision->m_apTeleOuts[z][pCore->m_pWorld->m_GameTick % Num];
+    pCore->m_Pos = pCore->m_pCollision->m_apTeleOuts[z][pCore->m_Input.m_TeleOut % Num];
     cc_calc_indices(pCore);
     if (!pConfig->m_SvTeleportHoldHook) {
       cc_reset_hook(pCore);
@@ -1175,7 +1181,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   int evilz = is_evil_teleport(pCore->m_pCollision, MapIndex);
   Num = pCore->m_pCollision->m_aNumTeleOuts[evilz];
   if (evilz && Num > 0) {
-    pCore->m_Pos = pCore->m_pCollision->m_apTeleOuts[evilz][pCore->m_pWorld->m_GameTick % Num];
+    pCore->m_Pos = pCore->m_pCollision->m_apTeleOuts[evilz][pCore->m_Input.m_TeleOut % Num];
     cc_calc_indices(pCore);
     pCore->m_Vel = vec2_init(0, 0);
 
@@ -1469,12 +1475,11 @@ void cc_pre_tick(SCharacterCore *pCore) {
       int NumOuts = pCore->m_pCollision->m_aNumTeleOuts[teleNr];
       if (GoingThroughTele && NumOuts > 0) {
         pCore->m_HookedPlayer = -1;
-        const mvec2 *pTeleOuts = pCore->m_pCollision->m_apTeleOuts[teleNr];
-
         mvec2 TargetDirection = vnormalize(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
         pCore->m_NewHook = true;
-        pCore->m_HookPos = vvadd(pTeleOuts[pCore->m_pWorld->m_GameTick % NumOuts],
-                                 vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
+        pCore->m_HookPos =
+            vvadd(pCore->m_pCollision->m_apTeleOuts[teleNr][pCore->m_Input.m_TeleOut % NumOuts],
+                  vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
         pCore->m_HookDir = TargetDirection;
         pCore->m_HookTeleBase = pCore->m_HookPos;
       } else {
@@ -2112,14 +2117,14 @@ void wc_tick(SWorldCore *pCore) {
   }
 
   for (int i = 0; i < pCore->m_NumCharacters; ++i)
-    cc_do_pickup((SCharacterCore *)&pCore->m_pCharacters[i]);
+    cc_do_pickup(&pCore->m_pCharacters[i]);
 
   // Tick characters
   if (pCore->m_NoWeakHook)
     for (int i = 0; i < pCore->m_NumCharacters; ++i)
-      cc_pre_tick((SCharacterCore *)&pCore->m_pCharacters[i]);
+      cc_pre_tick(&pCore->m_pCharacters[i]);
   for (int i = 0; i < pCore->m_NumCharacters; ++i)
-    cc_tick((SCharacterCore *)&pCore->m_pCharacters[i]);
+    cc_tick(&pCore->m_pCharacters[i]);
 
   // Do tick deferred
   // funny thing no other entities than the character actually have a deferred
