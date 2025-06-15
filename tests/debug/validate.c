@@ -1,7 +1,7 @@
 #include "../include/collision.h"
 #include "../include/gamecore.h"
 #include "../include/vmath.h"
-#include "data.h"
+#include "../data.h"
 #include <stdio.h>
 
 #define TICKS 1000000
