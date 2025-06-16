@@ -606,8 +606,8 @@ inline unsigned char get_front_collision_at(SCollision *pCollision, mvec2 Pos) {
   return Idx * (Idx - 1 <= TILE_NOLASER - 1);
 }
 
-inline unsigned char get_move_restrictions(SCollision *__restrict__ pCollision, void *__restrict__ pUser, mvec2 Pos,
-                                           int OverrideCenterTileIndex) {
+inline unsigned char get_move_restrictions(SCollision *__restrict__ pCollision, void *__restrict__ pUser,
+                                           mvec2 Pos, int OverrideCenterTileIndex) {
 
   if (!pCollision->m_MoveRestrictionsFound && !pCollision->m_MapData.door_layer.index)
     return 0;
@@ -649,7 +649,8 @@ static inline bool check_point_idx(SCollision *pCollision, int Idx) {
   return pCollision->m_pTileInfos[Idx] & INFO_ISSOLID;
 }
 
-static inline void through_offset(mvec2 Pos0, mvec2 Pos1, int *__restrict__ pOffsetX, int *__restrict__ pOffsetY) {
+static inline void through_offset(mvec2 Pos0, mvec2 Pos1, int *__restrict__ pOffsetX,
+                                  int *__restrict__ pOffsetY) {
   static const int offsets[8][2] = {{32, 0}, {0, 32},  {-32, 0}, {0, 32},
                                     {32, 0}, {0, -32}, {-32, 0}, {0, -32}};
   const float dx = vgetx(Pos0) - vgetx(Pos1);
@@ -824,14 +825,15 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, vec2
 }
 #else
 unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
-                                       mvec2 *__restrict__ pOutCollision, unsigned char *__restrict__ pTeleNr) {
+                                       mvec2 *__restrict__ pOutCollision,
+                                       unsigned char *__restrict__ pTeleNr) {
   if (!broad_check(pCollision, Pos0, Pos1) && (pTeleNr && !broad_check_tele(pCollision, Pos0, Pos1))) {
     *pOutCollision = Pos1;
     return 0;
   }
 
   const int Width = pCollision->m_MapData.width;
-  int Idx = ((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION + ((int)vgetx(Pos0));
+  int Idx = (((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION) + ((int)vgetx(Pos0));
   unsigned char Start = pCollision->m_pSolidTeleDistanceField[Idx];
 
   const int End = s_aMaxTable[(int)vsqdistance(Pos0, Pos1)] + 1;
@@ -907,7 +909,8 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec
 #endif
 
 unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
-                                         mvec2 *__restrict__ pOutCollision, mvec2 *__restrict__ pOutBeforeCollision,
+                                         mvec2 *__restrict__ pOutCollision,
+                                         mvec2 *__restrict__ pOutBeforeCollision,
                                          unsigned char *__restrict__ pTeleNr) {
   if (!broad_check(pCollision, Pos0, Pos1) && (pTeleNr && !broad_check_tele(pCollision, Pos0, Pos1))) {
     *pOutCollision = Pos1;
@@ -1014,8 +1017,8 @@ bool is_speedup(SCollision *pCollision, int Index) {
   return pCollision->m_MapData.speedup_layer.type && pCollision->m_MapData.speedup_layer.force[Index] > 0;
 }
 
-void get_speedup(SCollision *__restrict__ pCollision, int Index, mvec2 *__restrict__ pDir, int *__restrict__ pForce,
-                 int *__restrict__ pMaxSpeed, int *__restrict__ pType) {
+void get_speedup(SCollision *__restrict__ pCollision, int Index, mvec2 *__restrict__ pDir,
+                 int *__restrict__ pForce, int *__restrict__ pMaxSpeed, int *__restrict__ pType) {
   float Angle = pCollision->m_MapData.speedup_layer.angle[Index] * (PI / 180.0f);
   *pForce = pCollision->m_MapData.speedup_layer.force[Index];
   *pType = pCollision->m_MapData.speedup_layer.type[Index];
@@ -1025,8 +1028,8 @@ void get_speedup(SCollision *__restrict__ pCollision, int Index, mvec2 *__restri
 }
 
 // TODO: do the same optimization as in intersect_line_tele_hook
-bool intersect_line(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
-                    mvec2 *__restrict__ pOutBeforeCollision) {
+bool intersect_line(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
+                    mvec2 *__restrict__ pOutCollision, mvec2 *__restrict__ pOutBeforeCollision) {
   if (!broad_check(pCollision, Pos0, Pos1)) {
     *pOutCollision = Pos1;
     *pOutBeforeCollision = Pos1;
@@ -1164,7 +1167,8 @@ void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, m
   *pOutVel = Vel;
 }
 
-bool get_nearest_air_pos_player(SCollision *__restrict__ pCollision, mvec2 PlayerPos, mvec2 *__restrict__ pOutPos) {
+bool get_nearest_air_pos_player(SCollision *__restrict__ pCollision, mvec2 PlayerPos,
+                                mvec2 *__restrict__ pOutPos) {
   for (int dist = 5; dist >= -1; dist--) {
     *pOutPos = vec2_init(vgetx(PlayerPos), vgety(PlayerPos) - dist);
     if (!test_box(pCollision, *pOutPos, PHYSICALSIZEVEC))
@@ -1173,7 +1177,8 @@ bool get_nearest_air_pos_player(SCollision *__restrict__ pCollision, mvec2 Playe
   return false;
 }
 
-bool get_nearest_air_pos(SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 PrevPos, mvec2 *__restrict__ pOutPos) {
+bool get_nearest_air_pos(SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 PrevPos,
+                         mvec2 *__restrict__ pOutPos) {
   for (int k = 0; k < 16 && check_point(pCollision, Pos); k++) {
     Pos = vvsub(Pos, vnormalize(vvsub(PrevPos, Pos)));
   }

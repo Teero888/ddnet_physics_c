@@ -172,7 +172,7 @@ void lsr_bounce(SLaser *pLaser) {
   mvec2 Coltile;
 
   int Res;
-  uint8_t z;
+  uint8_t z = 0;
 
   if (pLaser->m_WasTele) {
     pLaser->m_PrevPos = pLaser->m_TelePos;
@@ -182,7 +182,8 @@ void lsr_bounce(SLaser *pLaser) {
 
   mvec2 To = vvadd(pLaser->m_Base.m_Pos, vfmul(pLaser->m_Dir, pLaser->m_Energy));
 
-  Res = intersect_line_tele_weapon(pLaser->m_Base.m_pCollision, pLaser->m_Base.m_Pos, To, &Coltile, &To, &z);
+  Res = intersect_line_tele_weapon(pLaser->m_Base.m_pCollision, pLaser->m_Base.m_Pos, To, &Coltile, &To,
+                                   pLaser->m_Base.m_pCollision->m_MapData.tele_layer.type ? &z : NULL);
 
   if (Res) {
     if (!lsr_hit_character(pLaser, pLaser->m_Base.m_Pos, To)) {
@@ -325,7 +326,8 @@ void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner, m
   pProj->m_pTuning =
       &pGameWorld
            ->m_pTunings[is_tune(pGameWorld->m_pCollision, get_map_index(pGameWorld->m_pCollision, Pos))];
-  pProj->m_IsSolo = pGameWorld->m_pCharacters[Owner].m_Solo;
+  if (Owner > 0)
+    pProj->m_IsSolo = pGameWorld->m_pCharacters[Owner].m_Solo;
 }
 
 mvec2 prj_get_pos(SProjectile *pProj, float Time) {
@@ -1289,7 +1291,7 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
   const int MinY = (int)vgety(minVec) >> 5;
   const int MaxX = (int)vgetx(maxVec) >> 5;
   const int MaxY = (int)vgety(maxVec) >> 5;
-  if (pCore->m_pCollision->m_pBroadIndicesBitField[MinY * Width + MinX] &
+  if (pCore->m_pCollision->m_pBroadIndicesBitField[(MinY * Width) + MinX] &
       (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX))) {
     bool Handled = false;
     const float d = vdistance(pCore->m_PrevPos, pCore->m_Pos);
@@ -2266,17 +2268,6 @@ void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom)
   pTo->m_pConfig = pFrom->m_pConfig;
   pTo->m_pTunings = pFrom->m_pTunings;
 
-  // delete the previous entities
-#pragma clang loop unroll(full)
-  for (int i = 0; i < NUM_WORLD_ENTTYPES; ++i) {
-    SEntity *pEntity = pTo->m_apFirstEntityTypes[i];
-    while (pEntity) {
-      SEntity *pFree = pEntity;
-      pEntity = pEntity->m_pNextTypeEntity;
-      free(pFree);
-    }
-  }
-
   // insert new entities
 #pragma clang loop unroll(full)
   for (int i = 0; i < NUM_WORLD_ENTTYPES; ++i) {
@@ -2321,5 +2312,7 @@ void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom)
   for (int i = 0; i < pTo->m_NumSwitches; ++i)
     pTo->m_pSwitches[i] = pFrom->m_pSwitches[i];
 }
+
+SWorldCore wc_empty() { return (SWorldCore){}; }
 
 // }}}

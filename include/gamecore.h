@@ -225,6 +225,7 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig);
 void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom);
 void wc_tick(SWorldCore *pCore);
 void wc_free(SWorldCore *pCore);
+SWorldCore wc_empty();
 
 void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput);
 SCharacterCore *wc_add_character(SWorldCore *pWorld);

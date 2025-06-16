@@ -30,7 +30,7 @@ target_compile_options(ddnet_physics PRIVATE -Wall -Wextra -msse4.2 -mavx -mavx2
 
 # Define debug and optimized configurations
 set(CMAKE_C_FLAGS_DEBUG "-g -DDEBUG -fsanitize=address,undefined")
-set(CMAKE_C_FLAGS_RELEASE "-O3 -funroll-loops -mfpmath=sse -fomit-frame-pointer -fno-trapping-math -fno-signed-zeros")
+set(CMAKE_C_FLAGS_RELEASE "-g -O3 -funroll-loops -mfpmath=sse -fomit-frame-pointer -fno-trapping-math -fno-signed-zeros")
 
 # Aggressive optimizations if enabled
 if(ENABLE_AGGRESSIVE_OPTIM)
@@ -41,6 +41,7 @@ if(ENABLE_AGGRESSIVE_OPTIM)
         -mtune=native
     )
     target_link_options(ddnet_physics PRIVATE -flto)
+	message("Aggressive optimization enabled")
 endif()
 
 # Add subdirectory for ddnet_map_loader
