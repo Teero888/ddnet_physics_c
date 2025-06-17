@@ -113,7 +113,11 @@ static void init_distance_field(SCollision *pCollision) {
 
   const int hr_width = orig_width * DISTANCE_FIELD_RESOLUTION;
   const int hr_height = orig_height * DISTANCE_FIELD_RESOLUTION;
-  float *hr_field = _mm_malloc(hr_width * hr_height * sizeof(float), 64);
+  float *hr_field = _mm_malloc(hr_width * hr_height * sizeof(float), 32);
+  if (!hr_field) {
+    printf("Error: could not allocate %lu bytes of memory\n", hr_width * hr_height * sizeof(float));
+    return;
+  }
   for (int y = 0; y < hr_height; ++y) {
     for (int x = 0; x < hr_width; ++x) {
       const int orig_x = x / DISTANCE_FIELD_RESOLUTION;
@@ -734,21 +738,21 @@ bool is_hook_blocker(SCollision *pCollision, int Index, mvec2 Pos0, mvec2 Pos1) 
 }
 
 static inline bool broad_check(const SCollision *__restrict__ pCollision, mvec2 Start, mvec2 End) {
-  const mvec2 minVec = _mm_min_ps(Start, End);
-  const mvec2 maxVec = _mm_max_ps(Start, End);
-  const int MinX = (int)vgetx(minVec) >> 5;
-  const int MinY = (int)vgety(minVec) >> 5;
-  const int MaxX = (int)ceilf(vgetx(maxVec)) >> 5;
-  const int MaxY = (int)ceilf(vgety(maxVec)) >> 5;
+  const mvec2 MinVec = _mm_min_ps(Start, End);
+  const mvec2 MaxVec = _mm_max_ps(Start, End);
+  const int MinX = (int)vgetx(MinVec) >> 5;
+  const int MinY = (int)vgety(MinVec) >> 5;
+  const int MaxX = (int)ceilf(vgetx(MaxVec)) >> 5;
+  const int MaxY = (int)ceilf(vgety(MaxVec)) >> 5;
   const int DiffY = (MaxY - MinY);
   const int DiffX = (MaxX - MinX);
   if (DiffY < 8 && DiffX < 8)
-    return pCollision->m_pBroadSolidBitField[MinY * pCollision->m_MapData.width + MinX] &
-           (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
+    return pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] &
+           (uint64_t)1 << ((DiffY << 3) + DiffX);
   else {
     for (int y = MinY; y <= MaxY; ++y) {
       for (int x = MinX; x <= MaxX; ++x) {
-        if (pCollision->m_pTileInfos[y * pCollision->m_MapData.width + x] & INFO_ISSOLID)
+        if (pCollision->m_pTileInfos[(y * pCollision->m_MapData.width) + x] & INFO_ISSOLID)
           return true;
       }
     }

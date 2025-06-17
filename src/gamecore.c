@@ -483,7 +483,7 @@ void prj_tick(SProjectile *pProj) {
   }
 }
 
-static inline void cc_calc_indices(SCharacterCore *pCore) {
+void cc_calc_indices(SCharacterCore *pCore) {
   const int x = ((int)vgetx(pCore->m_Pos) >> 5);
   const int y = ((int)vgety(pCore->m_Pos) >> 5);
   pCore->m_BlockPos.x = x;
@@ -576,14 +576,18 @@ void cc_do_pickup(SCharacterCore *pCore) {
 
 // CharacterCore functions {{{
 
+bool wc_next_spawn(SWorldCore *pCore, mvec2 *pOutPos);
+
 void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   memset(pCore, 0, sizeof(SCharacterCore));
   pCore->m_HookedPlayer = -1;
   pCore->m_Jumps = 2;
   pCore->m_pWorld = pWorld;
   pCore->m_pCollision = pWorld->m_pCollision;
+  pCore->m_pTuning = &pWorld->m_pTunings[0];
   pCore->m_aWeaponGot[0] = true;
   pCore->m_aWeaponGot[1] = true;
+  pCore->m_ActiveWeapon = WEAPON_GUN;
   pCore->m_LatestInput.m_TargetY = -1;
 
   pCore->m_StartTick = -1;
@@ -815,6 +819,20 @@ void cc_ddracetick(SCharacterCore *pCore) {
   pCore->m_pTuning = &pCore->m_pWorld->m_pTunings[is_tune(pCore->m_pCollision, pCore->m_BlockIdx)];
 }
 
+void cc_die(SCharacterCore *pCore) {
+  int Id = pCore->m_Id;
+  cc_init(pCore, pCore->m_pWorld);
+  
+  mvec2 SpawnPos;
+  if (wc_next_spawn(pCore->m_pWorld, &SpawnPos)) {
+    pCore->m_Pos = SpawnPos;
+    pCore->m_PrevPos = SpawnPos;
+    cc_calc_indices(pCore);
+  }
+
+  pCore->m_Id = Id;
+}
+
 void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
   static const mvec2 DeathOffset1 = {DEATH, -DEATH, 0.f, 0.f};
   static const mvec2 DeathOffset2 = {DEATH, DEATH, 0.f, 0.f};
@@ -830,6 +848,7 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
          get_front_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset2)) == TILE_DEATH ||
          get_front_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset3)) == TILE_DEATH ||
          get_front_collision_at(pCore->m_pCollision, vvadd(pCore->m_Pos, DeathOffset4)) == TILE_DEATH)))) {
+    cc_die(pCore);
     return;
   }
 
@@ -939,7 +958,6 @@ void cc_reset_pickups(SCharacterCore *pCore) {
 }
 
 void wc_release_hooked(SWorldCore *pCore, int Id);
-bool wc_next_spawn(SWorldCore *pCore, mvec2 *pOutPos);
 
 void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   int MapIndex = Index;
@@ -1826,6 +1844,14 @@ void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
     cc_fire_weapon(pCore);
 
   pCore->m_PrevFire = pCore->m_LatestInput.m_Fire;
+
+  // kill trigger
+  if (pCore->m_RespawnDelay)
+    --pCore->m_RespawnDelay;
+  if (!pCore->m_RespawnDelay && pNewInput->m_WantedWeapon == 7) {
+    cc_die(pCore);
+    pCore->m_RespawnDelay = 25;
+  }
 }
 
 void cc_on_predicted_input(SCharacterCore *pCore, SPlayerInput *pNewInput) {
@@ -1873,7 +1899,7 @@ void wc_release_hooked(SWorldCore *pCore, int Id) {
 }
 
 bool wc_on_entity(SWorldCore *pCore, int Index, int x, int y, int Layer, int Flags, int Number) {
-  const mvec2 Pos = vec2_init(x * 32.0f + 16.0f, y * 32.0f + 16.0f);
+  const mvec2 Pos = vec2_init((x * 32.0f) + 16.0f, (y * 32.0f) + 16.0f);
 
   int aSides[8];
   aSides[0] = entity(pCore->m_pCollision, x, y + 1, Layer);
@@ -2093,6 +2119,7 @@ void wc_free(SWorldCore *pCore) {
     }
   }
   free(pCore->m_pCharacters);
+  memset(pCore, 0, sizeof(SWorldCore));
 }
 
 void wc_tick(SWorldCore *pCore) {
