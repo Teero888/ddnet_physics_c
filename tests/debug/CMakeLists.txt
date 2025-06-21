@@ -2,26 +2,26 @@ cmake_minimum_required(VERSION 3.16)
 
 project(ddnet_physics_debug LANGUAGES C)
 
-# Define executables for debug
-add_executable(example example.c)
-add_executable(validate validate.c)
+# Define common variables
+set(EXECUTABLES example validate copy_world)
+set(COMMON_INCLUDE_DIRS 
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/tests
+    ${CMAKE_SOURCE_DIR}/libs/ddnet_map_loader
+)
+set(COMMON_LIBRARIES ddnet_physics ddnet_map_loader)
+set(COMMON_COMPILE_OPTIONS -g -DDEBUG -fsanitize=address,undefined)
+set(COMMON_LINK_OPTIONS -fsanitize=address,undefined)
 
-# Link against ddnet_physics and ddnet_map_loader
-target_link_libraries(example PRIVATE ddnet_physics ddnet_map_loader)
-target_link_libraries(validate PRIVATE ddnet_physics ddnet_map_loader)
+# Add executables
+foreach(EXEC ${EXECUTABLES})
+    add_executable(${EXEC} ${EXEC}.c)
+    target_link_libraries(${EXEC} PRIVATE ${COMMON_LIBRARIES})
+    target_compile_options(${EXEC} PRIVATE ${COMMON_COMPILE_OPTIONS})
+    target_link_options(${EXEC} PRIVATE ${COMMON_LINK_OPTIONS})
+    target_include_directories(${EXEC} PRIVATE ${COMMON_INCLUDE_DIRS})
 
-# Ensure debug build with sanitizers
-target_compile_options(example PRIVATE -g -DDEBUG -fsanitize=address,undefined)
-target_compile_options(validate PRIVATE -g -DDEBUG -fsanitize=address,undefined)
-
-target_link_options(example PRIVATE -fsanitize=address,undefined)
-target_link_options(validate PRIVATE -fsanitize=address,undefined)
-
-if(ENABLE_AGGRESSIVE_OPTIM)
-    target_link_options(example PRIVATE -flto)
-    target_link_options(validate PRIVATE -flto)
-endif()
-
-# Include directories
-target_include_directories(example PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/tests ${CMAKE_SOURCE_DIR}/libs/ddnet_map_loader)
-target_include_directories(validate PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/tests ${CMAKE_SOURCE_DIR}/libs/ddnet_map_loader)
+    if(ENABLE_AGGRESSIVE_OPTIM)
+        target_link_options(${EXEC} PRIVATE -flto)
+    endif()
+endforeach()
