@@ -509,7 +509,7 @@ void cc_do_pickup(SCharacterCore *pCore) {
       if (Pickup.m_Type < 0)
         continue;
       const mvec2 OffsetPos = vvadd(pCore->m_Pos, vec2_init(dx * 32, dy * 32));
-      if (vsqdistance(pCore->m_Pos, OffsetPos) >= 48 * 48 && vdistance(pCore->m_Pos, OffsetPos) >= 48)
+      if (vdistance(pCore->m_Pos, OffsetPos) >= 48)
         continue;
       if (Pickup.m_Number > 0 && !pCore->m_pWorld->m_pSwitches[Pickup.m_Number].m_Status)
         continue;
@@ -1562,6 +1562,8 @@ void cc_remove_ninja(SCharacterCore *pCore) {
 
 void cc_take_damage(SCharacterCore *pCore, mvec2 Force) {
   pCore->m_Vel = clamp_vel(pCore->m_MoveRestrictions, vvadd(pCore->m_Vel, Force));
+  // printf("Took (%.2f, %.2f) damage to me (%.2f, %.2f). vel is now (%.2f, %.2f)\n", vgetx(Force),
+  // vgety(Force), vgetx(pCore->m_Pos), vgety(pCore->m_Pos), vgetx(pCore->m_Vel), vgety(pCore->m_Vel));
 }
 
 void cc_handle_ninja(SCharacterCore *pCore) {
@@ -2288,6 +2290,17 @@ void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom)
   pTo->m_pTunings = pFrom->m_pTunings;
   pTo->m_NoWeakHook = pFrom->m_NoWeakHook;
   pTo->m_NoWeakHookAndBounce = pFrom->m_NoWeakHookAndBounce;
+
+  // delete old entities
+  for (int i = 0; i < NUM_WORLD_ENTTYPES; ++i) {
+    SEntity *pEntity = pTo->m_apFirstEntityTypes[i];
+    while (pEntity) {
+      SEntity *pFree = pEntity;
+      pEntity = pEntity->m_pNextTypeEntity;
+      free(pFree);
+    }
+    pTo->m_apFirstEntityTypes[i] = NULL;
+  }
 
   // insert new entities
 #pragma clang loop unroll(full)

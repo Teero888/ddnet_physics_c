@@ -50,9 +50,9 @@ enum {
   NUM_POWERUPS
 };
 typedef struct Pickup {
-  char m_Type;
-  unsigned char m_Number;
-  unsigned char m_Subtype;
+  int8_t m_Type;
+  uint8_t m_Number;
+  uint8_t m_Subtype;
 } SPickup;
 
 enum {
@@ -62,14 +62,14 @@ enum {
 
 typedef struct Collision {
   map_data_t m_MapData;
-  unsigned int *m_pWidthLookup;
+  uint32_t *m_pWidthLookup;
   uint64_t *m_pBroadSolidBitField;
   uint64_t *m_pBroadIndicesBitField;
-  unsigned char *m_pTileInfos;
+  uint8_t *m_pTileInfos;
   SPickup *m_pPickups;
-  unsigned char (*m_pMoveRestrictions)[5];
-  unsigned char *m_pTileBroadCheck;
-  unsigned char *m_pSolidTeleDistanceField;
+  uint8_t (*m_pMoveRestrictions)[5];
+  uint8_t *m_pTileBroadCheck;
+  uint8_t *m_pSolidTeleDistanceField;
   uint64_t *m_pBroadTeleInBitField;
   mvec2 *m_apTeleOuts[256];
   mvec2 *m_apTeleCheckOuts[256];
