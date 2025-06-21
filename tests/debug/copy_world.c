@@ -135,6 +135,8 @@ int main() {
 
   // Copy source to destination
   wc_copy_world(&dstWorld, &srcWorld);
+  wc_copy_world(&dstWorld, &srcWorld);
+  wc_copy_world(&dstWorld, &srcWorld);
 
   // Compare worlds
   compare_worlds(&srcWorld, &dstWorld);
