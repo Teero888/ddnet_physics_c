@@ -60,7 +60,7 @@ mvec2 calc_pos(mvec2 Pos, mvec2 Velocity, float Curvature, float Speed, float Ti
   mvec2 n = Pos;
   Time *= Speed;
   n = vadd_x(n, vgetx(Velocity) * Time);
-  n = vadd_y(n, vgety(Velocity) * Time + Curvature / 10000 * (Time * Time));
+  n = vadd_y(n, (vgety(Velocity) * Time) + (Curvature / 10000 * (Time * Time)));
   return n;
 }
 
@@ -822,7 +822,7 @@ void cc_ddracetick(SCharacterCore *pCore) {
 void cc_die(SCharacterCore *pCore) {
   int Id = pCore->m_Id;
   cc_init(pCore, pCore->m_pWorld);
-  
+
   mvec2 SpawnPos;
   if (wc_next_spawn(pCore->m_pWorld, &SpawnPos)) {
     pCore->m_Pos = SpawnPos;
@@ -934,8 +934,9 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
 bool cc_freeze(SCharacterCore *pCore, int Seconds) {
   if (Seconds <= 0 || pCore->m_FreezeTime > Seconds * GAME_TICK_SPEED)
     return false;
-  if (pCore->m_FreezeTime == 0) {
+  if (pCore->m_FreezeTime == 0 || pCore->m_FreezeStart < pCore->m_pWorld->m_GameTick - GAME_TICK_SPEED) {
     pCore->m_FreezeTime = Seconds * GAME_TICK_SPEED;
+    pCore->m_FreezeStart = pCore->m_pWorld->m_GameTick;
     return true;
   }
   return false;
@@ -1744,30 +1745,21 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   }
 
   case WEAPON_GUN: {
-    if (!pCore->m_Jetpack) {
-      // TODO: we need bullets only for telegun
-      // int Lifetime =
-      //     (int)(GAME_TICK_SPEED *
-      //     pCore->m_pTuning->m_GunLifetime);
-      // new CProjectile(GameWorld(),
-      //                 WEAPON_GUN,   // Type
-      //                 GetCid(),     // Owner
-      //                 ProjStartPos, // Pos
-      //                 Direction,    // Dir
-      //                 Lifetime,     // Span
-      //                 false,        // Freeze
-      //                 false,        // Explosive
-      //                 0,            // Force
-      //                 -1            // SoundImpact
-      // );
+    if (pCore->m_HasTelegunGun) {
+      const int Lifetime = (int)(GAME_TICK_SPEED * pCore->m_pTuning->m_GunLifetime);
+      SProjectile *pNewProj = malloc(sizeof(SProjectile));
+      prj_init(pNewProj, pCore->m_pWorld, WEAPON_GUN, pCore->m_Id, ProjStartPos, Direction, Lifetime, false,
+               false, 0, 0);
+      wc_insert_entity(pCore->m_pWorld, (SEntity *)pNewProj);
     }
     break;
   }
 
   case WEAPON_SHOTGUN: {
-    // float LaserReach = pCore->m_pTuning->m_LaserReach;
-    // new CLaser(GameWorld(), m_Pos, Direction, LaserReach, GetCid(),
-    //            WEAPON_SHOTGUN);
+    const float LaserReach = pCore->m_pTuning->m_LaserReach;
+    SLaser *pNewLaser = malloc(sizeof(SLaser));
+    lsr_init(pNewLaser, pCore->m_pWorld, WEAPON_SHOTGUN, pCore->m_Id, pCore->m_Pos, Direction, LaserReach);
+    wc_insert_entity(pCore->m_pWorld, (SEntity *)pNewLaser);
     break;
   }
 

@@ -746,6 +746,9 @@ static inline bool broad_check(const SCollision *__restrict__ pCollision, mvec2 
   const int MaxY = (int)ceilf(vgety(MaxVec)) >> 5;
   const int DiffY = (MaxY - MinY);
   const int DiffX = (MaxX - MinX);
+  if (MinY < 0 || MaxY > pCollision->m_MapData.height || MinX < 0 || MaxX > pCollision->m_MapData.width)
+    return false;
+
   if (DiffY < 8 && DiffX < 8)
     return pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] &
            (uint64_t)1 << ((DiffY << 3) + DiffX);
@@ -769,6 +772,8 @@ static inline bool broad_check_tele(const SCollision *__restrict__ pCollision, m
   const int MaxY = (int)ceilf(vgety(maxVec)) >> 5;
   const int DiffY = (MaxY - MinY);
   const int DiffX = (MaxX - MinX);
+  if (MinY < 0 || MaxY > pCollision->m_MapData.height || MinX < 0 || MaxX > pCollision->m_MapData.width)
+    return false;
   if (DiffY < 8 && DiffX < 8)
     return pCollision->m_pBroadTeleInBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
            (uint64_t)1 << ((DiffY << 3) + DiffX);
@@ -922,7 +927,7 @@ unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mv
   }
 
   const int Width = pCollision->m_MapData.width;
-  int Idx = ((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION + ((int)vgetx(Pos0));
+  int Idx = (((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION) + ((int)vgetx(Pos0));
   unsigned char Start = pCollision->m_pSolidTeleDistanceField[Idx];
 
   // we can't use the precomputed table here because lasers can get indefinently long
@@ -1098,6 +1103,8 @@ void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, m
     return;
 
   mvec2 NewPos = vvadd(Pos, Vel);
+  // vsetx(NewPos,  fclamp(vgetx(NewPos), HALFPHYSICALSIZE + 1.0f, (pCollision->m_MapData.width * 32) - (HALFPHYSICALSIZE + 1.0f)));
+  // vsety(NewPos,  fclamp(vgety(NewPos), HALFPHYSICALSIZE + 1.0f, (pCollision->m_MapData.width * 32) - (HALFPHYSICALSIZE + 1.0f)));
   const mvec2 minVec = _mm_min_ps(Pos, NewPos);
   const mvec2 maxVec = _mm_max_ps(Pos, NewPos);
   const mvec2 offset = _mm_set1_ps(HALFPHYSICALSIZE + 1.0f);
@@ -1210,12 +1217,7 @@ int get_index(SCollision *pCollision, mvec2 PrevPos, mvec2 Pos) {
   if (!Distance) {
     int Nx = (int)vgetx(Pos) >> 5;
     int Ny = (int)vgety(Pos) >> 5;
-
-    if (pCollision->m_MapData.tele_layer.type ||
-        (pCollision->m_MapData.speedup_layer.force &&
-         pCollision->m_MapData.speedup_layer.force[pCollision->m_pWidthLookup[Ny] + Nx] > 0)) {
-      return pCollision->m_pWidthLookup[Ny] + Nx;
-    }
+    return pCollision->m_pWidthLookup[Ny] + Nx;
   }
 
   for (int i = 0, id = ceil(Distance); i < id; i++) {
@@ -1223,11 +1225,7 @@ int get_index(SCollision *pCollision, mvec2 PrevPos, mvec2 Pos) {
     mvec2 Tmp = vvfmix(PrevPos, Pos, a);
     int Nx = (int)vgetx(Tmp) >> 5;
     int Ny = (int)vgety(Tmp) >> 5;
-    if (pCollision->m_MapData.tele_layer.type ||
-        (pCollision->m_MapData.speedup_layer.force &&
-         pCollision->m_MapData.speedup_layer.force[pCollision->m_pWidthLookup[Ny] + Nx] > 0)) {
-      return pCollision->m_pWidthLookup[Ny] + Nx;
-    }
+    return pCollision->m_pWidthLookup[Ny] + Nx;
   }
 
   return -1;

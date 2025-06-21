@@ -157,6 +157,7 @@ typedef struct CharacterCore {
   bool m_HasTelegunGrenade;
   bool m_HasTelegunLaser;
   int m_FreezeTime;
+  int m_FreezeStart;
   bool m_DeepFrozen;
   bool m_LiveFrozen;
   bool m_FrozenLastTick;
@@ -237,6 +238,7 @@ mvec2 prj_get_pos(SProjectile *pProj, float Time);
 SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius,
                                        mvec2 *pNewPos, const SCharacterCore *pNotThis,
                                        const SCharacterCore *pThisOnly);
+void wc_insert_entity(SWorldCore *pWorld, SEntity *pEnt);
 
 #ifdef __cplusplus
 }
