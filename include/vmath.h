@@ -28,16 +28,24 @@ typedef struct {
 static inline mvec2 vec2_init(float x, float y) { return _mm_set_ps(0.0f, 0.0f, y, x); }
 
 // Add x value to vector
-static inline mvec2 vadd_x(mvec2 v, float x_val) { return _mm_add_ps(v, _mm_set_ps(0.0f, 0.0f, 0.0f, x_val)); }
+static inline mvec2 vadd_x(mvec2 v, float x_val) {
+  return _mm_add_ps(v, _mm_set_ps(0.0f, 0.0f, 0.0f, x_val));
+}
 
 // Subtract x value from vector
-static inline mvec2 vsub_x(mvec2 v, float x_val) { return _mm_sub_ps(v, _mm_set_ps(0.0f, 0.0f, 0.0f, x_val)); }
+static inline mvec2 vsub_x(mvec2 v, float x_val) {
+  return _mm_sub_ps(v, _mm_set_ps(0.0f, 0.0f, 0.0f, x_val));
+}
 
 // Add y value to vector
-static inline mvec2 vadd_y(mvec2 v, float y_val) { return _mm_add_ps(v, _mm_set_ps(0.0f, 0.0f, y_val, 0.0f)); }
+static inline mvec2 vadd_y(mvec2 v, float y_val) {
+  return _mm_add_ps(v, _mm_set_ps(0.0f, 0.0f, y_val, 0.0f));
+}
 
 // Subtract y value from vector
-static inline mvec2 vsub_y(mvec2 v, float y_val) { return _mm_sub_ps(v, _mm_set_ps(0.0f, 0.0f, y_val, 0.0f)); }
+static inline mvec2 vsub_y(mvec2 v, float y_val) {
+  return _mm_sub_ps(v, _mm_set_ps(0.0f, 0.0f, y_val, 0.0f));
+}
 
 // Get x component
 static inline float vgetx(mvec2 v) { return _mm_cvtss_f32(v); }
@@ -132,6 +140,8 @@ static inline mvec2 vvfmix(mvec2 a, mvec2 b, float t) {
   mvec2 diff = vvsub(b, a);
   return vvadd(a, vfmul(diff, t));
 }
+
+static inline mvec2 vvclamp(mvec2 a, mvec2 min, mvec2 max) { return _mm_min_ps(_mm_max_ps(a, min), max); }
 
 // Create direction vector from angle (in radians)
 static inline mvec2 vdirection(float angle) { return vec2_init(cosf(angle), sinf(angle)); }

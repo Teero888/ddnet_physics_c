@@ -180,7 +180,9 @@ void lsr_bounce(SLaser *pLaser) {
     pLaser->m_TelePos = vec2_init(0, 0);
   }
 
-  mvec2 To = vvadd(pLaser->m_Base.m_Pos, vfmul(pLaser->m_Dir, pLaser->m_Energy));
+  mvec2 To = vvclamp(vvadd(pLaser->m_Base.m_Pos, vfmul(pLaser->m_Dir, pLaser->m_Energy)), vec2_init(0, 0),
+                     vec2_init(pLaser->m_Base.m_pCollision->m_MapData.width * 32,
+                               pLaser->m_Base.m_pCollision->m_MapData.height * 32));
 
   Res = intersect_line_tele_weapon(pLaser->m_Base.m_pCollision, pLaser->m_Base.m_Pos, To, &Coltile, &To,
                                    pLaser->m_Base.m_pCollision->m_MapData.tele_layer.type ? &z : NULL);
