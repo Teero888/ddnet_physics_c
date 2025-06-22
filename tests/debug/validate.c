@@ -1,7 +1,8 @@
+#include "../data.h"
 #include "../include/collision.h"
 #include "../include/gamecore.h"
 #include "../include/vmath.h"
-#include "../data.h"
+#include <assert.h>
 #include <stdio.h>
 
 #define TICKS 1000000
@@ -24,6 +25,7 @@ int main(void) {
     wc_init(&World, &Collision, &Config);
 
     SCharacterCore *pChar = wc_add_character(&World);
+    pChar->m_Pos = pData->m_vStates[0][0].m_Pos;
     mvec2 PreviousVel;
 
     bool Failed = false;
@@ -51,6 +53,7 @@ int main(void) {
                  "\tPos: %.10f, %.10f\n"
                  "\tVel: %.10f, %.10f\n",
                  vgetx(pChar->m_PrevPos), vgety(pChar->m_PrevPos), vgetx(PreviousVel), vgety(PreviousVel));
+          assert(0);
           Failed = true;
           break;
         }

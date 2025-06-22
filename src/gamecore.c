@@ -1454,6 +1454,9 @@ void cc_pre_tick(SCharacterCore *pCore) {
     bool GoingToRetract = false;
     bool GoingThroughTele = false;
     unsigned char teleNr = 0;
+    NewPos = vvclamp(
+        NewPos, vec2_init(0, 0),
+        vec2_init(pCore->m_pCollision->m_MapData.width * 32, pCore->m_pCollision->m_MapData.height * 32));
     unsigned char Hit =
         intersect_line_tele_hook(pCore->m_pCollision, pCore->m_HookPos, NewPos, &NewPos,
                                  pCore->m_pCollision->m_MapData.tele_layer.type ? &teleNr : NULL);
