@@ -57,11 +57,11 @@ static inline float saturate_add(float Min, float Max, float Current, float Modi
 }
 
 mvec2 calc_pos(mvec2 Pos, mvec2 Velocity, float Curvature, float Speed, float Time) {
-  mvec2 n = Pos;
+  float n[2] = {vgetx(Pos),vgety(Pos)}, v[2] = {vgetx(Velocity),vgety(Velocity)};
   Time *= Speed;
-  n = vadd_x(n, vgetx(Velocity) * Time);
-  n = vadd_y(n, (vgety(Velocity) * Time) + (Curvature / 10000 * (Time * Time)));
-  return n;
+  n[0] = n[0] + v[0] * Time;
+  n[1] = n[1] + v[1] * Time + Curvature / 10000 * (Time * Time);
+  return vec2_init(n[0], n[1]);
 }
 
 // }}}
