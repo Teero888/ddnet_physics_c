@@ -181,8 +181,8 @@ void lsr_bounce(SLaser *pLaser) {
   }
 
   mvec2 To = vvclamp(vvadd(pLaser->m_Base.m_Pos, vfmul(pLaser->m_Dir, pLaser->m_Energy)), vec2_init(0, 0),
-                     vec2_init(pLaser->m_Base.m_pCollision->m_MapData.width * 32,
-                               pLaser->m_Base.m_pCollision->m_MapData.height * 32));
+                     vec2_init((pLaser->m_Base.m_pCollision->m_MapData.width * 32) - 1,
+                               (pLaser->m_Base.m_pCollision->m_MapData.height * 32) - 1));
 
   Res = intersect_line_tele_weapon(pLaser->m_Base.m_pCollision, pLaser->m_Base.m_Pos, To, &Coltile, &To,
                                    pLaser->m_Base.m_pCollision->m_MapData.tele_layer.type ? &z : NULL);
@@ -510,8 +510,7 @@ void cc_do_pickup(SCharacterCore *pCore) {
       const SPickup Pickup = pCore->m_pCollision->m_pPickups[Idx + iclamp(ix + dx, 0, Width - 1)];
       if (Pickup.m_Type < 0)
         continue;
-      const mvec2 OffsetPos = vvadd(pCore->m_Pos, vec2_init(dx * 32, dy * 32));
-      if (vdistance(pCore->m_Pos, OffsetPos) >= 48)
+      if (vdistance(pCore->m_Pos, vec2_init(((ix + dx) * 32) + 16, ((iy + dy) * 32) + 16)) >= 34)
         continue;
       if (Pickup.m_Number > 0 && !pCore->m_pWorld->m_pSwitches[Pickup.m_Number].m_Status)
         continue;
@@ -1454,9 +1453,9 @@ void cc_pre_tick(SCharacterCore *pCore) {
     bool GoingToRetract = false;
     bool GoingThroughTele = false;
     unsigned char teleNr = 0;
-    NewPos = vvclamp(
-        NewPos, vec2_init(0, 0),
-        vec2_init(pCore->m_pCollision->m_MapData.width * 32, pCore->m_pCollision->m_MapData.height * 32));
+    NewPos = vvclamp(NewPos, vec2_init(0, 0),
+                     vec2_init((pCore->m_pCollision->m_MapData.width * 32) - 1,
+                               (pCore->m_pCollision->m_MapData.height * 32) - 1));
     unsigned char Hit =
         intersect_line_tele_hook(pCore->m_pCollision, pCore->m_HookPos, NewPos, &NewPos,
                                  pCore->m_pCollision->m_MapData.tele_layer.type ? &teleNr : NULL);
