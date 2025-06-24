@@ -180,6 +180,8 @@ typedef struct CharacterCore {
 
   int m_RespawnDelay;
 
+  int m_HitNum;
+
 } SCharacterCore;
 // }}}
 

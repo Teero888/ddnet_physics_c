@@ -1564,6 +1564,7 @@ void cc_remove_ninja(SCharacterCore *pCore) {
 
 void cc_take_damage(SCharacterCore *pCore, mvec2 Force) {
   pCore->m_Vel = clamp_vel(pCore->m_MoveRestrictions, vvadd(pCore->m_Vel, Force));
+  ++pCore->m_HitNum;
   // printf("Took (%.2f, %.2f) damage to me (%.2f, %.2f). vel is now (%.2f, %.2f)\n", vgetx(Force),
   // vgety(Force), vgetx(pCore->m_Pos), vgety(pCore->m_Pos), vgetx(pCore->m_Vel), vgety(pCore->m_Vel));
 }
@@ -1828,6 +1829,8 @@ void cc_tick(SCharacterCore *pCore) {
   cc_ddrace_postcore_tick(pCore);
 
   pCore->m_PrevPos = pCore->m_Pos;
+  if(pCore->m_HitNum > 0 && pCore->m_pWorld->m_GameTick % 3 == 0)
+    --pCore->m_HitNum;
 }
 
 void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
