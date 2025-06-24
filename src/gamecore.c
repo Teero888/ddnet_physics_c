@@ -661,7 +661,8 @@ void cc_quantize(SCharacterCore *pCore) {
 }
 
 void cc_move(SCharacterCore *pCore) {
-  const float VelMag = vlength(pCore->m_Vel) * 50;
+  pCore->m_VelMag = vlength(pCore->m_Vel);
+  const float VelMag = pCore->m_VelMag * 50;
   float OldVel = vgetx(pCore->m_Vel);
 
   // NOTE: this approximation is off by ~1e-8 so it does not work in some cases
@@ -1829,7 +1830,7 @@ void cc_tick(SCharacterCore *pCore) {
   cc_ddrace_postcore_tick(pCore);
 
   pCore->m_PrevPos = pCore->m_Pos;
-  if(pCore->m_HitNum > 0 && pCore->m_pWorld->m_GameTick % 3 == 0)
+  if (pCore->m_HitNum > 0 && pCore->m_pWorld->m_GameTick % 3 == 0)
     --pCore->m_HitNum;
 }
 

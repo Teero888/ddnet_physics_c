@@ -97,6 +97,7 @@ typedef struct CharacterCore {
   mvec2 m_PrevPos;
   mvec2 m_Pos;
   mvec2 m_Vel;
+  float m_VelMag; // for external use to avoid multiple sqrts
 
   uivec2 m_BlockPos;
   int m_BlockIdx;
