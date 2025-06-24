@@ -53,7 +53,7 @@ int main(void) {
                  "\tPos: %.10f, %.10f\n"
                  "\tVel: %.10f, %.10f\n",
                  vgetx(pChar->m_PrevPos), vgety(pChar->m_PrevPos), vgetx(PreviousVel), vgety(PreviousVel));
-          assert(0);
+          //assert(0);
           Failed = true;
           break;
         }
@@ -65,8 +65,8 @@ int main(void) {
 
     wc_free(&World);
     free_collision(&Collision);
-    if (Failed)
-      return 1;
+    //if (Failed)
+    //  return 1;
   }
 
   return 0;

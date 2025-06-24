@@ -57,7 +57,7 @@ static inline float saturate_add(float Min, float Max, float Current, float Modi
 }
 
 mvec2 calc_pos(mvec2 Pos, mvec2 Velocity, float Curvature, float Speed, float Time) {
-  float n[2] = {vgetx(Pos),vgety(Pos)}, v[2] = {vgetx(Velocity),vgety(Velocity)};
+  float n[2] = {vgetx(Pos), vgety(Pos)}, v[2] = {vgetx(Velocity), vgety(Velocity)};
   Time *= Speed;
   n[0] = n[0] + v[0] * Time;
   n[1] = n[1] + v[1] * Time + Curvature / 10000 * (Time * Time);
@@ -180,6 +180,7 @@ void lsr_bounce(SLaser *pLaser) {
     pLaser->m_TelePos = vec2_init(0, 0);
   }
 
+  // BUG: this causes a bug when shooting oob
   mvec2 To = vvclamp(vvadd(pLaser->m_Base.m_Pos, vfmul(pLaser->m_Dir, pLaser->m_Energy)), vec2_init(0, 0),
                      vec2_init((pLaser->m_Base.m_pCollision->m_MapData.width * 32) - 1,
                                (pLaser->m_Base.m_pCollision->m_MapData.height * 32) - 1));
@@ -1453,9 +1454,6 @@ void cc_pre_tick(SCharacterCore *pCore) {
     bool GoingToRetract = false;
     bool GoingThroughTele = false;
     unsigned char teleNr = 0;
-    NewPos = vvclamp(NewPos, vec2_init(0, 0),
-                     vec2_init((pCore->m_pCollision->m_MapData.width * 32) - 1,
-                               (pCore->m_pCollision->m_MapData.height * 32) - 1));
     unsigned char Hit =
         intersect_line_tele_hook(pCore->m_pCollision, pCore->m_HookPos, NewPos, &NewPos,
                                  pCore->m_pCollision->m_MapData.tele_layer.type ? &teleNr : NULL);

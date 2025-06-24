@@ -3,6 +3,7 @@
 #include "../include/vmath.h"
 #include "collision_tables.h"
 #include "limits.h"
+#include <assert.h>
 #include <ddnet_map_loader.h>
 #include <float.h>
 #include <immintrin.h>
@@ -747,7 +748,7 @@ static inline bool broad_check(const SCollision *__restrict__ pCollision, mvec2 
   const int DiffY = (MaxY - MinY);
   const int DiffX = (MaxX - MinX);
   if (MinY < 0 || MaxY > pCollision->m_MapData.height || MinX < 0 || MaxX > pCollision->m_MapData.width)
-    return false;
+    return true;
 
   if (DiffY < 8 && DiffX < 8)
     return pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] &
@@ -773,7 +774,8 @@ static inline bool broad_check_tele(const SCollision *__restrict__ pCollision, m
   const int DiffY = (MaxY - MinY);
   const int DiffX = (MaxX - MinX);
   if (MinY < 0 || MaxY > pCollision->m_MapData.height || MinX < 0 || MaxX > pCollision->m_MapData.width)
-    return false;
+    return true;
+
   if (DiffY < 8 && DiffX < 8)
     return pCollision->m_pBroadTeleInBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
            (uint64_t)1 << ((DiffY << 3) + DiffX);
@@ -792,15 +794,16 @@ static inline bool broad_check_tele(const SCollision *__restrict__ pCollision, m
 
 #if 0
 // Original intersect code
-unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, vec2 Pos0, vec2 Pos1,
-                                       vec2 *__restrict__ pOutCollision, unsigned char *__restrict__ pTeleNr) {
+unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
+                                       mvec2 *__restrict__ pOutCollision,
+                                       unsigned char *__restrict__ pTeleNr) {
   float Distance = vdistance(Pos0, Pos1);
   int End = (Distance + 1);
   int dx = 0, dy = 0; // Offset for checking the "through" tile
   through_offset(Pos0, Pos1, &dx, &dy);
   for (int i = 0; i <= End; i++) {
     float a = i / (float)End;
-    vec2 Pos = vvfmix(Pos0, Pos1, a);
+    mvec2 Pos = vvfmix(Pos0, Pos1, a);
     // Temporary position for checking collision
     int ix = vgetx(Pos) + 0.5f;
     int iy = vgety(Pos) + 0.5f;
@@ -833,6 +836,7 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, vec2
   return 0;
 }
 #else
+
 unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
                                        mvec2 *__restrict__ pOutCollision,
                                        unsigned char *__restrict__ pTeleNr) {
@@ -845,13 +849,12 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec
   int Idx = (((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION) + ((int)vgetx(Pos0));
   unsigned char Start = pCollision->m_pSolidTeleDistanceField[Idx];
 
-  const int End = s_aMaxTable[(int)vsqdistance(Pos0, Pos1)] + 1;
+  int End = (int)vdistance(Pos0, Pos1) + 1;
   Start = iclamp(Start, 0, End);
-  Start -= Start % 4;
+  Start -= Start % 8;
   const float fEnd = End;
   int dx = 0, dy = 0;
   through_offset(Pos0, Pos1, &dx, &dy);
-  // printf("dx:%d, dy:%d\n", dx, dy);
   int LastIndex = -1;
 
   int *aIndices = malloc(sizeof(int) * (End + 8));
@@ -875,6 +878,17 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec
     __m256 a_vec = _mm256_mul_ps(_mm256_cvtepi32_ps(i_vec), inv_fEnd_vec);
     __m256 Pos_x_vec = _mm256_add_ps(Pos0_x_vec, _mm256_mul_ps(a_vec, diff_x_vec));
     __m256 Pos_y_vec = _mm256_add_ps(Pos0_y_vec, _mm256_mul_ps(a_vec, diff_y_vec));
+
+    // Check for negative values in Pos_x_vec or Pos_y_vec
+    __m256 zero_vec = _mm256_setzero_ps();
+    __m256 neg_x_mask = _mm256_cmp_ps(Pos_x_vec, zero_vec, _CMP_LT_OQ); // 1s where Pos_x_vec < 0
+    __m256 neg_y_mask = _mm256_cmp_ps(Pos_y_vec, zero_vec, _CMP_LT_OQ); // 1s where Pos_y_vec < 0
+    __m256 neg_mask = _mm256_or_ps(neg_x_mask, neg_y_mask);             // Combine masks
+    if (_mm256_movemask_ps(neg_mask) != 0) {
+      End = k;
+      break; // Break if any value is negative
+    }
+
     __m256 Pos_x_plus_half = _mm256_add_ps(Pos_x_vec, half_vec);
     __m256 Pos_y_plus_half = _mm256_add_ps(Pos_y_vec, half_vec);
     __m256i ix_vec = _mm256_srai_epi32(_mm256_cvttps_epi32(Pos_x_plus_half), 5);
@@ -882,10 +896,9 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec
     __m256i index_vec = _mm256_add_epi32(_mm256_mullo_epi32(iy_vec, width_vec), ix_vec);
     _mm256_storeu_si256((__m256i *)&aIndices[k], index_vec);
   }
-
   for (int i = Start; i <= End; i++) {
     const int Index = aIndices[i];
-    __builtin_assume(Index > 0);
+    __builtin_assume(Index >= 0);
     if (Index == LastIndex)
       continue;
     LastIndex = Index;
@@ -1103,8 +1116,9 @@ void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, m
     return;
 
   mvec2 NewPos = vvadd(Pos, Vel);
-  // vsetx(NewPos,  fclamp(vgetx(NewPos), HALFPHYSICALSIZE + 1.0f, (pCollision->m_MapData.width * 32) - (HALFPHYSICALSIZE + 1.0f)));
-  // vsety(NewPos,  fclamp(vgety(NewPos), HALFPHYSICALSIZE + 1.0f, (pCollision->m_MapData.width * 32) - (HALFPHYSICALSIZE + 1.0f)));
+  // vsetx(NewPos,  fclamp(vgetx(NewPos), HALFPHYSICALSIZE + 1.0f, (pCollision->m_MapData.width * 32) -
+  // (HALFPHYSICALSIZE + 1.0f))); vsety(NewPos,  fclamp(vgety(NewPos), HALFPHYSICALSIZE + 1.0f,
+  // (pCollision->m_MapData.width * 32) - (HALFPHYSICALSIZE + 1.0f)));
   const mvec2 minVec = _mm_min_ps(Pos, NewPos);
   const mvec2 maxVec = _mm_max_ps(Pos, NewPos);
   const mvec2 offset = _mm_set1_ps(HALFPHYSICALSIZE + 1.0f);
@@ -1116,6 +1130,7 @@ void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, m
   const int MaxY = (int)vgety(maxAdj) >> 5;
   const int Mask = (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
   const int IsSolid = pCollision->m_pBroadSolidBitField[MinY * pCollision->m_MapData.width + MinX] & Mask;
+  // This could be an issue because int(sqrt(int(x))) = int(sqrt(x)) is not true with fp math
   const unsigned short Max = s_aMaxTable[(int)Distance];
   if (!IsSolid) {
     const float NewPosX = vgetx(NewPos) + 0.5f;
