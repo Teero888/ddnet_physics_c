@@ -8,6 +8,7 @@
 #include <float.h>
 #include <immintrin.h>
 #include <mm_malloc.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -738,7 +739,7 @@ bool is_hook_blocker(SCollision *pCollision, int Index, mvec2 Pos0, mvec2 Pos1) 
   return false;
 }
 
-static inline bool broad_check(const SCollision *__restrict__ pCollision, mvec2 Start, mvec2 End) {
+static inline uint8_t broad_check(const SCollision *__restrict__ pCollision, mvec2 Start, mvec2 End) {
   const mvec2 MinVec = _mm_min_ps(Start, End);
   const mvec2 MaxVec = _mm_max_ps(Start, End);
   const int MinX = (int)vgetx(MinVec) >> 5;
@@ -748,23 +749,23 @@ static inline bool broad_check(const SCollision *__restrict__ pCollision, mvec2 
   const int DiffY = (MaxY - MinY);
   const int DiffX = (MaxX - MinX);
   if (MinY < 0 || MaxY > pCollision->m_MapData.height || MinX < 0 || MaxX > pCollision->m_MapData.width)
-    return true;
+    return 2;
 
   if (DiffY < 8 && DiffX < 8)
-    return pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] &
-           (uint64_t)1 << ((DiffY << 3) + DiffX);
+    return (bool)(pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] &
+                  (uint64_t)1 << ((DiffY << 3) + DiffX));
   else {
     for (int y = MinY; y <= MaxY; ++y) {
       for (int x = MinX; x <= MaxX; ++x) {
         if (pCollision->m_pTileInfos[(y * pCollision->m_MapData.width) + x] & INFO_ISSOLID)
-          return true;
+          return 1;
       }
     }
   }
-  return false;
+  return 0;
 }
 
-static inline bool broad_check_tele(const SCollision *__restrict__ pCollision, mvec2 Start, mvec2 End) {
+static inline uint8_t broad_check_tele(const SCollision *__restrict__ pCollision, mvec2 Start, mvec2 End) {
   const mvec2 minVec = _mm_min_ps(Start, End);
   const mvec2 maxVec = _mm_max_ps(Start, End);
   const int MinX = (int)vgetx(minVec) >> 5;
@@ -774,22 +775,22 @@ static inline bool broad_check_tele(const SCollision *__restrict__ pCollision, m
   const int DiffY = (MaxY - MinY);
   const int DiffX = (MaxX - MinX);
   if (MinY < 0 || MaxY > pCollision->m_MapData.height || MinX < 0 || MaxX > pCollision->m_MapData.width)
-    return true;
+    return 2;
 
   if (DiffY < 8 && DiffX < 8)
-    return pCollision->m_pBroadTeleInBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
-           (uint64_t)1 << ((DiffY << 3) + DiffX);
+    return (bool)(pCollision->m_pBroadTeleInBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
+                  (uint64_t)1 << ((DiffY << 3) + DiffX));
   else {
     for (int y = MinY; y <= MaxY; ++y) {
       for (int x = MinX; x <= MaxX; ++x) {
         uint8_t Idx = pCollision->m_MapData.tele_layer.type[y * pCollision->m_MapData.width + x];
         // NOTE: can be made into an info layer
         if (Idx == TILE_TELEINHOOK || Idx == TILE_TELEINWEAPON)
-          return true;
+          return 1;
       }
     }
   }
-  return false;
+  return 0;
 }
 
 #if 0
@@ -840,14 +841,16 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec
 unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
                                        mvec2 *__restrict__ pOutCollision,
                                        unsigned char *__restrict__ pTeleNr) {
-  if (!broad_check(pCollision, Pos0, Pos1) && (pTeleNr && !broad_check_tele(pCollision, Pos0, Pos1))) {
+  uint8_t Check[2] = {broad_check(pCollision, Pos0, Pos1),
+                      pTeleNr ? broad_check_tele(pCollision, Pos0, Pos1) : 0};
+  if (!Check[0] && !Check[1]) {
     *pOutCollision = Pos1;
     return 0;
   }
 
   const int Width = pCollision->m_MapData.width;
   int Idx = (((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION) + ((int)vgetx(Pos0));
-  unsigned char Start = pCollision->m_pSolidTeleDistanceField[Idx];
+  unsigned char Start = Check[0] > 1 ? 0 : pCollision->m_pSolidTeleDistanceField[Idx];
 
   int End = (int)vdistance(Pos0, Pos1) + 1;
   Start = iclamp(Start, 0, End);
@@ -934,14 +937,16 @@ unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mv
                                          mvec2 *__restrict__ pOutCollision,
                                          mvec2 *__restrict__ pOutBeforeCollision,
                                          unsigned char *__restrict__ pTeleNr) {
-  if (!broad_check(pCollision, Pos0, Pos1) && (pTeleNr && !broad_check_tele(pCollision, Pos0, Pos1))) {
+  uint8_t Check[2] = {broad_check(pCollision, Pos0, Pos1),
+                      pTeleNr ? broad_check_tele(pCollision, Pos0, Pos1) : 0};
+  if (!Check[0] && !Check[1]) {
     *pOutCollision = Pos1;
     return 0;
   }
 
   const int Width = pCollision->m_MapData.width;
   int Idx = (((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION) + ((int)vgetx(Pos0));
-  unsigned char Start = pCollision->m_pSolidTeleDistanceField[Idx];
+  unsigned char Start = Check[0] > 1 ? 0 : pCollision->m_pSolidTeleDistanceField[Idx];
 
   // we can't use the precomputed table here because lasers can get indefinently long
   const int End = vdistance(Pos0, Pos1) + 1;
