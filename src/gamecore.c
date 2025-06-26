@@ -17,7 +17,7 @@ void init_config(SConfig *pConfig) {
 #undef MACRO_CONFIG_INT
 }
 
-// TODO:implement guns, doors, lasers, lights and draggers
+// TODO: implement guns, doors, lasers, lights and draggers
 
 // Physics helper functions {{{
 
@@ -511,7 +511,7 @@ void cc_do_pickup(SCharacterCore *pCore) {
       const SPickup Pickup = pCore->m_pCollision->m_pPickups[Idx + iclamp(ix + dx, 0, Width - 1)];
       if (Pickup.m_Type < 0)
         continue;
-      if (vdistance(pCore->m_Pos, vec2_init(((ix + dx) * 32) + 16, ((iy + dy) * 32) + 16)) >= 34)
+      if (vdistance(pCore->m_Pos, vec2_init(((ix + dx) * 32) + 16, ((iy + dy) * 32) + 16)) >= 48)
         continue;
       if (Pickup.m_Number > 0 && !pCore->m_pWorld->m_pSwitches[Pickup.m_Number].m_Status)
         continue;

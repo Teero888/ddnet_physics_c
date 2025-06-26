@@ -849,6 +849,7 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec
   }
 
   const int Width = pCollision->m_MapData.width;
+  const int Height = pCollision->m_MapData.height;
   int Idx = (((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION) + ((int)vgetx(Pos0));
   unsigned char Start = Check[0] > 1 ? 0 : pCollision->m_pSolidTeleDistanceField[Idx];
 
@@ -881,17 +882,6 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec
     __m256 a_vec = _mm256_mul_ps(_mm256_cvtepi32_ps(i_vec), inv_fEnd_vec);
     __m256 Pos_x_vec = _mm256_add_ps(Pos0_x_vec, _mm256_mul_ps(a_vec, diff_x_vec));
     __m256 Pos_y_vec = _mm256_add_ps(Pos0_y_vec, _mm256_mul_ps(a_vec, diff_y_vec));
-
-    // Check for negative values in Pos_x_vec or Pos_y_vec
-    __m256 zero_vec = _mm256_setzero_ps();
-    __m256 neg_x_mask = _mm256_cmp_ps(Pos_x_vec, zero_vec, _CMP_LT_OQ); // 1s where Pos_x_vec < 0
-    __m256 neg_y_mask = _mm256_cmp_ps(Pos_y_vec, zero_vec, _CMP_LT_OQ); // 1s where Pos_y_vec < 0
-    __m256 neg_mask = _mm256_or_ps(neg_x_mask, neg_y_mask);             // Combine masks
-    if (_mm256_movemask_ps(neg_mask) != 0) {
-      End = k;
-      break; // Break if any value is negative
-    }
-
     __m256 Pos_x_plus_half = _mm256_add_ps(Pos_x_vec, half_vec);
     __m256 Pos_y_plus_half = _mm256_add_ps(Pos_y_vec, half_vec);
     __m256i ix_vec = _mm256_srai_epi32(_mm256_cvttps_epi32(Pos_x_plus_half), 5);
@@ -902,6 +892,10 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec
   for (int i = Start; i <= End; i++) {
     const int Index = aIndices[i];
     __builtin_assume(Index >= 0);
+    int x = Index % Width;
+    int y = Index / Width;
+    if (x < 0 || y < 0 || x >= Width || y >= Height)
+      break;
     if (Index == LastIndex)
       continue;
     LastIndex = Index;
@@ -945,6 +939,7 @@ unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mv
   }
 
   const int Width = pCollision->m_MapData.width;
+  const int Height = pCollision->m_MapData.height;
   int Idx = (((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION) + ((int)vgetx(Pos0));
   unsigned char Start = Check[0] > 1 ? 0 : pCollision->m_pSolidTeleDistanceField[Idx];
 
@@ -989,6 +984,10 @@ unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mv
 
   for (int i = Start; i <= End; i++) {
     const int Index = aIndices[i];
+    int x = Index % Width;
+    int y = Index / Width;
+    if (x < 0 || y < 0 || x >= Width || y >= Height)
+      break;
     __builtin_assume(Index > 0);
     if (Index == LastIndex)
       continue;
