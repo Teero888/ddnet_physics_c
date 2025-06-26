@@ -3,7 +3,6 @@
 #include "../include/vmath.h"
 #include <ddnet_map_loader.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -1108,10 +1107,14 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   pCore->m_Vel = clamp_vel(pCore->m_MoveRestrictions, pCore->m_Vel);
 
   SSwitch *pSwitches = pCore->m_pWorld->m_pSwitches;
-
-  unsigned char Number = get_switch_number(pCore->m_pCollision, MapIndex);
-  unsigned char Type = get_switch_type(pCore->m_pCollision, MapIndex);
-  unsigned char Delay = get_switch_delay(pCore->m_pCollision, MapIndex);
+  unsigned char Number = 0;
+  unsigned char Type = 0;
+  unsigned char Delay = 0;
+  if (pCore->m_pCollision->m_MapData.switch_layer.type) {
+    Number = get_switch_number(pCore->m_pCollision, MapIndex);
+    Type = get_switch_type(pCore->m_pCollision, MapIndex);
+    Delay = get_switch_delay(pCore->m_pCollision, MapIndex);
+  }
   int Tick = pCore->m_pWorld->m_GameTick;
 
   // Applying a 0 offset to a null pointer isn't actually an error but asan defines it as a runtime error
@@ -1578,7 +1581,6 @@ void cc_remove_ninja(SCharacterCore *pCore) {
 
 void cc_take_damage(SCharacterCore *pCore, mvec2 Force) {
   pCore->m_Vel = clamp_vel(pCore->m_MoveRestrictions, vvadd(pCore->m_Vel, Force));
-  ++pCore->m_HitNum;
   // printf("Took (%.2f, %.2f) damage to me (%.2f, %.2f). vel is now (%.2f, %.2f)\n", vgetx(Force),
   // vgety(Force), vgetx(pCore->m_Pos), vgety(pCore->m_Pos), vgetx(pCore->m_Vel), vgety(pCore->m_Vel));
 }
@@ -1848,7 +1850,7 @@ void cc_tick(SCharacterCore *pCore) {
   cc_ddrace_postcore_tick(pCore);
 
   pCore->m_PrevPos = pCore->m_Pos;
-  if (pCore->m_HitNum > 0 && pCore->m_pWorld->m_GameTick % 3 == 0)
+  if (pCore->m_HitNum > 0)
     --pCore->m_HitNum;
 }
 
@@ -2239,6 +2241,7 @@ void wc_create_explosion(SWorldCore *pWorld, mvec2 Pos, int Owner) {
     if (!(int)Dmg)
       continue;
 
+    pChr->m_HitNum += Dmg;
     if (!pWorld->m_pCharacters[Owner].m_GrenadeHitDisabled || Owner == pChr->m_Id) {
       if (pChr->m_Solo && Owner != pChr->m_Id)
         continue;
