@@ -368,6 +368,12 @@ void prj_tick(SProjectile *pProj) {
   mvec2 CurPos = prj_get_pos(pProj, Ct);
   mvec2 ColPos;
   mvec2 NewPos;
+  if (vgetx(CurPos) < 0 || vgety(CurPos) < 0 ||
+      vgetx(CurPos) >= pProj->m_Base.m_pCollision->m_MapData.width * 32 ||
+      vgety(CurPos) >= pProj->m_Base.m_pCollision->m_MapData.height * 32) {
+    pProj->m_Base.m_MarkedForDestroy = true;
+    return;
+  }
   bool Collide = intersect_line(pProj->m_Base.m_pCollision, PrevPos, CurPos, &ColPos, &NewPos);
   SCharacterCore *pOwnerChar = NULL;
 
@@ -683,6 +689,13 @@ void cc_move(SCharacterCore *pCore) {
 
   mvec2 NewPos = pCore->m_Pos;
   bool Grounded = false;
+  mvec2 MaxNewPos = vvadd(NewPos, pCore->m_Vel);
+  if (vgetx(MaxNewPos) < HALFPHYSICALSIZE + 2 || vgety(MaxNewPos) < HALFPHYSICALSIZE + 2 ||
+      vgetx(MaxNewPos) >= pCore->m_pCollision->m_MapData.width * 32 - (HALFPHYSICALSIZE + 2) ||
+      vgety(MaxNewPos) >= pCore->m_pCollision->m_MapData.height * 32 - (HALFPHYSICALSIZE + 2)) {
+    pCore->m_Vel = vec2_init(0, 0);
+    pCore->m_DeepFrozen = true;
+  }
   move_box(pCore->m_pCollision, NewPos, pCore->m_Vel, &NewPos, &pCore->m_Vel,
            vec2_init(pCore->m_pTuning->m_GroundElasticityX, pCore->m_pTuning->m_GroundElasticityY),
            &Grounded);
@@ -1095,95 +1108,95 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   pCore->m_Vel = clamp_vel(pCore->m_MoveRestrictions, pCore->m_Vel);
 
   SSwitch *pSwitches = pCore->m_pWorld->m_pSwitches;
-  if (pSwitches) {
-    unsigned char Number = get_switch_number(pCore->m_pCollision, MapIndex);
-    unsigned char Type = get_switch_type(pCore->m_pCollision, MapIndex);
-    unsigned char Delay = get_switch_delay(pCore->m_pCollision, MapIndex);
-    int Tick = pCore->m_pWorld->m_GameTick;
 
-    SSwitch *pSwitch = &pSwitches[Number];
+  unsigned char Number = get_switch_number(pCore->m_pCollision, MapIndex);
+  unsigned char Type = get_switch_type(pCore->m_pCollision, MapIndex);
+  unsigned char Delay = get_switch_delay(pCore->m_pCollision, MapIndex);
+  int Tick = pCore->m_pWorld->m_GameTick;
 
-    if (Type == TILE_SWITCHOPEN && Number > 0) {
-      pSwitch->m_Status = true;
-      pSwitch->m_EndTick = 0;
-      pSwitch->m_Type = TILE_SWITCHOPEN;
-      pSwitch->m_LastUpdateTick = Tick;
-    } else if (Type == TILE_SWITCHTIMEDOPEN && Number > 0) {
-      pSwitch->m_Status = true;
-      pSwitch->m_EndTick = Tick + 1 + Delay * GAME_TICK_SPEED;
-      pSwitch->m_Type = TILE_SWITCHTIMEDOPEN;
-      pSwitch->m_LastUpdateTick = Tick;
-    } else if (Type == TILE_SWITCHTIMEDCLOSE && Number > 0) {
-      pSwitch->m_Status = false;
-      pSwitch->m_EndTick = Tick + 1 + Delay * GAME_TICK_SPEED;
-      pSwitch->m_Type = TILE_SWITCHTIMEDCLOSE;
-      pSwitch->m_LastUpdateTick = Tick;
-    } else if (Type == TILE_SWITCHCLOSE && Number > 0) {
-      pSwitch->m_Status = false;
-      pSwitch->m_EndTick = 0;
-      pSwitch->m_Type = TILE_SWITCHCLOSE;
-      pSwitch->m_LastUpdateTick = Tick;
-    } else if (Type == TILE_FREEZE) {
-      if (Number == 0 || pSwitch->m_Status) {
-        cc_freeze(pCore, Delay);
-      }
-    } else if (Type == TILE_DFREEZE) {
-      if (Number == 0 || pSwitch->m_Status)
-        pCore->m_DeepFrozen = true;
-    } else if (Type == TILE_DUNFREEZE) {
-      if (Number == 0 || pSwitch->m_Status)
-        pCore->m_DeepFrozen = false;
-    } else if (Type == TILE_LFREEZE) {
-      if (Number == 0 || pSwitch->m_Status) {
-        pCore->m_LiveFrozen = true;
-      }
-    } else if (Type == TILE_LUNFREEZE) {
-      if (Number == 0 || pSwitch->m_Status) {
-        pCore->m_LiveFrozen = false;
-      }
-    } else if (Type == TILE_HIT_ENABLE && Delay == WEAPON_HAMMER) {
-      pCore->m_HammerHitDisabled = false;
-    } else if (Type == TILE_HIT_DISABLE && Delay == WEAPON_HAMMER) {
-      pCore->m_HammerHitDisabled = true;
-    } else if (Type == TILE_HIT_ENABLE && Delay == WEAPON_SHOTGUN) {
-      pCore->m_ShotgunHitDisabled = false;
-    } else if (Type == TILE_HIT_DISABLE && Delay == WEAPON_SHOTGUN) {
-      pCore->m_ShotgunHitDisabled = true;
-    } else if (Type == TILE_HIT_ENABLE && Delay == WEAPON_GRENADE) {
-      pCore->m_GrenadeHitDisabled = false;
-    } else if (Type == TILE_HIT_DISABLE && Delay == WEAPON_GRENADE) {
-      pCore->m_GrenadeHitDisabled = true;
-    } else if (Type == TILE_HIT_ENABLE && Delay == WEAPON_LASER) {
-      pCore->m_LaserHitDisabled = false;
-    } else if (Type == TILE_HIT_DISABLE && Delay == WEAPON_LASER) {
-      pCore->m_LaserHitDisabled = true;
-    } else if (Type == TILE_JUMP) {
-      int NewJumps = Delay;
-      if (NewJumps == 255) {
-        NewJumps = -1;
-      }
-      if (NewJumps != pCore->m_Jumps) {
-        pCore->m_Jumps = NewJumps;
-      }
-    } else if (Type == TILE_ADD_TIME && !pCore->m_LastPenalty) {
-      int min = Delay;
-      int sec = Number;
-      pCore->m_StartTime -= (min * 60 + sec) * GAME_TICK_SPEED;
-      pCore->m_LastPenalty = true;
-    } else if (Type == TILE_SUBTRACT_TIME && !pCore->m_LastBonus) {
-      int min = Delay;
-      int sec = Number;
-      pCore->m_StartTime += (min * 60 + sec) * GAME_TICK_SPEED;
-      if (pCore->m_StartTime > Tick)
-        pCore->m_StartTime = Tick;
-      pCore->m_LastBonus = true;
+  // Applying a 0 offset to a null pointer isn't actually an error but asan defines it as a runtime error
+  SSwitch *pSwitch = &pSwitches[Number];
+
+  if (Type == TILE_SWITCHOPEN && Number > 0) {
+    pSwitch->m_Status = true;
+    pSwitch->m_EndTick = 0;
+    pSwitch->m_Type = TILE_SWITCHOPEN;
+    pSwitch->m_LastUpdateTick = Tick;
+  } else if (Type == TILE_SWITCHTIMEDOPEN && Number > 0) {
+    pSwitch->m_Status = true;
+    pSwitch->m_EndTick = Tick + 1 + Delay * GAME_TICK_SPEED;
+    pSwitch->m_Type = TILE_SWITCHTIMEDOPEN;
+    pSwitch->m_LastUpdateTick = Tick;
+  } else if (Type == TILE_SWITCHTIMEDCLOSE && Number > 0) {
+    pSwitch->m_Status = false;
+    pSwitch->m_EndTick = Tick + 1 + Delay * GAME_TICK_SPEED;
+    pSwitch->m_Type = TILE_SWITCHTIMEDCLOSE;
+    pSwitch->m_LastUpdateTick = Tick;
+  } else if (Type == TILE_SWITCHCLOSE && Number > 0) {
+    pSwitch->m_Status = false;
+    pSwitch->m_EndTick = 0;
+    pSwitch->m_Type = TILE_SWITCHCLOSE;
+    pSwitch->m_LastUpdateTick = Tick;
+  } else if (Type == TILE_FREEZE) {
+    if (Number == 0 || pSwitch->m_Status) {
+      cc_freeze(pCore, Delay);
     }
-    if (Type != TILE_ADD_TIME) {
-      pCore->m_LastPenalty = false;
+  } else if (Type == TILE_DFREEZE) {
+    if (Number == 0 || pSwitch->m_Status)
+      pCore->m_DeepFrozen = true;
+  } else if (Type == TILE_DUNFREEZE) {
+    if (Number == 0 || pSwitch->m_Status)
+      pCore->m_DeepFrozen = false;
+  } else if (Type == TILE_LFREEZE) {
+    if (Number == 0 || pSwitch->m_Status) {
+      pCore->m_LiveFrozen = true;
     }
-    if (Type != TILE_SUBTRACT_TIME) {
-      pCore->m_LastBonus = false;
+  } else if (Type == TILE_LUNFREEZE) {
+    if (Number == 0 || pSwitch->m_Status) {
+      pCore->m_LiveFrozen = false;
     }
+  } else if (Type == TILE_HIT_ENABLE && Delay == WEAPON_HAMMER) {
+    pCore->m_HammerHitDisabled = false;
+  } else if (Type == TILE_HIT_DISABLE && Delay == WEAPON_HAMMER) {
+    pCore->m_HammerHitDisabled = true;
+  } else if (Type == TILE_HIT_ENABLE && Delay == WEAPON_SHOTGUN) {
+    pCore->m_ShotgunHitDisabled = false;
+  } else if (Type == TILE_HIT_DISABLE && Delay == WEAPON_SHOTGUN) {
+    pCore->m_ShotgunHitDisabled = true;
+  } else if (Type == TILE_HIT_ENABLE && Delay == WEAPON_GRENADE) {
+    pCore->m_GrenadeHitDisabled = false;
+  } else if (Type == TILE_HIT_DISABLE && Delay == WEAPON_GRENADE) {
+    pCore->m_GrenadeHitDisabled = true;
+  } else if (Type == TILE_HIT_ENABLE && Delay == WEAPON_LASER) {
+    pCore->m_LaserHitDisabled = false;
+  } else if (Type == TILE_HIT_DISABLE && Delay == WEAPON_LASER) {
+    pCore->m_LaserHitDisabled = true;
+  } else if (Type == TILE_JUMP) {
+    int NewJumps = Delay;
+    if (NewJumps == 255) {
+      NewJumps = -1;
+    }
+    if (NewJumps != pCore->m_Jumps) {
+      pCore->m_Jumps = NewJumps;
+    }
+  } else if (Type == TILE_ADD_TIME && !pCore->m_LastPenalty) {
+    int min = Delay;
+    int sec = Number;
+    pCore->m_StartTime -= (min * 60 + sec) * GAME_TICK_SPEED;
+    pCore->m_LastPenalty = true;
+  } else if (Type == TILE_SUBTRACT_TIME && !pCore->m_LastBonus) {
+    int min = Delay;
+    int sec = Number;
+    pCore->m_StartTime += (min * 60 + sec) * GAME_TICK_SPEED;
+    if (pCore->m_StartTime > Tick)
+      pCore->m_StartTime = Tick;
+    pCore->m_LastBonus = true;
+  }
+  if (Type != TILE_ADD_TIME) {
+    pCore->m_LastPenalty = false;
+  }
+  if (Type != TILE_SUBTRACT_TIME) {
+    pCore->m_LastBonus = false;
   }
 
   if (!pCore->m_pCollision->m_MapData.tele_layer.type)
@@ -1699,6 +1712,11 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   const mvec2 Direction =
       vnormalize_nomask(vec2_init(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY));
   const mvec2 ProjStartPos = vvadd(pCore->m_Pos, vfmul(Direction, PHYSICALSIZE * 0.75f));
+  if (vgetx(ProjStartPos) < 0 || vgety(ProjStartPos) < 0 ||
+      vgetx(ProjStartPos) >= pCore->m_pCollision->m_MapData.width * 32 ||
+      vgety(ProjStartPos) >= pCore->m_pCollision->m_MapData.height * 32) {
+    return;
+  }
 
   switch (pCore->m_ActiveWeapon) {
   case WEAPON_HAMMER: {
@@ -2099,7 +2117,7 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig) {
   pCore->m_pConfig = pConfig;
 
   // TODO: figure out highest switch number in collision
-  init_switchers(pCore, 0);
+  init_switchers(pCore, pCollision->m_HighestSwitchNumber);
 
   pCore->m_pTunings = pCollision->m_aTuningList;
   // configs

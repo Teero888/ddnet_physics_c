@@ -235,6 +235,13 @@ bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict_
     init_tuning_params(&pCollision->m_aTuningList[i]);
   // Figure out important things
   // Make lists of spawn points, tele outs and tele checkpoints outs
+  // figure out highest switch number
+  pCollision->m_HighestSwitchNumber = 0;
+  if (pCollision->m_MapData.switch_layer.number)
+    for (int i = 0; i < MapSize; ++i)
+      pCollision->m_HighestSwitchNumber =
+          imax(pCollision->m_HighestSwitchNumber, pCollision->m_MapData.switch_layer.number[i]);
+
   for (int i = 0; i < MapSize; ++i) {
     if (tile_exists(pCollision, i))
       pCollision->m_pTileInfos[i] |= INFO_TILENEXT;
@@ -891,7 +898,6 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec
   }
   for (int i = Start; i <= End; i++) {
     const int Index = aIndices[i];
-    __builtin_assume(Index >= 0);
     int x = Index % Width;
     int y = Index / Width;
     if (x < 0 || y < 0 || x >= Width || y >= Height)
@@ -988,7 +994,6 @@ unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mv
     int y = Index / Width;
     if (x < 0 || y < 0 || x >= Width || y >= Height)
       break;
-    __builtin_assume(Index > 0);
     if (Index == LastIndex)
       continue;
     LastIndex = Index;

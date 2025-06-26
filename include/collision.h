@@ -80,6 +80,8 @@ typedef struct Collision {
   int m_aNumTeleCheckOuts[256];
   STuningParams m_aTuningList[NUM_TUNE_ZONES];
 
+  int m_HighestSwitchNumber;
+
   bool m_MoveRestrictionsFound;
 } SCollision;
 
