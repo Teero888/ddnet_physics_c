@@ -1235,9 +1235,9 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
     return;
   }
   if (is_check_evil_teleport(pCore->m_pCollision, MapIndex)) {
-    for (int k = pCore->m_TeleCheckpoint - 1; k >= 0; k--) {
+    for (int k = pCore->m_TeleCheckpoint; k >= 0; k--) {
       if ((Num = pCore->m_pCollision->m_aNumTeleCheckOuts[k])) {
-        pCore->m_Pos = pCore->m_pCollision->m_apTeleCheckOuts[k][pCore->m_pWorld->m_GameTick % Num];
+        pCore->m_Pos = pCore->m_pCollision->m_apTeleCheckOuts[k][pCore->m_Input.m_TeleOut % Num];
         cc_calc_indices(pCore);
         pCore->m_Vel = vec2_init(0, 0);
 
@@ -1263,9 +1263,9 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
     return;
   }
   if (is_check_teleport(pCore->m_pCollision, MapIndex)) {
-    for (int k = pCore->m_TeleCheckpoint - 1; k >= 0; k--) {
+    for (int k = pCore->m_TeleCheckpoint; k >= 0; k--) {
       if ((Num = pCore->m_pCollision->m_aNumTeleCheckOuts[k])) {
-        pCore->m_Pos = pCore->m_pCollision->m_apTeleCheckOuts[k][pCore->m_pWorld->m_GameTick % Num];
+        pCore->m_Pos = pCore->m_pCollision->m_apTeleCheckOuts[k][pCore->m_Input.m_TeleOut % Num];
         cc_calc_indices(pCore);
 
         if (!pConfig->m_SvTeleportHoldHook) {
