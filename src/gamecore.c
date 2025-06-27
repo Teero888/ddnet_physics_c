@@ -1290,6 +1290,32 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   }
 }
 
+static inline bool broad_indices_check(const SCollision *__restrict__ pCollision, mvec2 Start, mvec2 End) {
+  const mvec2 MinVec = _mm_min_ps(Start, End);
+  const mvec2 MaxVec = _mm_max_ps(Start, End);
+  const int MinX = (int)vgetx(MinVec) >> 5;
+  const int MinY = (int)vgety(MinVec) >> 5;
+  const int MaxX = (int)ceilf(vgetx(MaxVec)) >> 5;
+  const int MaxY = (int)ceilf(vgety(MaxVec)) >> 5;
+  const int DiffY = (MaxY - MinY);
+  const int DiffX = (MaxX - MinX);
+  if (MinY < 0 || MaxY > pCollision->m_MapData.height || MinX < 0 || MaxX > pCollision->m_MapData.width)
+    return 0;
+
+  if (DiffY < 8 && DiffX < 8)
+    return (bool)(pCollision->m_pBroadIndicesBitField[(MinY * pCollision->m_MapData.width) + MinX] &
+                  (uint64_t)1 << ((DiffY << 3) + DiffX));
+  else {
+    for (int y = MinY; y <= MaxY; ++y) {
+      for (int x = MinX; x <= MaxX; ++x) {
+        if (pCollision->m_pTileBroadCheck + pCollision->m_pWidthLookup[y])
+          return 1;
+      }
+    }
+  }
+  return 0;
+}
+
 void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
   if (pCore->m_EndlessHook)
     pCore->m_HookTick = 0;
@@ -1325,14 +1351,7 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
   const mvec2 PrevPos = pCore->m_PrevPos;
   const mvec2 Pos = pCore->m_Pos;
   const int Width = pCore->m_pCollision->m_MapData.width;
-  const mvec2 minVec = _mm_min_ps(PrevPos, Pos);
-  const mvec2 maxVec = _mm_max_ps(PrevPos, Pos);
-  const int MinX = (int)vgetx(minVec) >> 5;
-  const int MinY = (int)vgety(minVec) >> 5;
-  const int MaxX = (int)vgetx(maxVec) >> 5;
-  const int MaxY = (int)vgety(maxVec) >> 5;
-  if (pCore->m_pCollision->m_pBroadIndicesBitField[(MinY * Width) + MinX] &
-      (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX))) {
+  if (broad_indices_check(pCore->m_pCollision, PrevPos, Pos)) {
     bool Handled = false;
     const float d = vdistance(pCore->m_PrevPos, pCore->m_Pos);
     const int End = d + 1;
