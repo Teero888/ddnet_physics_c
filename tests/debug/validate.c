@@ -26,18 +26,20 @@ int main(void) {
 
     SCharacterCore *pChar = wc_add_character(&World);
     pChar->m_Pos = pData->m_vStates[0][0].m_Pos;
+    pChar->m_Vel = pData->m_vStates[0][0].m_Vel;
+    pChar->m_HookPos = pData->m_vStates[0][0].m_HookPos;
+    pChar->m_ReloadTimer = pData->m_vStates[0][0].m_Reload;
     mvec2 PreviousVel;
     mvec2 PreviousHookPos;
     int PreviousReload;
 
     bool Failed = false;
     for (int i = 0; i < pData->m_StartTick + pData->m_Ticks; ++i) {
-      if (i >= pData->m_StartTick) {
-        cc_on_input(pChar, &pData->m_vStates[0][i - pData->m_StartTick].m_Input);
-      }
       PreviousVel = pChar->m_Vel;
       PreviousHookPos = pChar->m_HookPos;
       PreviousReload = pChar->m_ReloadTimer;
+      if (i >= pData->m_StartTick)
+        cc_on_input(pChar, &pData->m_vStates[0][i - pData->m_StartTick].m_Input);
       wc_tick(&World);
       if (i >= pData->m_StartTick) {
         int Tick = i - pData->m_StartTick;
@@ -48,7 +50,7 @@ int main(void) {
                  "\tPos: %.10f, %.10f\n"
                  "\tVel: %.10f, %.10f\n"
                  "\tHookPos: %.10f, %.10f\n"
-                 "\tReloadTime: %d"
+                 "\tReloadTime: %d\n"
                  "Found State: \n"
                  "\tPos: %.10f, %.10f\n"
                  "\tVel: %.10f, %.10f\n"
