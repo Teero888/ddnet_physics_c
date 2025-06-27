@@ -504,7 +504,7 @@ void cc_do_pickup(SCharacterCore *pCore) {
     return;
 
   const int Width = pCore->m_pCollision->m_MapData.width;
-  const int Height = pCore->m_pCollision->m_MapData.width;
+  const int Height = pCore->m_pCollision->m_MapData.height;
   const int ix = pCore->m_BlockPos.x;
   const int iy = pCore->m_BlockPos.y;
 
@@ -1703,7 +1703,6 @@ void cc_do_weapon_switch(SCharacterCore *pCore) {
   pCore->m_ActiveWeapon = pCore->m_Input.m_WantedWeapon;
 }
 
-void wc_insert_entity(SWorldCore *pWorld, SEntity *pEnt);
 void wc_remove_entity(SWorldCore *pWorld, SEntity *pEnt);
 
 void cc_fire_weapon(SCharacterCore *pCore) {
