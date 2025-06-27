@@ -1,7 +1,7 @@
+#include "../data.h"
 #include "../include/collision.h"
 #include "../include/gamecore.h"
 #include "../include/vmath.h"
-#include "../data.h"
 #include "../utils.h"
 #include <getopt.h>
 #include <math.h>
@@ -75,6 +75,8 @@ void print_help(const char *prog_name) {
 }
 
 int main(int argc, char *argv[]) {
+// It's disabled for now because the aip gores benchmark that was used is now invalid. Will be enabled again after i redo the tests
+#if 0
   int use_multi_threaded = 0;
 
   // Parse command-line options
@@ -156,6 +158,6 @@ int main(int argc, char *argv[]) {
   printf("%s calls/s\t%d runs\n", aBuf, NUM_RUNS);
 
   free_collision(&Collision);
-
+#endif
   return 0;
 }
