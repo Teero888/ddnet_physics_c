@@ -595,6 +595,8 @@ void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   pCore->m_aWeaponGot[0] = true;
   pCore->m_aWeaponGot[1] = true;
   pCore->m_ActiveWeapon = WEAPON_GUN;
+  pCore->m_Input.m_TargetY = -1;
+  pCore->m_SavedInput.m_TargetY = -1;
   pCore->m_LatestInput.m_TargetY = -1;
 
   pCore->m_StartTick = -1;
@@ -1839,6 +1841,9 @@ void cc_handle_weapons(SCharacterCore *pCore) {
 }
 
 void cc_tick(SCharacterCore *pCore) {
+  if (pCore->m_RespawnDelay)
+    --pCore->m_RespawnDelay;
+
   if (pCore->m_pWorld->m_NoWeakHookAndBounce)
     cc_tick_deferred(pCore);
   else
@@ -1855,6 +1860,12 @@ void cc_tick(SCharacterCore *pCore) {
 }
 
 void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
+  // kill trigger
+  if (!pCore->m_RespawnDelay && pNewInput->m_WantedWeapon == NUM_WEAPONS) {
+    cc_die(pCore);
+    pCore->m_RespawnDelay = 25;
+  }
+
   pCore->m_LatestInput = *pNewInput;
   if (pCore->m_LatestInput.m_TargetX == 0 && pCore->m_LatestInput.m_TargetY == 0)
     pCore->m_LatestInput.m_TargetY = -1;
@@ -1864,14 +1875,6 @@ void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
     cc_fire_weapon(pCore);
 
   pCore->m_PrevFire = pCore->m_LatestInput.m_Fire;
-
-  // kill trigger
-  if (pCore->m_RespawnDelay)
-    --pCore->m_RespawnDelay;
-  if (!pCore->m_RespawnDelay && pNewInput->m_WantedWeapon == 7) {
-    cc_die(pCore);
-    pCore->m_RespawnDelay = 25;
-  }
 }
 
 void cc_on_predicted_input(SCharacterCore *pCore, SPlayerInput *pNewInput) {
