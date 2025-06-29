@@ -755,7 +755,7 @@ static inline uint8_t broad_check(const SCollision *__restrict__ pCollision, mve
   const int MaxY = (int)ceilf(vgety(MaxVec)) >> 5;
   const int DiffY = (MaxY - MinY);
   const int DiffX = (MaxX - MinX);
-  if (MinY < 0 || MaxY > pCollision->m_MapData.height || MinX < 0 || MaxX > pCollision->m_MapData.width)
+  if (MinY < 0 || MaxY >= pCollision->m_MapData.height || MinX < 0 || MaxX >= pCollision->m_MapData.width)
     return 2;
 
   if (DiffY < 8 && DiffX < 8)
@@ -781,7 +781,7 @@ static inline uint8_t broad_check_tele(const SCollision *__restrict__ pCollision
   const int MaxY = (int)ceilf(vgety(maxVec)) >> 5;
   const int DiffY = (MaxY - MinY);
   const int DiffX = (MaxX - MinX);
-  if (MinY < 0 || MaxY > pCollision->m_MapData.height || MinX < 0 || MaxX > pCollision->m_MapData.width)
+  if (MinY < 0 || MaxY >= pCollision->m_MapData.height || MinX < 0 || MaxX >= pCollision->m_MapData.width)
     return 2;
 
   if (DiffY < 8 && DiffX < 8)
