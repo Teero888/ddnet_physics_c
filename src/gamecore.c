@@ -368,8 +368,8 @@ void prj_tick(SProjectile *pProj) {
   mvec2 ColPos;
   mvec2 NewPos;
   if (vgetx(CurPos) < 0 || vgety(CurPos) < 0 ||
-      vgetx(CurPos) >= pProj->m_Base.m_pCollision->m_MapData.width * 32 ||
-      vgety(CurPos) >= pProj->m_Base.m_pCollision->m_MapData.height * 32) {
+      ceilf(vgetx(CurPos)) >= pProj->m_Base.m_pCollision->m_MapData.width * 32 ||
+      ceilf(vgety(CurPos)) >= pProj->m_Base.m_pCollision->m_MapData.height * 32) {
     pProj->m_Base.m_MarkedForDestroy = true;
     return;
   }
