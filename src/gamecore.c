@@ -1713,8 +1713,11 @@ void cc_do_weapon_switch(SCharacterCore *pCore) {
 void wc_remove_entity(SWorldCore *pWorld, SEntity *pEnt);
 
 void cc_fire_weapon(SCharacterCore *pCore) {
-  cc_do_weapon_switch(pCore);
-
+  if (pCore->m_aWeaponGot[pCore->m_QueuedWeapon] && pCore->m_ReloadTimer == 0 &&
+      !pCore->m_aWeaponGot[WEAPON_NINJA]) {
+    pCore->m_LastWeapon = pCore->m_ActiveWeapon;
+    pCore->m_ActiveWeapon = pCore->m_QueuedWeapon;
+  }
   if (pCore->m_FreezeTime)
     return;
   // don't fire hammer when player is deep and sv_deepfly is disabled
