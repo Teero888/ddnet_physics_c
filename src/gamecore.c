@@ -1699,9 +1699,9 @@ void cc_handle_jetpack(SCharacterCore *pCore) {
 }
 
 void cc_do_weapon_switch(SCharacterCore *pCore) {
-  pCore->m_Input.m_WantedWeapon = iclamp(pCore->m_LatestInput.m_WantedWeapon, 0, NUM_WEAPONS - 1);
-  if (pCore->m_Input.m_WantedWeapon != pCore->m_ActiveWeapon)
-    pCore->m_QueuedWeapon = pCore->m_Input.m_WantedWeapon;
+  uint8_t WantedWeapon = imin(pCore->m_Input.m_WantedWeapon, NUM_WEAPONS - 1);
+  if (WantedWeapon != pCore->m_ActiveWeapon && pCore->m_aWeaponGot[WantedWeapon])
+    pCore->m_QueuedWeapon = WantedWeapon;
 
   if (!pCore->m_aWeaponGot[pCore->m_QueuedWeapon] || pCore->m_ReloadTimer != 0 ||
       pCore->m_aWeaponGot[WEAPON_NINJA])
@@ -1865,7 +1865,8 @@ void cc_handle_weapons(SCharacterCore *pCore) {
     --pCore->m_ReloadTimer;
     return;
   }
-  cc_fire_weapon(pCore);
+  if (!pCore->m_ReloadTimer)
+    cc_fire_weapon(pCore);
 }
 
 void cc_tick(SCharacterCore *pCore) {
