@@ -675,20 +675,22 @@ static inline void through_offset(mvec2 Pos0, mvec2 Pos1, int *__restrict__ pOff
 
 static inline bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY, mvec2 Pos0,
                               mvec2 Pos1) {
+  if (x < 0 || y < 0 || x >= pCollision->m_MapData.width * 32 || y >= pCollision->m_MapData.width * 32)
+    return false;
   int pos = get_pure_map_index(pCollision, vec2_init(x, y));
   unsigned char *pFrontIdx = pCollision->m_MapData.front_layer.data;
   unsigned char *pFrontFlgs = pCollision->m_MapData.front_layer.flags;
 
   if (pFrontIdx) {
-    unsigned char frontTile = pFrontIdx[pos];
-    if (frontTile == TILE_THROUGH_ALL || frontTile == TILE_THROUGH_CUT)
+    unsigned char FrontTile = pFrontIdx[pos];
+    if (FrontTile == TILE_THROUGH_ALL || FrontTile == TILE_THROUGH_CUT)
       return true;
-    if (frontTile == TILE_THROUGH_DIR) {
-      unsigned char flags = pFrontFlgs[pos];
-      if ((flags == ROTATION_0 && vgety(Pos0) > vgety(Pos1)) ||
-          (flags == ROTATION_90 && vgetx(Pos0) < vgetx(Pos1)) ||
-          (flags == ROTATION_180 && vgety(Pos0) < vgety(Pos1)) ||
-          (flags == ROTATION_270 && vgetx(Pos0) > vgetx(Pos1))) {
+    if (FrontTile == TILE_THROUGH_DIR) {
+      unsigned char Flags = pFrontFlgs[pos];
+      if ((Flags == ROTATION_0 && vgety(Pos0) > vgety(Pos1)) ||
+          (Flags == ROTATION_90 && vgetx(Pos0) < vgetx(Pos1)) ||
+          (Flags == ROTATION_180 && vgety(Pos0) < vgety(Pos1)) ||
+          (Flags == ROTATION_270 && vgetx(Pos0) > vgetx(Pos1))) {
         return true;
       }
     }
@@ -898,9 +900,7 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec
   }
   for (int i = Start; i <= End; i++) {
     const int Index = aIndices[i];
-    int x = Index % Width;
-    int y = Index / Width;
-    if (x < 0 || y < 0 || x >= Width || y >= Height)
+    if (Index < 0 || Index >= Width * Height)
       break;
     if (Index == LastIndex)
       continue;
