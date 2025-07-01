@@ -1642,5 +1642,5 @@ static const SValidation s_run_irish_luck = {"run_irish_luck.map",178,1,1614,{
 }};
 
 static const STest s_aTests[] = {
-(STest){"run_irish_luck", "run_irish_luck 27.08 run", &s_AntiHookBug},
+(STest){"run_irish_luck", "run_irish_luck 27.08 run", &s_run_irish_luck},
 };

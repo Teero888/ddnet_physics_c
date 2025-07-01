@@ -108,7 +108,9 @@ typedef struct CharacterCore {
   int m_HookTick;
   int m_HookState;
 
+  unsigned char m_LastWeapon;
   unsigned char m_ActiveWeapon;
+  unsigned char m_QueuedWeapon;
   bool m_aWeaponGot[NUM_WEAPONS];
 
   // ninja

@@ -1597,6 +1597,7 @@ void cc_remove_ninja(SCharacterCore *pCore) {
   pCore->m_Ninja.m_ActivationTick = 0;
   pCore->m_Ninja.m_CurrentMoveTime = 0;
   pCore->m_Ninja.m_OldVelAmount = 0;
+  pCore->m_ActiveWeapon = pCore->m_LastWeapon;
   pCore->m_aWeaponGot[WEAPON_NINJA] = false;
 }
 
@@ -1614,6 +1615,9 @@ void cc_handle_ninja(SCharacterCore *pCore) {
     cc_remove_ninja(pCore);
     return;
   }
+
+  if (pCore->m_ActiveWeapon != WEAPON_NINJA)
+    pCore->m_LastWeapon = pCore->m_ActiveWeapon;
 
   // force ninja Weapon
   pCore->m_ActiveWeapon = WEAPON_NINJA;
@@ -1695,12 +1699,15 @@ void cc_handle_jetpack(SCharacterCore *pCore) {
 }
 
 void cc_do_weapon_switch(SCharacterCore *pCore) {
-  pCore->m_Input.m_WantedWeapon = iclamp(pCore->m_Input.m_WantedWeapon, 0, NUM_WEAPONS - 1);
-  if (!pCore->m_aWeaponGot[pCore->m_Input.m_WantedWeapon] || pCore->m_ReloadTimer != 0 ||
+  pCore->m_Input.m_WantedWeapon = iclamp(pCore->m_LatestInput.m_WantedWeapon, 0, NUM_WEAPONS - 1);
+  if (pCore->m_Input.m_WantedWeapon != pCore->m_ActiveWeapon)
+    pCore->m_QueuedWeapon = pCore->m_Input.m_WantedWeapon;
+
+  if (!pCore->m_aWeaponGot[pCore->m_QueuedWeapon] || pCore->m_ReloadTimer != 0 ||
       pCore->m_aWeaponGot[WEAPON_NINJA])
     return;
-
-  pCore->m_ActiveWeapon = pCore->m_Input.m_WantedWeapon;
+  pCore->m_LastWeapon = pCore->m_ActiveWeapon;
+  pCore->m_ActiveWeapon = pCore->m_QueuedWeapon;
 }
 
 void wc_remove_entity(SWorldCore *pWorld, SEntity *pEnt);
