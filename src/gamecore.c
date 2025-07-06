@@ -1720,7 +1720,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   if (pCore->m_PrevFire != pCore->m_LatestInput.m_Fire) {
     WillFire = true;
   } else if (pCore->m_LatestInput.m_Fire & 1) {
-    if (pCore->m_ActiveWeapon - WEAPON_SHOTGUN <= WEAPON_LASER - WEAPON_SHOTGUN)
+    if (pCore->m_ActiveWeapon >= WEAPON_SHOTGUN && pCore->m_ActiveWeapon <= WEAPON_LASER)
       WillFire = true;
     else if (pCore->m_Jetpack && pCore->m_ActiveWeapon == WEAPON_GUN)
       WillFire = true;
