@@ -449,11 +449,11 @@ bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict_
         if (pMapData->tele_layer.type[Idx] == TILE_TELEOUT)
           pCollision
               ->m_apTeleOuts[pMapData->tele_layer.number[Idx]][aTeleIdx[pMapData->tele_layer.number[Idx]]++] =
-              vec2_init(x * 32 + 16, y * 32 + 16);
+              vec2_init((x * 32.f) + 16.f, (y * 32.f) + 16.f);
         if (pMapData->tele_layer.type[Idx] == TILE_TELECHECKOUT)
           pCollision->m_apTeleCheckOuts[pMapData->tele_layer.number[Idx]]
                                        [aTeleCheckIdx[pMapData->tele_layer.number[Idx]]++] =
-              vec2_init(x * 32 + 16, y * 32 + 16);
+              vec2_init((x * 32.f) + 16.f, (y * 32.f) + 16.f);
       }
     }
   }
@@ -1138,7 +1138,8 @@ void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, m
   const int MaxX = (int)vgetx(maxAdj) >> 5;
   const int MaxY = (int)vgety(maxAdj) >> 5;
   const uint64_t Mask = (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
-  const uint64_t IsSolid = pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] & Mask;
+  const uint64_t IsSolid =
+      pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] & Mask;
   // This could be an issue because int(sqrt(int(x))) = int(sqrt(x)) is not true with fp math
   const unsigned short Max = s_aMaxTable[(int)Distance];
   if (!IsSolid) {
