@@ -180,6 +180,7 @@ typedef struct CharacterCore {
 
   int m_StartTick;
   int m_FinishTick;
+  int m_AttackTick; // for animations
 
   int m_RespawnDelay;
 

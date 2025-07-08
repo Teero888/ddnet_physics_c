@@ -449,11 +449,11 @@ bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict_
         if (pMapData->tele_layer.type[Idx] == TILE_TELEOUT)
           pCollision
               ->m_apTeleOuts[pMapData->tele_layer.number[Idx]][aTeleIdx[pMapData->tele_layer.number[Idx]]++] =
-              vec2_init(x * 32 + 16, y * 32 + 16);
+              vec2_init((x * 32.f) + 16.f, (y * 32.f) + 16.f);
         if (pMapData->tele_layer.type[Idx] == TILE_TELECHECKOUT)
           pCollision->m_apTeleCheckOuts[pMapData->tele_layer.number[Idx]]
                                        [aTeleCheckIdx[pMapData->tele_layer.number[Idx]]++] =
-              vec2_init(x * 32 + 16, y * 32 + 16);
+              vec2_init((x * 32.f) + 16.f, (y * 32.f) + 16.f);
       }
     }
   }

@@ -368,8 +368,8 @@ void prj_tick(SProjectile *pProj) {
   mvec2 ColPos;
   mvec2 NewPos;
   if (vgetx(CurPos) < 0 || vgety(CurPos) < 0 ||
-      ceilf(vgetx(CurPos)) >= pProj->m_Base.m_pCollision->m_MapData.width * 32 ||
-      ceilf(vgety(CurPos)) >= pProj->m_Base.m_pCollision->m_MapData.height * 32) {
+      (int)(vgetx(CurPos) + 0.5) >> 5 >= pProj->m_Base.m_pCollision->m_MapData.width ||
+      (int)(vgety(CurPos) + 0.5) >> 5 >= pProj->m_Base.m_pCollision->m_MapData.height) {
     pProj->m_Base.m_MarkedForDestroy = true;
     return;
   }
@@ -1004,7 +1004,8 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
       pCore->m_StartTick = pCore->m_pWorld->m_GameTick;
       pCore->m_FinishTick = -1;
     }
-  if ((TileIndex == TILE_FINISH || TileFIndex == TILE_FINISH) && pCore->m_StartTick != -1) {
+  if ((TileIndex == TILE_FINISH || TileFIndex == TILE_FINISH) && pCore->m_StartTick != -1 &&
+      pCore->m_FinishTick == -1) {
     pCore->m_FinishTick = pCore->m_pWorld->m_GameTick;
   }
 
@@ -1730,7 +1731,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   if (pCore->m_PrevFire != pCore->m_LatestInput.m_Fire) {
     WillFire = true;
   } else if (pCore->m_LatestInput.m_Fire & 1) {
-    if (pCore->m_ActiveWeapon - WEAPON_SHOTGUN <= WEAPON_LASER - WEAPON_SHOTGUN)
+    if (pCore->m_ActiveWeapon >= WEAPON_SHOTGUN && pCore->m_ActiveWeapon <= WEAPON_LASER)
       WillFire = true;
     else if (pCore->m_Jetpack && pCore->m_ActiveWeapon == WEAPON_GUN)
       WillFire = true;
@@ -1749,6 +1750,8 @@ void cc_fire_weapon(SCharacterCore *pCore) {
       vgety(ProjStartPos) >= pCore->m_pCollision->m_MapData.height * 32) {
     return;
   }
+
+  pCore->m_AttackTick = pCore->m_pWorld->m_GameTick;
 
   switch (pCore->m_ActiveWeapon) {
   case WEAPON_HAMMER: {
