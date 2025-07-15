@@ -204,6 +204,8 @@ bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict_
 
   pCollision->m_pPickups = _mm_malloc(MapSize * sizeof(SPickup), 64);
   memset(pCollision->m_pPickups, 0, MapSize * sizeof(SPickup));
+  pCollision->m_pFrontPickups = _mm_malloc(MapSize * sizeof(SPickup), 64);
+  memset(pCollision->m_pFrontPickups, 0, MapSize * sizeof(SPickup));
 
   pCollision->m_pBroadSolidBitField = _mm_malloc(MapSize * sizeof(uint64_t), 64);
   memset(pCollision->m_pBroadSolidBitField, 0, MapSize * sizeof(uint64_t));
@@ -316,6 +318,50 @@ bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict_
         }
       }
     }
+
+    pCollision->m_pFrontPickups[i].m_Type = -1;
+    if (pMapData->front_layer.data) {
+      EntIdx = pMapData->front_layer.data[i] - ENTITY_OFFSET;
+      if ((EntIdx >= ENTITY_ARMOR_SHOTGUN && EntIdx <= ENTITY_ARMOR_LASER) ||
+          (EntIdx >= ENTITY_ARMOR_1 && EntIdx <= ENTITY_WEAPON_LASER)) {
+        int Type = -1;
+        int SubType = 0;
+        if (EntIdx == ENTITY_ARMOR_1)
+          Type = POWERUP_ARMOR;
+        else if (EntIdx == ENTITY_ARMOR_SHOTGUN)
+          Type = POWERUP_ARMOR_SHOTGUN;
+        else if (EntIdx == ENTITY_ARMOR_GRENADE)
+          Type = POWERUP_ARMOR_GRENADE;
+        else if (EntIdx == ENTITY_ARMOR_NINJA)
+          Type = POWERUP_ARMOR_NINJA;
+        else if (EntIdx == ENTITY_ARMOR_LASER)
+          Type = POWERUP_ARMOR_LASER;
+        else if (EntIdx == ENTITY_HEALTH_1)
+          Type = POWERUP_HEALTH;
+        else if (EntIdx == ENTITY_WEAPON_SHOTGUN) {
+          Type = POWERUP_WEAPON;
+          SubType = WEAPON_SHOTGUN;
+        } else if (EntIdx == ENTITY_WEAPON_GRENADE) {
+          Type = POWERUP_WEAPON;
+          SubType = WEAPON_GRENADE;
+        } else if (EntIdx == ENTITY_WEAPON_LASER) {
+          Type = POWERUP_WEAPON;
+          SubType = WEAPON_LASER;
+        } else if (EntIdx == ENTITY_POWERUP_NINJA) {
+          Type = POWERUP_NINJA;
+          SubType = WEAPON_NINJA;
+        }
+        pCollision->m_pFrontPickups[i].m_Type = Type;
+        pCollision->m_pFrontPickups[i].m_Subtype = SubType;
+        if (pCollision->m_MapData.switch_layer.type) {
+          const int SwitchType = pCollision->m_MapData.switch_layer.type[i];
+          if (SwitchType) {
+            pCollision->m_pFrontPickups[i].m_Type = SwitchType;
+            pCollision->m_pFrontPickups[i].m_Number = pCollision->m_MapData.switch_layer.number[i];
+          }
+        }
+      }
+    }
   }
 
   for (int y = 0; y < Height; ++y) {
@@ -326,6 +372,8 @@ bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict_
           const int dIdx =
               pCollision->m_pWidthLookup[iclamp(y + dy, 0, Height - 1)] + iclamp(x + dx, 0, Width - 1);
           if (pCollision->m_pPickups[dIdx].m_Type > 0)
+            pCollision->m_pTileInfos[Idx] |= INFO_PICKUPNEXT;
+          if (pCollision->m_pFrontPickups[dIdx].m_Type > 0)
             pCollision->m_pTileInfos[Idx] |= INFO_PICKUPNEXT;
           if (pCollision->m_MapData.game_layer.data[dIdx] == TILE_DEATH ||
               (pCollision->m_MapData.front_layer.data && pCollision->m_MapData.front_layer.data[dIdx]))
@@ -629,7 +677,10 @@ inline unsigned char get_move_restrictions(SCollision *__restrict__ pCollision, 
   unsigned char Restrictions = 0;
 #pragma clang loop unroll(full)
   for (int d = 0; d < NUM_MR_DIRS; d++) {
-    int ModMapIndex = get_pure_map_index(pCollision, vvadd(Pos, DIRECTIONS[d]));
+    mvec2 NewPos =
+        vvclamp(vvadd(Pos, DIRECTIONS[d]), vec2_init(0, 0),
+                vec2_init((pCollision->m_MapData.width * 32) - 16, (pCollision->m_MapData.height * 32) - 16));
+    int ModMapIndex = get_pure_map_index(pCollision, NewPos);
     if (d == MR_DIR_HERE && OverrideCenterTileIndex >= 0)
       ModMapIndex = OverrideCenterTileIndex;
     Restrictions |= pCollision->m_pMoveRestrictions[ModMapIndex][d];

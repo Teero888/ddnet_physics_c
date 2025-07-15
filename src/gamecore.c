@@ -512,68 +512,71 @@ void cc_do_pickup(SCharacterCore *pCore) {
   for (int dy = -1; dy <= 1; ++dy) {
     const int Idx = pCore->m_pCollision->m_pWidthLookup[iclamp(iy + dy, 0, Height - 1)];
     for (int dx = -1; dx <= 1; ++dx) {
-      // NOTE: doing a copy here should be faster since it is only 3 bytes
-      const SPickup Pickup = pCore->m_pCollision->m_pPickups[Idx + iclamp(ix + dx, 0, Width - 1)];
-      if (Pickup.m_Type < 0)
-        continue;
-      if (vdistance(pCore->m_Pos, vec2_init(((ix + dx) * 32) + 16, ((iy + dy) * 32) + 16)) >= 48)
-        continue;
-      if (Pickup.m_Number > 0 && !pCore->m_pWorld->m_pSwitches[Pickup.m_Number].m_Status)
-        continue;
+      for (int i = 0; i < 2; ++i) {
+        // NOTE: doing a copy here should be faster since it is only 3 bytes
+        const SPickup Pickup = !i ? pCore->m_pCollision->m_pPickups[Idx + iclamp(ix + dx, 0, Width - 1)]
+                                  : pCore->m_pCollision->m_pFrontPickups[Idx + iclamp(ix + dx, 0, Width - 1)];
+        if (Pickup.m_Type < 0)
+          continue;
+        if (vdistance(pCore->m_Pos, vec2_init(((ix + dx) * 32) + 16, ((iy + dy) * 32) + 16)) >= 48)
+          continue;
+        if (Pickup.m_Number > 0 && !pCore->m_pWorld->m_pSwitches[Pickup.m_Number].m_Status)
+          continue;
 
-      switch (Pickup.m_Type) {
-      case POWERUP_HEALTH:
-        cc_freeze(pCore, pCore->m_pWorld->m_pConfig->m_SvFreezeDelay);
-        break;
+        switch (Pickup.m_Type) {
+        case POWERUP_HEALTH:
+          cc_freeze(pCore, pCore->m_pWorld->m_pConfig->m_SvFreezeDelay);
+          break;
 
-      case POWERUP_ARMOR:
+        case POWERUP_ARMOR:
 #pragma clang loop unroll(full)
-        for (int j = WEAPON_SHOTGUN; j < NUM_WEAPONS; j++) {
-          pCore->m_aWeaponGot[j] = false;
+          for (int j = WEAPON_SHOTGUN; j < NUM_WEAPONS; j++) {
+            pCore->m_aWeaponGot[j] = false;
+          }
+          pCore->m_Ninja.m_ActivationDir = vec2_init(0, 0);
+          pCore->m_Ninja.m_ActivationTick = -500;
+          pCore->m_Ninja.m_CurrentMoveTime = 0;
+          if (pCore->m_ActiveWeapon >= WEAPON_SHOTGUN)
+            pCore->m_ActiveWeapon = WEAPON_HAMMER;
+          break;
+
+        case POWERUP_ARMOR_SHOTGUN:
+          pCore->m_aWeaponGot[WEAPON_SHOTGUN] = false;
+          if (pCore->m_ActiveWeapon == WEAPON_SHOTGUN)
+            pCore->m_ActiveWeapon = WEAPON_HAMMER;
+          break;
+
+        case POWERUP_ARMOR_GRENADE:
+          pCore->m_aWeaponGot[WEAPON_GRENADE] = false;
+          if (pCore->m_ActiveWeapon == WEAPON_GRENADE)
+            pCore->m_ActiveWeapon = WEAPON_HAMMER;
+          break;
+
+        case POWERUP_ARMOR_NINJA:
+          pCore->m_Ninja.m_ActivationDir = vec2_init(0, 0);
+          pCore->m_Ninja.m_ActivationTick = -500;
+          pCore->m_Ninja.m_CurrentMoveTime = 0;
+          break;
+
+        case POWERUP_ARMOR_LASER:
+          pCore->m_aWeaponGot[WEAPON_LASER] = false;
+          if (pCore->m_ActiveWeapon == WEAPON_LASER)
+            pCore->m_ActiveWeapon = WEAPON_HAMMER;
+          break;
+
+        case POWERUP_WEAPON:
+          pCore->m_aWeaponGot[Pickup.m_Subtype] = true;
+          break;
+
+        case POWERUP_NINJA: {
+          pCore->m_Ninja.m_ActivationTick = pCore->m_pWorld->m_GameTick;
+          pCore->m_aWeaponGot[WEAPON_NINJA] = true;
+          pCore->m_ActiveWeapon = WEAPON_NINJA;
+          break;
         }
-        pCore->m_Ninja.m_ActivationDir = vec2_init(0, 0);
-        pCore->m_Ninja.m_ActivationTick = -500;
-        pCore->m_Ninja.m_CurrentMoveTime = 0;
-        if (pCore->m_ActiveWeapon >= WEAPON_SHOTGUN)
-          pCore->m_ActiveWeapon = WEAPON_HAMMER;
-        break;
-
-      case POWERUP_ARMOR_SHOTGUN:
-        pCore->m_aWeaponGot[WEAPON_SHOTGUN] = false;
-        if (pCore->m_ActiveWeapon == WEAPON_SHOTGUN)
-          pCore->m_ActiveWeapon = WEAPON_HAMMER;
-        break;
-
-      case POWERUP_ARMOR_GRENADE:
-        pCore->m_aWeaponGot[WEAPON_GRENADE] = false;
-        if (pCore->m_ActiveWeapon == WEAPON_GRENADE)
-          pCore->m_ActiveWeapon = WEAPON_HAMMER;
-        break;
-
-      case POWERUP_ARMOR_NINJA:
-        pCore->m_Ninja.m_ActivationDir = vec2_init(0, 0);
-        pCore->m_Ninja.m_ActivationTick = -500;
-        pCore->m_Ninja.m_CurrentMoveTime = 0;
-        break;
-
-      case POWERUP_ARMOR_LASER:
-        pCore->m_aWeaponGot[WEAPON_LASER] = false;
-        if (pCore->m_ActiveWeapon == WEAPON_LASER)
-          pCore->m_ActiveWeapon = WEAPON_HAMMER;
-        break;
-
-      case POWERUP_WEAPON:
-        pCore->m_aWeaponGot[Pickup.m_Subtype] = true;
-        break;
-
-      case POWERUP_NINJA: {
-        pCore->m_Ninja.m_ActivationTick = pCore->m_pWorld->m_GameTick;
-        pCore->m_aWeaponGot[WEAPON_NINJA] = true;
-        pCore->m_ActiveWeapon = WEAPON_NINJA;
-        break;
-      }
-      default:
-        __builtin_unreachable();
+        default:
+          __builtin_unreachable();
+        }
       }
     }
   }
@@ -1940,10 +1943,7 @@ void init_switchers(SWorldCore *pCore, int HighestSwitchNumber) {
 bool wc_next_spawn(SWorldCore *pCore, mvec2 *pOutPos) {
   if (!pCore->m_pCollision->m_pSpawnPoints)
     return false;
-  *pOutPos = vfadd(
-      vfmul(pCore->m_pCollision->m_pSpawnPoints[pCore->m_GameTick % pCore->m_pCollision->m_NumSpawnPoints],
-            32),
-      16);
+  *pOutPos = vfadd(vfmul(pCore->m_pCollision->m_pSpawnPoints[0], 32), 16);
   return true;
 }
 

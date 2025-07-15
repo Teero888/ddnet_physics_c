@@ -67,6 +67,7 @@ typedef struct Collision {
   uint64_t *m_pBroadIndicesBitField;
   uint8_t *m_pTileInfos;
   SPickup *m_pPickups;
+  SPickup *m_pFrontPickups;
   uint8_t (*m_pMoveRestrictions)[5];
   uint8_t *m_pTileBroadCheck;
   uint8_t *m_pSolidTeleDistanceField;
