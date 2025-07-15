@@ -157,6 +157,7 @@ bool lsr_hit_character(SLaser *pLaser, mvec2 From, mvec2 To) {
     break;
   }
   pHit->m_Vel = clamp_vel(pHit->m_MoveRestrictions, pHit->m_Vel);
+  pHit->m_HitNum += 2;
   return true;
 }
 
@@ -194,7 +195,7 @@ void lsr_bounce(SLaser *pLaser) {
       pLaser->m_Base.m_Pos = To;
 
       mvec2 TempPos = pLaser->m_Base.m_Pos;
-      mvec2 TempDir = pLaser->m_Dir * 4.0f;
+      mvec2 TempDir = vfmul(pLaser->m_Dir, 4.0f);
 
       int f = 0;
       int Idx =

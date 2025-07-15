@@ -757,7 +757,7 @@ static inline bool is_through(SCollision *pCollision, int x, int y, int OffsetX,
 void move_point(SCollision *pCollision, mvec2 *pInoutPos, mvec2 *pInoutVel, float Elasticity) {
   mvec2 Pos = *pInoutPos;
   mvec2 Vel = *pInoutVel;
-  if (check_point(pCollision, Pos + Vel)) {
+  if (check_point(pCollision, vvadd(Pos, Vel))) {
     int Affected = 0;
     if (check_point(pCollision, vec2_init(vgetx(Pos) + vgetx(Vel), vgety(Pos)))) {
       *pInoutVel = vsetx(*pInoutVel, vgetx(*pInoutVel) * -Elasticity);
@@ -773,7 +773,7 @@ void move_point(SCollision *pCollision, mvec2 *pInoutPos, mvec2 *pInoutVel, floa
       *pInoutVel = vfmul(*pInoutVel, -Elasticity);
     return;
   }
-  *pInoutPos = Pos + Vel;
+  *pInoutPos = vvadd(Pos, Vel);
 }
 
 bool is_hook_blocker(SCollision *pCollision, int Index, mvec2 Pos0, mvec2 Pos1) {
@@ -1000,10 +1000,9 @@ unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mv
   int Idx = (((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION) + ((int)vgetx(Pos0));
   unsigned char Start = Check[0] > 1 ? 0 : pCollision->m_pSolidTeleDistanceField[Idx];
 
-  // we can't use the precomputed table here because lasers can get indefinently long
-  const int End = vdistance(Pos0, Pos1) + 1;
+  int End = (int)vdistance(Pos0, Pos1) + 1;
   Start = iclamp(Start, 0, End);
-  Start -= Start % 4;
+  Start -= Start % 8;
   const float fEnd = End;
   int dx = 0, dy = 0;
   through_offset(Pos0, Pos1, &dx, &dy);
@@ -1011,8 +1010,7 @@ unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mv
 
   int *aIndices = malloc(sizeof(int) * (End + 8));
 
-  // we can't use the precomputed table here because lasers can get indefinently long
-  const float inv_fEnd = 1.f / End;
+  const float inv_fEnd = 1.f / fEnd;
   const float Pos0_x = vgetx(Pos0);
   const float Pos0_y = vgety(Pos0);
   const float diff_x = vgetx(Pos1) - Pos0_x;
@@ -1041,9 +1039,7 @@ unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mv
 
   for (int i = Start; i <= End; i++) {
     const int Index = aIndices[i];
-    int x = Index % Width;
-    int y = Index / Width;
-    if (x < 0 || y < 0 || x >= Width || y >= Height)
+    if (Index < 0 || Index >= Width * Height)
       break;
     if (Index == LastIndex)
       continue;
