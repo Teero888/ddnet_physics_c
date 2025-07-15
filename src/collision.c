@@ -516,6 +516,8 @@ void free_collision(SCollision *pCollision) {
   free_map_data(&pCollision->m_MapData);
   if (pCollision->m_pPickups)
     _mm_free(pCollision->m_pPickups);
+  if (pCollision->m_pFrontPickups)
+    _mm_free(pCollision->m_pFrontPickups);
   if (pCollision->m_pMoveRestrictions)
     _mm_free(pCollision->m_pMoveRestrictions);
   if (pCollision->m_pSolidTeleDistanceField)

@@ -181,9 +181,7 @@ void lsr_bounce(SLaser *pLaser) {
   }
 
   // BUG: this causes a bug when shooting oob
-  mvec2 To = vvclamp(vvadd(pLaser->m_Base.m_Pos, vfmul(pLaser->m_Dir, pLaser->m_Energy)), vec2_init(0, 0),
-                     vec2_init((pLaser->m_Base.m_pCollision->m_MapData.width * 32) - 1,
-                               (pLaser->m_Base.m_pCollision->m_MapData.height * 32) - 1));
+  mvec2 To = vvadd(pLaser->m_Base.m_Pos, vfmul(pLaser->m_Dir, pLaser->m_Energy));
 
   Res = intersect_line_tele_weapon(pLaser->m_Base.m_pCollision, pLaser->m_Base.m_Pos, To, &Coltile, &To,
                                    pLaser->m_Base.m_pCollision->m_MapData.tele_layer.type ? &z : NULL);
@@ -2174,6 +2172,7 @@ void wc_free(SWorldCore *pCore) {
       free(pFree);
     }
   }
+  free(pCore->m_pSwitches);
   free(pCore->m_pCharacters);
   memset(pCore, 0, sizeof(SWorldCore));
 }

@@ -25,6 +25,7 @@ int main(void) {
     wc_init(&World, &Collision, &Config);
 
     SCharacterCore *pChar = wc_add_character(&World);
+    pChar->m_PrevPos = vvsub(pData->m_vStates[0][0].m_Pos, pData->m_vStates[0][0].m_Vel);
     pChar->m_Pos = pData->m_vStates[0][0].m_Pos;
     pChar->m_Vel = pData->m_vStates[0][0].m_Vel;
     pChar->m_HookPos = pData->m_vStates[0][0].m_HookPos;
