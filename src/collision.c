@@ -167,6 +167,10 @@ static void init_distance_field(SCollision *pCollision) {
   }
 
   pCollision->m_pSolidTeleDistanceField = _mm_malloc(hr_width * hr_height, 64);
+  if (!pCollision->m_pSolidTeleDistanceField) {
+    printf("Could not allocated %d bytes for m_pSolidTeleDistanceField\n", hr_width * hr_height);
+  }
+
   const float scale_to_world = 32.f / DISTANCE_FIELD_RESOLUTION;
   for (int i = 0; i < hr_width * hr_height; ++i) {
     hr_field[i] -= 1.5;

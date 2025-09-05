@@ -179,7 +179,7 @@ void lsr_bounce(SLaser *pLaser) {
     pLaser->m_Base.m_Pos = pLaser->m_TelePos;
     pLaser->m_TelePos = vec2_init(0, 0);
   }
-  
+
   mvec2 To = vvadd(pLaser->m_Base.m_Pos, vfmul(pLaser->m_Dir, pLaser->m_Energy));
   Res = intersect_line_tele_weapon(pLaser->m_Base.m_pCollision, pLaser->m_Base.m_Pos, To, &Coltile, &To,
                                    pLaser->m_Base.m_pCollision->m_MapData.tele_layer.type ? &z : NULL);
@@ -1120,8 +1120,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
   }
   int Tick = pCore->m_pWorld->m_GameTick;
 
-  // Applying a 0 offset to a null pointer isn't actually an error but asan defines it as a runtime error
-  SSwitch *pSwitch = &pSwitches[Number];
+  SSwitch *pSwitch = pSwitches + Number;
 
   if (Type == TILE_SWITCHOPEN && Number > 0) {
     pSwitch->m_Status = true;
