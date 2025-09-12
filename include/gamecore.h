@@ -238,6 +238,7 @@ SWorldCore wc_empty();
 
 void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput);
 SCharacterCore *wc_add_character(SWorldCore *pWorld);
+void wc_remove_character(SWorldCore *pWorld, int CharacterId);
 
 // utility functions you might need
 mvec2 prj_get_pos(SProjectile *pProj, float Time);

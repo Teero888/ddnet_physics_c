@@ -1921,7 +1921,7 @@ void init_switchers(SWorldCore *pCore, int HighestSwitchNumber) {
   if (HighestSwitchNumber > 0) {
     free(pCore->m_pSwitches);
     pCore->m_NumSwitches = HighestSwitchNumber + 1;
-    pCore->m_pSwitches = malloc(pCore->m_NumSwitches * sizeof(SSwitch));
+    pCore->m_pSwitches = malloc((size_t)pCore->m_NumSwitches * sizeof(SSwitch));
   } else {
     free(pCore->m_pSwitches);
     pCore->m_pSwitches = NULL;
@@ -2229,7 +2229,7 @@ void wc_tick(SWorldCore *pCore) {
 
 SCharacterCore *wc_add_character(SWorldCore *pWorld) {
   const int NewSize = pWorld->m_NumCharacters + 1;
-  SCharacterCore *pNewArray = realloc(pWorld->m_pCharacters, NewSize * sizeof(SCharacterCore));
+  SCharacterCore *pNewArray = realloc(pWorld->m_pCharacters, (size_t)NewSize * sizeof(SCharacterCore));
   if (!pNewArray)
     return NULL;
 
@@ -2248,6 +2248,33 @@ SCharacterCore *wc_add_character(SWorldCore *pWorld) {
   }
 
   return pChar;
+}
+
+void wc_remove_character(SWorldCore *pWorld, int CharacterId) {
+  if (!pWorld || CharacterId < 0 || CharacterId >= pWorld->m_NumCharacters)
+    return;
+
+  SCharacterCore *pChars = pWorld->m_pCharacters;
+  int lastIdx = pWorld->m_NumCharacters - 1;
+
+  if (CharacterId != lastIdx) {
+    pChars[CharacterId] = pChars[lastIdx];
+    pChars[CharacterId].m_Id = CharacterId;
+  }
+
+  pWorld->m_NumCharacters--;
+
+  if (pWorld->m_NumCharacters == 0) {
+    free(pWorld->m_pCharacters);
+    pWorld->m_pCharacters = NULL;
+  } else {
+    SCharacterCore *pNewArray =
+        realloc(pWorld->m_pCharacters, (size_t)pWorld->m_NumCharacters * sizeof(SCharacterCore));
+    if (pNewArray) {
+      pWorld->m_pCharacters = pNewArray;
+    }
+    // if realloc fails, just keep the larger buffer
+  }
 }
 
 void wc_create_explosion(SWorldCore *pWorld, mvec2 Pos, int Owner) {
