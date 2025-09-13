@@ -109,23 +109,23 @@ static bool tile_exists(SCollision *pCollision, int Index) {
 
 #define SQRT2 1.4142135623730951
 static void init_distance_field(SCollision *pCollision) {
-  const int orig_width = pCollision->m_MapData.width;
-  const int orig_height = pCollision->m_MapData.height;
+  const size_t orig_width = pCollision->m_MapData.width;
+  const size_t orig_height = pCollision->m_MapData.height;
   const unsigned char *pInfos = pCollision->m_pTileInfos;
 
-  const int hr_width = orig_width * DISTANCE_FIELD_RESOLUTION;
-  const int hr_height = orig_height * DISTANCE_FIELD_RESOLUTION;
+  const size_t hr_width = orig_width * DISTANCE_FIELD_RESOLUTION;
+  const size_t hr_height = orig_height * DISTANCE_FIELD_RESOLUTION;
   float *hr_field = _mm_malloc(hr_width * hr_height * sizeof(float), 32);
   if (!hr_field) {
     printf("Error: could not allocate %lu bytes of memory\n", hr_width * hr_height * sizeof(float));
     return;
   }
-  for (int y = 0; y < hr_height; ++y) {
-    for (int x = 0; x < hr_width; ++x) {
-      const int orig_x = x / DISTANCE_FIELD_RESOLUTION;
-      const int orig_y = y / DISTANCE_FIELD_RESOLUTION;
-      const int orig_idx = orig_y * orig_width + orig_x;
-      const int tele =
+  for (size_t y = 0; y < hr_height; ++y) {
+    for (size_t x = 0; x < hr_width; ++x) {
+      const size_t orig_x = x / DISTANCE_FIELD_RESOLUTION;
+      const size_t orig_y = y / DISTANCE_FIELD_RESOLUTION;
+      const size_t orig_idx = orig_y * orig_width + orig_x;
+      const size_t tele =
           pCollision->m_MapData.tele_layer.type ? pCollision->m_MapData.tele_layer.type[orig_idx] : 0;
       hr_field[y * hr_width + x] =
           (pInfos[orig_idx] & INFO_ISSOLID || tele == TILE_TELEINHOOK || tele == TILE_TELEINWEAPON) ? 0.0f
@@ -134,9 +134,9 @@ static void init_distance_field(SCollision *pCollision) {
   }
 
   // First pass: left-top to right-bottom
-  for (int y = 1; y < hr_height - 1; ++y) {
-    for (int x = 1; x < hr_width - 1; ++x) {
-      const int idx = y * hr_width + x;
+  for (size_t y = 1; y < hr_height - 1; ++y) {
+    for (size_t x = 1; x < hr_width - 1; ++x) {
+      const size_t idx = y * hr_width + x;
       if (hr_field[idx] == 0.0f)
         continue;
 
@@ -151,9 +151,9 @@ static void init_distance_field(SCollision *pCollision) {
   }
 
   // Second pass: right-bottom to left-top
-  for (int y = hr_height - 2; y > 0; --y) {
-    for (int x = hr_width - 2; x > 0; --x) {
-      const int idx = y * hr_width + x;
+  for (size_t y = hr_height - 2; y > 0; --y) {
+    for (size_t x = hr_width - 2; x > 0; --x) {
+      const size_t idx = y * hr_width + x;
       if (hr_field[idx] == 0.0f)
         continue;
 
@@ -168,15 +168,15 @@ static void init_distance_field(SCollision *pCollision) {
 
   pCollision->m_pSolidTeleDistanceField = _mm_malloc(hr_width * hr_height, 64);
   if (!pCollision->m_pSolidTeleDistanceField) {
-    printf("Could not allocated %d bytes for m_pSolidTeleDistanceField\n", hr_width * hr_height);
+    printf("Could not allocated %zu bytes for m_pSolidTeleDistanceField\n", hr_width * hr_height);
   }
 
-  const float scale_to_world = 32.f / DISTANCE_FIELD_RESOLUTION;
-  for (int i = 0; i < hr_width * hr_height; ++i) {
-    hr_field[i] -= 1.5;
+  const float scale_to_world = 32.f / (float)DISTANCE_FIELD_RESOLUTION;
+  for (size_t i = 0; i < hr_width * hr_height; ++i) {
+    hr_field[i] -= 1.5f;
     hr_field[i] *= scale_to_world;
     hr_field[i] = fclamp(hr_field[i], 0, 255);
-    pCollision->m_pSolidTeleDistanceField[i] = imax(hr_field[i] - 1, 0);
+    pCollision->m_pSolidTeleDistanceField[i] = (uint8_t)imax((int)hr_field[i] - 1, 0);
   }
   free(hr_field);
 }
