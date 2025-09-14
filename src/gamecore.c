@@ -691,9 +691,11 @@ void cc_move(SCharacterCore *pCore) {
   mvec2 NewPos = pCore->m_Pos;
   bool Grounded = false;
   mvec2 MaxNewPos = vvadd(NewPos, pCore->m_Vel);
+
+  // OOB the map
   if (vgetx(MaxNewPos) < HALFPHYSICALSIZE + 2 || vgety(MaxNewPos) < HALFPHYSICALSIZE + 2 ||
-      vgetx(MaxNewPos) >= pCore->m_pCollision->m_MapData.width * 32 - (HALFPHYSICALSIZE + 2) ||
-      vgety(MaxNewPos) >= pCore->m_pCollision->m_MapData.height * 32 - (HALFPHYSICALSIZE + 2)) {
+      vgetx(MaxNewPos) >= (float)pCore->m_pCollision->m_MapData.width * 32.f - (HALFPHYSICALSIZE + 2) ||
+      vgety(MaxNewPos) >= (float)pCore->m_pCollision->m_MapData.height * 32.f - (HALFPHYSICALSIZE + 2)) {
     pCore->m_Vel = vec2_init(0, 0);
     pCore->m_DeepFrozen = true;
   }
