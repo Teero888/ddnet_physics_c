@@ -955,6 +955,7 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec
     __m256i index_vec = _mm256_add_epi32(_mm256_mullo_epi32(iy_vec, width_vec), ix_vec);
     _mm256_storeu_si256((__m256i *)&aIndices[k], index_vec);
   }
+
   for (int i = Start; i <= End; i++) {
     const int Index = aIndices[i];
     if (Index < 0 || Index >= Width * Height)

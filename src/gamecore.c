@@ -1894,7 +1894,7 @@ void cc_tick(SCharacterCore *pCore) {
 
 void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
   // kill trigger
-  if (!pCore->m_RespawnDelay && pNewInput->m_WantedWeapon == NUM_WEAPONS) {
+  if (!pCore->m_RespawnDelay && get_flag_kill(pNewInput)) {
     cc_die(pCore);
     pCore->m_RespawnDelay = 25;
   }

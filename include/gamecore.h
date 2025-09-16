@@ -6,8 +6,9 @@ extern "C" {
 #endif
 
 #include "collision.h"
-#include "stdbool.h"
 #include "vmath.h"
+#include <stdbool.h>
+#include <stdint.h>
 
 typedef struct Config {
 #define MACRO_CONFIG_INT(Name, Def) int m_##Name;
@@ -34,7 +35,109 @@ typedef struct {
   uint8_t m_Hook;
   uint8_t m_WantedWeapon;
   uint8_t m_TeleOut;
+  uint16_t m_Flags;
 } SPlayerInput;
+
+enum {
+  FLAG_KILL = 1 << 0,
+  FLAG_SPEC = 1 << 1,
+  FLAG_HOOKLINE = 1 << 2,
+  FLAG_CHATBUBBLE = 1 << 3,
+  FLAG_SIT = 1 << 4,
+  FLAG_CONNECT = 1 << 5,
+  FLAG_DISCONNECT = 1 << 6,
+  FLAG_EYESTATE = 0b111 << 7, // bits 7..9
+  FLAG_EMOTE_TRIGGER = 1 << 10,
+  FLAG_EMOTE_INDEX = 0b1111 << 11, // bits 11..14
+};
+
+static inline int get_flag_kill(const SPlayerInput *p) { return p->m_Flags & FLAG_KILL; }
+
+static inline void set_flag_kill(SPlayerInput *p, int value) {
+  if (value)
+    p->m_Flags |= FLAG_KILL;
+  else
+    p->m_Flags &= ~FLAG_KILL;
+}
+
+static inline int get_flag_spec(const SPlayerInput *p) { return p->m_Flags & FLAG_SPEC; }
+
+static inline void set_flag_spec(SPlayerInput *p, int value) {
+  if (value)
+    p->m_Flags |= FLAG_SPEC;
+  else
+    p->m_Flags &= ~FLAG_SPEC;
+}
+
+static inline int get_flag_hookline(const SPlayerInput *p) { return p->m_Flags & FLAG_HOOKLINE; }
+
+static inline void set_flag_hookline(SPlayerInput *p, int value) {
+  if (value)
+    p->m_Flags |= FLAG_HOOKLINE;
+  else
+    p->m_Flags &= ~FLAG_HOOKLINE;
+}
+
+static inline int get_flag_chatbubble(const SPlayerInput *p) { return p->m_Flags & FLAG_CHATBUBBLE; }
+
+static inline void set_flag_chatbubble(SPlayerInput *p, int value) {
+  if (value)
+    p->m_Flags |= FLAG_CHATBUBBLE;
+  else
+    p->m_Flags &= ~FLAG_CHATBUBBLE;
+}
+
+static inline int get_flag_sit(const SPlayerInput *p) { return p->m_Flags & FLAG_SIT; }
+
+static inline void set_flag_sit(SPlayerInput *p, int value) {
+  if (value)
+    p->m_Flags |= FLAG_SIT;
+  else
+    p->m_Flags &= ~FLAG_SIT;
+}
+
+static inline int get_flag_connect(const SPlayerInput *p) { return p->m_Flags & FLAG_CONNECT; }
+
+static inline void set_flag_connect(SPlayerInput *p, int value) {
+  if (value)
+    p->m_Flags |= FLAG_CONNECT;
+  else
+    p->m_Flags &= ~FLAG_CONNECT;
+}
+
+static inline int get_flag_disconnect(const SPlayerInput *p) { return p->m_Flags & FLAG_DISCONNECT; }
+
+static inline void set_flag_disconnect(SPlayerInput *p, int value) {
+  if (value)
+    p->m_Flags |= FLAG_DISCONNECT;
+  else
+    p->m_Flags &= ~FLAG_DISCONNECT;
+}
+
+static inline int get_flag_emote_trigger(const SPlayerInput *p) { return p->m_Flags & FLAG_EMOTE_TRIGGER; }
+
+static inline void set_flag_emote_trigger(SPlayerInput *p, int value) {
+  if (value)
+    p->m_Flags |= FLAG_EMOTE_TRIGGER;
+  else
+    p->m_Flags &= ~FLAG_EMOTE_TRIGGER;
+}
+
+static inline uint8_t get_flag_eye_state(const SPlayerInput *p) { return (p->m_Flags & FLAG_EYESTATE) >> 7; }
+
+static inline void set_flag_eye_state(SPlayerInput *p, uint8_t state) {
+  state &= 0x7;
+  p->m_Flags = (p->m_Flags & ~FLAG_EYESTATE) | (state << 7);
+}
+
+static inline uint8_t get_flag_emote_index(const SPlayerInput *p) {
+  return (p->m_Flags & FLAG_EMOTE_INDEX) >> 11;
+}
+
+static inline void set_flag_emote_index(SPlayerInput *p, uint8_t index) {
+  index &= 0xF;
+  p->m_Flags = (p->m_Flags & ~FLAG_EMOTE_INDEX) | (index << 11);
+}
 
 enum { WORLD_ENTTYPE_PROJECTILE = 0, WORLD_ENTTYPE_LASER, NUM_WORLD_ENTTYPES };
 
