@@ -16,15 +16,7 @@ typedef struct Config {
 #undef MACRO_CONFIG_INT
 } SConfig;
 
-enum {
-  WEAPON_HAMMER = 0,
-  WEAPON_GUN,
-  WEAPON_SHOTGUN,
-  WEAPON_GRENADE,
-  WEAPON_LASER,
-  WEAPON_NINJA,
-  NUM_WEAPONS
-};
+enum { WEAPON_HAMMER = 0, WEAPON_GUN, WEAPON_SHOTGUN, WEAPON_GRENADE, WEAPON_LASER, WEAPON_NINJA, NUM_WEAPONS };
 
 typedef struct {
   int8_t m_Direction;
@@ -133,9 +125,7 @@ static inline void set_flag_eye_state(SPlayerInput *p, uint8_t state) {
   p->m_Flags = (p->m_Flags & ~FLAG_EYESTATE) | (state << 7);
 }
 
-static inline uint8_t get_flag_emote_index(const SPlayerInput *p) {
-  return (p->m_Flags & FLAG_EMOTE_INDEX) >> 11;
-}
+static inline uint8_t get_flag_emote_index(const SPlayerInput *p) { return (p->m_Flags & FLAG_EMOTE_INDEX) >> 11; }
 
 static inline void set_flag_emote_index(SPlayerInput *p, uint8_t index) {
   index &= 0xF;
@@ -291,7 +281,6 @@ typedef struct CharacterCore {
   int m_RespawnDelay;
 
   int m_HitNum;
-
 } SCharacterCore;
 // }}}
 
@@ -328,9 +317,6 @@ typedef struct WorldCore {
   SSwitch *m_pSwitches;
 
   int m_GameTick;
-
-  bool m_NoWeakHook;
-  bool m_NoWeakHookAndBounce;
 } SWorldCore;
 
 // }}}
@@ -348,8 +334,7 @@ void wc_remove_character(SWorldCore *pWorld, int CharacterId);
 
 // utility functions you might need
 mvec2 prj_get_pos(SProjectile *pProj, float Time);
-SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius,
-                                       mvec2 *pNewPos, const SCharacterCore *pNotThis,
+SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius, mvec2 *pNewPos, const SCharacterCore *pNotThis,
                                        const SCharacterCore *pThisOnly);
 void wc_insert_entity(SWorldCore *pWorld, SEntity *pEnt);
 

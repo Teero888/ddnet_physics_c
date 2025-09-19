@@ -62,8 +62,6 @@ void compare_worlds(SWorldCore *pWorld1, SWorldCore *pWorld2) {
   assert(pWorld1->m_pTunings == pWorld2->m_pTunings);
   assert(pWorld1->m_NumCharacters == pWorld2->m_NumCharacters);
   assert(pWorld1->m_GameTick == pWorld2->m_GameTick);
-  assert(pWorld1->m_NoWeakHook == pWorld2->m_NoWeakHook);
-  assert(pWorld1->m_NoWeakHookAndBounce == pWorld2->m_NoWeakHookAndBounce);
 
   // Compare characters
   for (int i = 0; i < pWorld1->m_NumCharacters; i++) {

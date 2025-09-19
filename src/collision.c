@@ -22,12 +22,10 @@ static bool tile_exists_next(SCollision *pCollision, int Index) {
   const unsigned char *pDoorIdx = pCollision->m_MapData.door_layer.index;
   const unsigned char *pDoorFlgs = pCollision->m_MapData.door_layer.flags;
   int TileOnTheLeft = (Index - 1 > 0) ? Index - 1 : Index;
-  int TileOnTheRight =
-      (Index + 1 < pCollision->m_MapData.width * pCollision->m_MapData.height) ? Index + 1 : Index;
-  int TileBelow =
-      (Index + pCollision->m_MapData.width < pCollision->m_MapData.width * pCollision->m_MapData.height)
-          ? Index + pCollision->m_MapData.width
-          : Index;
+  int TileOnTheRight = (Index + 1 < pCollision->m_MapData.width * pCollision->m_MapData.height) ? Index + 1 : Index;
+  int TileBelow = (Index + pCollision->m_MapData.width < pCollision->m_MapData.width * pCollision->m_MapData.height)
+                      ? Index + pCollision->m_MapData.width
+                      : Index;
   int TileAbove = (Index - pCollision->m_MapData.width > 0) ? Index - pCollision->m_MapData.width : Index;
 
   if ((pTileIdx[TileOnTheRight] == TILE_STOP && pTileFlgs[TileOnTheRight] == ROTATION_270) ||
@@ -40,8 +38,7 @@ static bool tile_exists_next(SCollision *pCollision, int Index) {
       ((pTileIdx[TileOnTheRight] == TILE_STOPS || pTileIdx[TileOnTheLeft] == TILE_STOPS)))
     return true;
   if (pTileIdx[TileBelow] == TILE_STOPA || pTileIdx[TileAbove] == TILE_STOPA ||
-      ((pTileIdx[TileBelow] == TILE_STOPS || pTileIdx[TileAbove] == TILE_STOPS) &&
-       pTileFlgs[TileBelow] | ROTATION_180 | ROTATION_0))
+      ((pTileIdx[TileBelow] == TILE_STOPS || pTileIdx[TileAbove] == TILE_STOPS) && pTileFlgs[TileBelow] | ROTATION_180 | ROTATION_0))
     return true;
 
   if (pFrontIdx) {
@@ -49,8 +46,7 @@ static bool tile_exists_next(SCollision *pCollision, int Index) {
         ((pFrontIdx[TileOnTheRight] == TILE_STOPS || pFrontIdx[TileOnTheLeft] == TILE_STOPS)))
       return true;
     if (pFrontIdx[TileBelow] == TILE_STOPA || pFrontIdx[TileAbove] == TILE_STOPA ||
-        ((pFrontIdx[TileBelow] == TILE_STOPS || pFrontIdx[TileAbove] == TILE_STOPS) &&
-         pFrontFlgs[TileBelow] | ROTATION_180 | ROTATION_0))
+        ((pFrontIdx[TileBelow] == TILE_STOPS || pFrontIdx[TileAbove] == TILE_STOPS) && pFrontFlgs[TileBelow] | ROTATION_180 | ROTATION_0))
       return true;
     if ((pFrontIdx[TileOnTheRight] == TILE_STOP && pFrontFlgs[TileOnTheRight] == ROTATION_270) ||
         (pFrontIdx[TileOnTheLeft] == TILE_STOP && pFrontFlgs[TileOnTheLeft] == ROTATION_90))
@@ -64,8 +60,7 @@ static bool tile_exists_next(SCollision *pCollision, int Index) {
         ((pDoorIdx[TileOnTheRight] == TILE_STOPS || pDoorIdx[TileOnTheLeft] == TILE_STOPS)))
       return true;
     if (pDoorIdx[TileBelow] == TILE_STOPA || pDoorIdx[TileAbove] == TILE_STOPA ||
-        ((pDoorIdx[TileBelow] == TILE_STOPS || pDoorIdx[TileAbove] == TILE_STOPS) &&
-         pDoorFlgs[TileBelow] | ROTATION_180 | ROTATION_0))
+        ((pDoorIdx[TileBelow] == TILE_STOPS || pDoorIdx[TileAbove] == TILE_STOPS) && pDoorFlgs[TileBelow] | ROTATION_180 | ROTATION_0))
       return true;
     if ((pDoorIdx[TileOnTheRight] == TILE_STOP && pDoorFlgs[TileOnTheRight] == ROTATION_270) ||
         (pDoorIdx[TileOnTheLeft] == TILE_STOP && pDoorFlgs[TileOnTheLeft] == ROTATION_90))
@@ -92,9 +87,8 @@ static bool tile_exists(SCollision *pCollision, int Index) {
   if (pFront && ((pFront[Index] >= TILE_FREEZE && pFront[Index] <= TILE_TELE_LASER_DISABLE) ||
                  (pFront[Index] >= TILE_LFREEZE && pFront[Index] <= TILE_LUNFREEZE)))
     return true;
-  if (pTele && (pTele[Index] == TILE_TELEIN || pTele[Index] == TILE_TELEINEVIL ||
-                pTele[Index] == TILE_TELECHECKINEVIL || pTele[Index] == TILE_TELECHECK ||
-                pTele[Index] == TILE_TELECHECKIN))
+  if (pTele && (pTele[Index] == TILE_TELEIN || pTele[Index] == TILE_TELEINEVIL || pTele[Index] == TILE_TELECHECKINEVIL ||
+                pTele[Index] == TILE_TELECHECK || pTele[Index] == TILE_TELECHECKIN))
     return true;
   if (pSpeedup && pSpeedup[Index] > 0)
     return true;
@@ -125,11 +119,8 @@ static void init_distance_field(SCollision *pCollision) {
       const size_t orig_x = x / DISTANCE_FIELD_RESOLUTION;
       const size_t orig_y = y / DISTANCE_FIELD_RESOLUTION;
       const size_t orig_idx = orig_y * orig_width + orig_x;
-      const size_t tele =
-          pCollision->m_MapData.tele_layer.type ? pCollision->m_MapData.tele_layer.type[orig_idx] : 0;
-      hr_field[y * hr_width + x] =
-          (pInfos[orig_idx] & INFO_ISSOLID || tele == TILE_TELEINHOOK || tele == TILE_TELEINWEAPON) ? 0.0f
-                                                                                                    : FLT_MAX;
+      const size_t tele = pCollision->m_MapData.tele_layer.type ? pCollision->m_MapData.tele_layer.type[orig_idx] : 0;
+      hr_field[y * hr_width + x] = (pInfos[orig_idx] & INFO_ISSOLID || tele == TILE_TELEINHOOK || tele == TILE_TELEINWEAPON) ? 0.0f : FLT_MAX;
     }
   }
 
@@ -214,8 +205,7 @@ bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict_
   pCollision->m_pBroadSolidBitField = _mm_malloc(MapSize * sizeof(uint64_t), 64);
   memset(pCollision->m_pBroadSolidBitField, 0, MapSize * sizeof(uint64_t));
 
-  pCollision->m_pBroadTeleInBitField =
-      pCollision->m_MapData.tele_layer.type ? _mm_malloc(MapSize * sizeof(uint64_t), 64) : NULL;
+  pCollision->m_pBroadTeleInBitField = pCollision->m_MapData.tele_layer.type ? _mm_malloc(MapSize * sizeof(uint64_t), 64) : NULL;
   if (pCollision->m_pBroadTeleInBitField)
     memset(pCollision->m_pBroadTeleInBitField, 0, MapSize * sizeof(uint64_t));
 
@@ -245,8 +235,7 @@ bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict_
   pCollision->m_HighestSwitchNumber = 0;
   if (pCollision->m_MapData.switch_layer.number)
     for (int i = 0; i < MapSize; ++i)
-      pCollision->m_HighestSwitchNumber =
-          imax(pCollision->m_HighestSwitchNumber, pCollision->m_MapData.switch_layer.number[i]);
+      pCollision->m_HighestSwitchNumber = imax(pCollision->m_HighestSwitchNumber, pCollision->m_MapData.switch_layer.number[i]);
 
   for (int i = 0; i < MapSize; ++i) {
     if (tile_exists(pCollision, i))
@@ -283,8 +272,7 @@ bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict_
 
     pCollision->m_pPickups[i].m_Type = -1;
     int EntIdx = pMapData->game_layer.data[i] - ENTITY_OFFSET;
-    if ((EntIdx >= ENTITY_ARMOR_SHOTGUN && EntIdx <= ENTITY_ARMOR_LASER) ||
-        (EntIdx >= ENTITY_ARMOR_1 && EntIdx <= ENTITY_WEAPON_LASER)) {
+    if ((EntIdx >= ENTITY_ARMOR_SHOTGUN && EntIdx <= ENTITY_ARMOR_LASER) || (EntIdx >= ENTITY_ARMOR_1 && EntIdx <= ENTITY_WEAPON_LASER)) {
       int Type = -1;
       int SubType = 0;
       if (EntIdx == ENTITY_ARMOR_1)
@@ -326,8 +314,7 @@ bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict_
     pCollision->m_pFrontPickups[i].m_Type = -1;
     if (pMapData->front_layer.data) {
       EntIdx = pMapData->front_layer.data[i] - ENTITY_OFFSET;
-      if ((EntIdx >= ENTITY_ARMOR_SHOTGUN && EntIdx <= ENTITY_ARMOR_LASER) ||
-          (EntIdx >= ENTITY_ARMOR_1 && EntIdx <= ENTITY_WEAPON_LASER)) {
+      if ((EntIdx >= ENTITY_ARMOR_SHOTGUN && EntIdx <= ENTITY_ARMOR_LASER) || (EntIdx >= ENTITY_ARMOR_1 && EntIdx <= ENTITY_WEAPON_LASER)) {
         int Type = -1;
         int SubType = 0;
         if (EntIdx == ENTITY_ARMOR_1)
@@ -373,8 +360,7 @@ bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict_
       const int Idx = pCollision->m_pWidthLookup[y] + x;
       for (int dy = -1; dy <= 1; ++dy) {
         for (int dx = -1; dx <= 1; ++dx) {
-          const int dIdx =
-              pCollision->m_pWidthLookup[iclamp(y + dy, 0, Height - 1)] + iclamp(x + dx, 0, Width - 1);
+          const int dIdx = pCollision->m_pWidthLookup[iclamp(y + dy, 0, Height - 1)] + iclamp(x + dx, 0, Width - 1);
           if (pCollision->m_pPickups[dIdx].m_Type > 0)
             pCollision->m_pTileInfos[Idx] |= INFO_PICKUPNEXT;
           if (pCollision->m_pFrontPickups[dIdx].m_Type > 0)
@@ -386,9 +372,7 @@ bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict_
       }
 
       for (int i = -1; i <= 1; ++i) {
-        if (pCollision->m_pTileInfos[pCollision->m_pWidthLookup[iclamp(y + 1, 0, Height - 1)] +
-                                     iclamp(x + i, 0, Width - 1)] &
-            INFO_ISSOLID)
+        if (pCollision->m_pTileInfos[pCollision->m_pWidthLookup[iclamp(y + 1, 0, Height - 1)] + iclamp(x + i, 0, Width - 1)] & INFO_ISSOLID)
           pCollision->m_pTileInfos[Idx] |= INFO_CANGROUND;
       }
     }
@@ -418,6 +402,30 @@ bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict_
       pCollision->m_pTileBroadCheck[i] = true;
   }
 
+  for (int y = 0; y < Height; ++y) {
+    for (int x = 0; x < Width; ++x) {
+      static const mvec2 DIRECTIONS[NUM_MR_DIRS] = {CTVEC2(0, 0), CTVEC2(18, 0), CTVEC2(0, 18), CTVEC2(-18, 0), CTVEC2(0, -18)};
+      unsigned char Restrictions = 0;
+#pragma clang loop unroll(full)
+      for (int d = 0; d < NUM_MR_DIRS; d++) {
+        mvec2 NewPos = vvclamp(vvadd(vec2_init(x * 32 + 16, y * 32 + 16), DIRECTIONS[d]), vec2_init(0, 0),
+                               vec2_init((pCollision->m_MapData.width * 32) - 16, (pCollision->m_MapData.height * 32) - 16));
+        int ModMapIndex = get_pure_map_index(pCollision, NewPos);
+
+        Restrictions |= pCollision->m_pMoveRestrictions[ModMapIndex][d];
+
+        if (pCollision->m_MapData.door_layer.index && pCollision->m_MapData.door_layer.index[ModMapIndex]) {
+          Restrictions |=
+              move_restrictions(d, pCollision->m_MapData.door_layer.index[ModMapIndex], pCollision->m_MapData.door_layer.flags[ModMapIndex]);
+        }
+        if (Restrictions) {
+          pCollision->m_pTileInfos[y * Width + x] |= INFO_CANHITSTOPPER;
+          break;
+        }
+      }
+    }
+  }
+
   init_distance_field(pCollision);
 
   for (int y = 0; y < Height; ++y) {
@@ -434,9 +442,7 @@ bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict_
             const unsigned char *pRowBroad = pCollision->m_pTileBroadCheck + pCollision->m_pWidthLookup[iy];
             const unsigned char *pRowInfos = pCollision->m_pTileInfos + pCollision->m_pWidthLookup[iy];
             const unsigned char *pRowTele =
-                pCollision->m_MapData.tele_layer.type
-                    ? pCollision->m_MapData.tele_layer.type + pCollision->m_pWidthLookup[y]
-                    : NULL;
+                pCollision->m_MapData.tele_layer.type ? pCollision->m_MapData.tele_layer.type + pCollision->m_pWidthLookup[y] : NULL;
             for (int ix = x; ix <= x + dx; ++ix) {
               if (pRowBroad[ix])
                 pCollision->m_pBroadIndicesBitField[Idx] |= BitIdx;
@@ -493,18 +499,15 @@ bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict_
       const int Idx = pCollision->m_pWidthLookup[y] + x;
       if (pCollision->m_NumSpawnPoints) {
         if ((pMapData->game_layer.data[Idx] >= 192 && pMapData->game_layer.data[Idx] <= 194) ||
-            (pMapData->front_layer.data && pMapData->front_layer.data[Idx] >= 192 &&
-             pMapData->front_layer.data[Idx] <= 194))
+            (pMapData->front_layer.data && pMapData->front_layer.data[Idx] >= 192 && pMapData->front_layer.data[Idx] <= 194))
           pCollision->m_pSpawnPoints[SpawnPointIdx++] = vec2_init(x, y);
       }
       if (pMapData->tele_layer.type) {
         if (pMapData->tele_layer.type[Idx] == TILE_TELEOUT)
-          pCollision
-              ->m_apTeleOuts[pMapData->tele_layer.number[Idx]][aTeleIdx[pMapData->tele_layer.number[Idx]]++] =
+          pCollision->m_apTeleOuts[pMapData->tele_layer.number[Idx]][aTeleIdx[pMapData->tele_layer.number[Idx]]++] =
               vec2_init((x * 32.f) + 16.f, (y * 32.f) + 16.f);
         if (pMapData->tele_layer.type[Idx] == TILE_TELECHECKOUT)
-          pCollision->m_apTeleCheckOuts[pMapData->tele_layer.number[Idx]]
-                                       [aTeleCheckIdx[pMapData->tele_layer.number[Idx]]++] =
+          pCollision->m_apTeleCheckOuts[pMapData->tele_layer.number[Idx]][aTeleCheckIdx[pMapData->tele_layer.number[Idx]]++] =
               vec2_init((x * 32.f) + 16.f, (y * 32.f) + 16.f);
       }
     }
@@ -592,66 +595,37 @@ inline unsigned char move_restrictions(unsigned char Direction, unsigned char Ti
   unsigned char Result = get_move_restrictions_raw(Tile, Flags);
   if (Direction == MR_DIR_HERE && Tile == TILE_STOP)
     return Result;
-  static const unsigned char aDirections[NUM_MR_DIRS] = {0, CANTMOVE_RIGHT, CANTMOVE_DOWN, CANTMOVE_LEFT,
-                                                         CANTMOVE_UP};
+  static const unsigned char aDirections[NUM_MR_DIRS] = {0, CANTMOVE_RIGHT, CANTMOVE_DOWN, CANTMOVE_LEFT, CANTMOVE_UP};
   return Result & aDirections[Direction];
 }
 
-inline unsigned char get_tile_index(SCollision *pCollision, int Index) {
-  return pCollision->m_MapData.game_layer.data[Index];
-}
-inline unsigned char get_front_tile_index(SCollision *pCollision, int Index) {
-  return pCollision->m_MapData.front_layer.data[Index];
-}
-inline unsigned char get_tile_flags(SCollision *pCollision, int Index) {
-  return pCollision->m_MapData.game_layer.flags[Index];
-}
-inline unsigned char get_front_tile_flags(SCollision *pCollision, int Index) {
-  return pCollision->m_MapData.front_layer.flags[Index];
-}
-inline unsigned char get_switch_number(SCollision *pCollision, int Index) {
-  return pCollision->m_MapData.switch_layer.number[Index];
-}
-inline unsigned char get_switch_type(SCollision *pCollision, int Index) {
-  return pCollision->m_MapData.switch_layer.type[Index];
-}
-inline unsigned char get_switch_delay(SCollision *pCollision, int Index) {
-  return pCollision->m_MapData.switch_layer.delay[Index];
-}
+inline unsigned char get_tile_index(SCollision *pCollision, int Index) { return pCollision->m_MapData.game_layer.data[Index]; }
+inline unsigned char get_front_tile_index(SCollision *pCollision, int Index) { return pCollision->m_MapData.front_layer.data[Index]; }
+inline unsigned char get_tile_flags(SCollision *pCollision, int Index) { return pCollision->m_MapData.game_layer.flags[Index]; }
+inline unsigned char get_front_tile_flags(SCollision *pCollision, int Index) { return pCollision->m_MapData.front_layer.flags[Index]; }
+inline unsigned char get_switch_number(SCollision *pCollision, int Index) { return pCollision->m_MapData.switch_layer.number[Index]; }
+inline unsigned char get_switch_type(SCollision *pCollision, int Index) { return pCollision->m_MapData.switch_layer.type[Index]; }
+inline unsigned char get_switch_delay(SCollision *pCollision, int Index) { return pCollision->m_MapData.switch_layer.delay[Index]; }
 inline unsigned char is_teleport(SCollision *pCollision, int Index) {
-  return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELEIN
-             ? pCollision->m_MapData.tele_layer.number[Index]
-             : 0;
+  return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELEIN ? pCollision->m_MapData.tele_layer.number[Index] : 0;
 }
 inline unsigned char is_teleport_hook(SCollision *pCollision, int Index) {
-  return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELEINHOOK
-             ? pCollision->m_MapData.tele_layer.number[Index]
-             : 0;
+  return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELEINHOOK ? pCollision->m_MapData.tele_layer.number[Index] : 0;
 }
 inline unsigned char is_teleport_weapon(SCollision *pCollision, int Index) {
-  return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELEINWEAPON
-             ? pCollision->m_MapData.tele_layer.number[Index]
-             : 0;
+  return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELEINWEAPON ? pCollision->m_MapData.tele_layer.number[Index] : 0;
 }
 inline unsigned char is_evil_teleport(SCollision *pCollision, int Index) {
-  return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELEINEVIL
-             ? pCollision->m_MapData.tele_layer.number[Index]
-             : 0;
+  return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELEINEVIL ? pCollision->m_MapData.tele_layer.number[Index] : 0;
 }
 inline unsigned char is_check_teleport(SCollision *pCollision, int Index) {
-  return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELECHECKIN
-             ? pCollision->m_MapData.tele_layer.number[Index]
-             : 0;
+  return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELECHECKIN ? pCollision->m_MapData.tele_layer.number[Index] : 0;
 }
 inline unsigned char is_check_evil_teleport(SCollision *pCollision, int Index) {
-  return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELECHECKINEVIL
-             ? pCollision->m_MapData.tele_layer.number[Index]
-             : 0;
+  return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELECHECKINEVIL ? pCollision->m_MapData.tele_layer.number[Index] : 0;
 }
 inline unsigned char is_tele_checkpoint(SCollision *pCollision, int Index) {
-  return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELECHECK
-             ? pCollision->m_MapData.tele_layer.number[Index]
-             : 0;
+  return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELECHECK ? pCollision->m_MapData.tele_layer.number[Index] : 0;
 }
 
 inline unsigned char get_collision_at(SCollision *pCollision, mvec2 Pos) {
@@ -673,27 +647,27 @@ inline unsigned char get_front_collision_at(SCollision *pCollision, mvec2 Pos) {
   return Idx * (Idx - 1 <= TILE_NOLASER - 1);
 }
 
-inline unsigned char get_move_restrictions(SCollision *__restrict__ pCollision, void *__restrict__ pUser,
-                                           mvec2 Pos, int OverrideCenterTileIndex) {
+inline unsigned char get_move_restrictions(SCollision *__restrict__ pCollision, void *__restrict__ pUser, mvec2 Pos) {
 
   if (!pCollision->m_MoveRestrictionsFound && !pCollision->m_MapData.door_layer.index)
     return 0;
-  static const mvec2 DIRECTIONS[NUM_MR_DIRS] = {CTVEC2(0, 0), CTVEC2(18, 0), CTVEC2(0, 18), CTVEC2(-18, 0),
-                                                CTVEC2(0, -18)};
+  if (!(pCollision->m_pTileInfos[((int)vgety(Pos) >> 5) * pCollision->m_MapData.width + ((int)vgetx(Pos) >> 5)] & INFO_CANHITSTOPPER))
+    return 0;
+
+  static const mvec2 DIRECTIONS[NUM_MR_DIRS] = {CTVEC2(0, 0), CTVEC2(18, 0), CTVEC2(0, 18), CTVEC2(-18, 0), CTVEC2(0, -18)};
   unsigned char Restrictions = 0;
 #pragma clang loop unroll(full)
   for (int d = 0; d < NUM_MR_DIRS; d++) {
-    mvec2 NewPos =
-        vvclamp(vvadd(Pos, DIRECTIONS[d]), vec2_init(0, 0),
-                vec2_init((pCollision->m_MapData.width * 32) - 16, (pCollision->m_MapData.height * 32) - 16));
+    mvec2 NewPos = vvclamp(vvadd(Pos, DIRECTIONS[d]), vec2_init(0, 0),
+                           vec2_init((pCollision->m_MapData.width * 32) - 16, (pCollision->m_MapData.height * 32) - 16));
     int ModMapIndex = get_pure_map_index(pCollision, NewPos);
-    if (d == MR_DIR_HERE && OverrideCenterTileIndex >= 0)
-      ModMapIndex = OverrideCenterTileIndex;
+
     Restrictions |= pCollision->m_pMoveRestrictions[ModMapIndex][d];
+
     if (pCollision->m_MapData.door_layer.index && pCollision->m_MapData.door_layer.index[ModMapIndex]) {
       if (is_switch_active_cb(pCollision->m_MapData.door_layer.number[ModMapIndex], pUser)) {
-        Restrictions |= move_restrictions(d, pCollision->m_MapData.door_layer.index[ModMapIndex],
-                                          pCollision->m_MapData.door_layer.flags[ModMapIndex]);
+        Restrictions |=
+            move_restrictions(d, pCollision->m_MapData.door_layer.index[ModMapIndex], pCollision->m_MapData.door_layer.flags[ModMapIndex]);
       }
     }
   }
@@ -715,14 +689,10 @@ inline bool check_point(SCollision *pCollision, mvec2 Pos) {
   return pCollision->m_pTileInfos[pCollision->m_pWidthLookup[Ny] + Nx] & INFO_ISSOLID;
 }
 
-static inline bool check_point_idx(SCollision *pCollision, int Idx) {
-  return pCollision->m_pTileInfos[Idx] & INFO_ISSOLID;
-}
+static inline bool check_point_idx(SCollision *pCollision, int Idx) { return pCollision->m_pTileInfos[Idx] & INFO_ISSOLID; }
 
-static inline void through_offset(mvec2 Pos0, mvec2 Pos1, int *__restrict__ pOffsetX,
-                                  int *__restrict__ pOffsetY) {
-  static const int offsets[8][2] = {{32, 0}, {0, 32},  {-32, 0}, {0, 32},
-                                    {32, 0}, {0, -32}, {-32, 0}, {0, -32}};
+static inline void through_offset(mvec2 Pos0, mvec2 Pos1, int *__restrict__ pOffsetX, int *__restrict__ pOffsetY) {
+  static const int offsets[8][2] = {{32, 0}, {0, 32}, {-32, 0}, {0, 32}, {32, 0}, {0, -32}, {-32, 0}, {0, -32}};
   const float dx = vgetx(Pos0) - vgetx(Pos1);
   const float dy = vgety(Pos0) - vgety(Pos1);
   int index = ((dx < 0.0f) << 2) | ((dy < 0.0f) << 1) | ((dx >= 0.0f ? dx : -dx) > (dy >= 0.0f ? dy : -dy));
@@ -730,8 +700,7 @@ static inline void through_offset(mvec2 Pos0, mvec2 Pos1, int *__restrict__ pOff
   *pOffsetY = offsets[index][1];
 }
 
-static inline bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY, mvec2 Pos0,
-                              mvec2 Pos1) {
+static inline bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY, mvec2 Pos0, mvec2 Pos1) {
   if (x < 0 || y < 0 || x >= pCollision->m_MapData.width * 32 || y >= pCollision->m_MapData.width * 32)
     return false;
   int pos = get_pure_map_index(pCollision, vec2_init(x, y));
@@ -744,10 +713,8 @@ static inline bool is_through(SCollision *pCollision, int x, int y, int OffsetX,
       return true;
     if (FrontTile == TILE_THROUGH_DIR) {
       unsigned char Flags = pFrontFlgs[pos];
-      if ((Flags == ROTATION_0 && vgety(Pos0) > vgety(Pos1)) ||
-          (Flags == ROTATION_90 && vgetx(Pos0) < vgetx(Pos1)) ||
-          (Flags == ROTATION_180 && vgety(Pos0) < vgety(Pos1)) ||
-          (Flags == ROTATION_270 && vgetx(Pos0) > vgetx(Pos1))) {
+      if ((Flags == ROTATION_0 && vgety(Pos0) > vgety(Pos1)) || (Flags == ROTATION_90 && vgetx(Pos0) < vgetx(Pos1)) ||
+          (Flags == ROTATION_180 && vgety(Pos0) < vgety(Pos1)) || (Flags == ROTATION_270 && vgetx(Pos0) > vgetx(Pos1))) {
         return true;
       }
     }
@@ -791,16 +758,12 @@ bool is_hook_blocker(SCollision *pCollision, int Index, mvec2 Pos0, mvec2 Pos1) 
   if (pTileIdx[Index] == TILE_THROUGH_ALL || (pFrontIdx && pFrontIdx[Index] == TILE_THROUGH_ALL))
     return true;
   if (pTileIdx[Index] == TILE_THROUGH_DIR &&
-      ((pTileFlgs[Index] == ROTATION_0 && vgety(Pos0) < vgety(Pos1)) ||
-       (pTileFlgs[Index] == ROTATION_90 && vgetx(Pos0) > vgetx(Pos1)) ||
-       (pTileFlgs[Index] == ROTATION_180 && vgety(Pos0) > vgety(Pos1)) ||
-       (pTileFlgs[Index] == ROTATION_270 && vgetx(Pos0) < vgetx(Pos1))))
+      ((pTileFlgs[Index] == ROTATION_0 && vgety(Pos0) < vgety(Pos1)) || (pTileFlgs[Index] == ROTATION_90 && vgetx(Pos0) > vgetx(Pos1)) ||
+       (pTileFlgs[Index] == ROTATION_180 && vgety(Pos0) > vgety(Pos1)) || (pTileFlgs[Index] == ROTATION_270 && vgetx(Pos0) < vgetx(Pos1))))
     return true;
   if (pFrontIdx && pFrontIdx[Index] == TILE_THROUGH_DIR &&
-      ((pFrontFlgs[Index] == ROTATION_0 && vgety(Pos0) < vgety(Pos1)) ||
-       (pFrontFlgs[Index] == ROTATION_90 && vgetx(Pos0) > vgetx(Pos1)) ||
-       (pFrontFlgs[Index] == ROTATION_180 && vgety(Pos0) > vgety(Pos1)) ||
-       (pFrontFlgs[Index] == ROTATION_270 && vgetx(Pos0) < vgetx(Pos1))))
+      ((pFrontFlgs[Index] == ROTATION_0 && vgety(Pos0) < vgety(Pos1)) || (pFrontFlgs[Index] == ROTATION_90 && vgetx(Pos0) > vgetx(Pos1)) ||
+       (pFrontFlgs[Index] == ROTATION_180 && vgety(Pos0) > vgety(Pos1)) || (pFrontFlgs[Index] == ROTATION_270 && vgetx(Pos0) < vgetx(Pos1))))
     return true;
   return false;
 }
@@ -810,193 +773,167 @@ static inline uint8_t broad_check(const SCollision *__restrict__ pCollision, mve
   const mvec2 MaxVec = _mm_max_ps(Start, End);
   const int MinX = (int)vgetx(MinVec) >> 5;
   const int MinY = (int)vgety(MinVec) >> 5;
-  const int MaxX = (int)ceilf(vgetx(MaxVec)) >> 5;
-  const int MaxY = (int)ceilf(vgety(MaxVec)) >> 5;
+  const int MaxX = ((int)vgetx(MaxVec) + 1) >> 5;
+  const int MaxY = ((int)vgety(MaxVec) + 1) >> 5;
   const int DiffY = (MaxY - MinY);
   const int DiffX = (MaxX - MinX);
   if (MinY < 0 || MaxY >= pCollision->m_MapData.height || MinX < 0 || MaxX >= pCollision->m_MapData.width)
     return 2;
 
-  if (DiffY < 8 && DiffX < 8)
-    return (bool)(pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] &
-                  (uint64_t)1 << ((DiffY << 3) + DiffX));
-  else {
-    for (int y = MinY; y <= MaxY; ++y) {
-      for (int x = MinX; x <= MaxX; ++x) {
-        if (pCollision->m_pTileInfos[(y * pCollision->m_MapData.width) + x] & INFO_ISSOLID)
-          return 1;
-      }
-    }
-  }
-  return 0;
+  return (bool)(pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] & (uint64_t)1 << ((DiffY << 3) + DiffX));
 }
 
 static inline uint8_t broad_check_tele(const SCollision *__restrict__ pCollision, mvec2 Start, mvec2 End) {
-  const mvec2 minVec = _mm_min_ps(Start, End);
-  const mvec2 maxVec = _mm_max_ps(Start, End);
-  const int MinX = (int)vgetx(minVec) >> 5;
-  const int MinY = (int)vgety(minVec) >> 5;
-  const int MaxX = (int)ceilf(vgetx(maxVec)) >> 5;
-  const int MaxY = (int)ceilf(vgety(maxVec)) >> 5;
+  const mvec2 MinVec = _mm_min_ps(Start, End);
+  const mvec2 MaxVec = _mm_max_ps(Start, End);
+  const int MinX = (int)vgetx(MinVec) >> 5;
+  const int MinY = (int)vgety(MinVec) >> 5;
+  const int MaxX = ((int)vgetx(MaxVec) + 1) >> 5;
+  const int MaxY = ((int)vgety(MaxVec) + 1) >> 5;
   const int DiffY = (MaxY - MinY);
   const int DiffX = (MaxX - MinX);
   if (MinY < 0 || MaxY >= pCollision->m_MapData.height || MinX < 0 || MaxX >= pCollision->m_MapData.width)
     return 2;
 
-  if (DiffY < 8 && DiffX < 8)
-    return (bool)(pCollision->m_pBroadTeleInBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
-                  (uint64_t)1 << ((DiffY << 3) + DiffX));
-  else {
-    for (int y = MinY; y <= MaxY; ++y) {
-      for (int x = MinX; x <= MaxX; ++x) {
-        uint8_t Idx = pCollision->m_MapData.tele_layer.type[y * pCollision->m_MapData.width + x];
-        // NOTE: can be made into an info layer
-        if (Idx == TILE_TELEINHOOK || Idx == TILE_TELEINWEAPON)
-          return 1;
-      }
-    }
-  }
-  return 0;
+  return (bool)(pCollision->m_pBroadTeleInBitField[pCollision->m_pWidthLookup[MinY] + MinX] & (uint64_t)1 << ((DiffY << 3) + DiffX));
 }
 
-#if 0
-// Original intersect code
-unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
-                                       mvec2 *__restrict__ pOutCollision,
+#define TILE_SHIFT 5
+#define TILE_SIZE (1 << TILE_SHIFT)
+unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
                                        unsigned char *__restrict__ pTeleNr) {
-  float Distance = vdistance(Pos0, Pos1);
-  int End = (Distance + 1);
-  int dx = 0, dy = 0; // Offset for checking the "through" tile
-  through_offset(Pos0, Pos1, &dx, &dy);
-  for (int i = 0; i <= End; i++) {
-    float a = i / (float)End;
-    mvec2 Pos = vvfmix(Pos0, Pos1, a);
-    // Temporary position for checking collision
-    int ix = vgetx(Pos) + 0.5f;
-    int iy = vgety(Pos) + 0.5f;
-
-    int Index = get_pure_map_index(pCollision, Pos);
-    if (pTeleNr) {
-      *pTeleNr = is_teleport_hook(pCollision, Index);
-    }
-    if (pTeleNr && *pTeleNr) {
-      if (pOutCollision)
-        *pOutCollision = Pos;
-      return TILE_TELEINHOOK;
-    }
-
-    int hit = 0;
-    if (check_point_idx(pCollision, Index)) {
-      if (!is_through(pCollision, ix, iy, dx, dy, Pos0, Pos1))
-        hit = get_collision_at_idx(pCollision, Index);
-    } else if (is_hook_blocker(pCollision, Index, Pos0, Pos1)) {
-      hit = TILE_NOHOOK;
-    }
-    if (hit) {
-      if (pOutCollision)
-        *pOutCollision = Pos;
-      return hit;
-    }
-  }
-  if (pOutCollision)
-    *pOutCollision = Pos1;
-  return 0;
-}
-#else
-
-unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
-                                       mvec2 *__restrict__ pOutCollision,
-                                       unsigned char *__restrict__ pTeleNr) {
-  uint8_t Check[2] = {broad_check(pCollision, Pos0, Pos1),
-                      pTeleNr ? broad_check_tele(pCollision, Pos0, Pos1) : 0};
+  // broadphase checks
+  uint8_t Check[2] = {broad_check(pCollision, Pos0, Pos1), pTeleNr ? broad_check_tele(pCollision, Pos0, Pos1) : 0};
   if (!Check[0] && !Check[1]) {
     *pOutCollision = Pos1;
     return 0;
   }
 
   const int Width = pCollision->m_MapData.width;
-  const int Height = pCollision->m_MapData.height;
-  int Idx = (((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION) + ((int)vgetx(Pos0));
-  unsigned char Start = Check[0] > 1 ? 0 : pCollision->m_pSolidTeleDistanceField[Idx];
 
-  int End = (int)vdistance(Pos0, Pos1) + 1;
-  Start = iclamp(Start, 0, End);
-  Start -= Start % 8;
-  const float fEnd = End;
-  int dx = 0, dy = 0;
-  through_offset(Pos0, Pos1, &dx, &dy);
-  int LastIndex = -1;
+  float x0 = vgetx(Pos0);
+  float y0 = vgety(Pos0);
+  const float x1 = vgetx(Pos1);
+  const float y1 = vgety(Pos1);
 
-  int *aIndices = malloc(sizeof(int) * (End + 8));
+  const float dx = x1 - x0;
+  const float dy = y1 - y0;
 
-  const float inv_fEnd = s_aFractionTable[End - 1];
-  const float Pos0_x = vgetx(Pos0);
-  const float Pos0_y = vgety(Pos0);
-  const float diff_x = vgetx(Pos1) - Pos0_x;
-  const float diff_y = vgety(Pos1) - Pos0_y;
+  const float segLen = sqrtf(dx * dx + dy * dy);
 
-  const __m256 Pos0_x_vec = _mm256_set1_ps(Pos0_x);
-  const __m256 Pos0_y_vec = _mm256_set1_ps(Pos0_y);
-  const __m256 diff_x_vec = _mm256_set1_ps(diff_x);
-  const __m256 diff_y_vec = _mm256_set1_ps(diff_y);
-  const __m256 inv_fEnd_vec = _mm256_set1_ps(inv_fEnd);
-  const __m256 half_vec = _mm256_set1_ps(0.5f);
-  const __m256i width_vec = _mm256_set1_epi32(Width);
+  if (segLen == 0.0f) {
+    int ix = ((int)(x0 + 0.5f)) >> TILE_SHIFT;
+    int iy = ((int)(y0 + 0.5f)) >> TILE_SHIFT;
+    int idx = iy * Width + ix;
 
-  for (int k = Start; k <= End; k += 8) {
-    __m256i i_vec = _mm256_set_epi32(k + 7, k + 6, k + 5, k + 4, k + 3, k + 2, k + 1, k);
-    __m256 a_vec = _mm256_mul_ps(_mm256_cvtepi32_ps(i_vec), inv_fEnd_vec);
-    __m256 Pos_x_vec = _mm256_add_ps(Pos0_x_vec, _mm256_mul_ps(a_vec, diff_x_vec));
-    __m256 Pos_y_vec = _mm256_add_ps(Pos0_y_vec, _mm256_mul_ps(a_vec, diff_y_vec));
-    __m256 Pos_x_plus_half = _mm256_add_ps(Pos_x_vec, half_vec);
-    __m256 Pos_y_plus_half = _mm256_add_ps(Pos_y_vec, half_vec);
-    __m256i ix_vec = _mm256_srai_epi32(_mm256_cvttps_epi32(Pos_x_plus_half), 5);
-    __m256i iy_vec = _mm256_srai_epi32(_mm256_cvttps_epi32(Pos_y_plus_half), 5);
-    __m256i index_vec = _mm256_add_epi32(_mm256_mullo_epi32(iy_vec, width_vec), ix_vec);
-    _mm256_storeu_si256((__m256i *)&aIndices[k], index_vec);
+    if (pTeleNr) {
+      unsigned char tele = is_teleport_hook(pCollision, idx);
+      if (tele) {
+        *pTeleNr = tele;
+        *pOutCollision = Pos0;
+        return TILE_TELEINHOOK;
+      }
+    }
+    if (check_point_idx(pCollision, idx)) {
+      if (!is_through(pCollision, (int)(x0 + 0.5f), (int)(y0 + 0.5f), 0, 0, Pos0, Pos1)) {
+        *pOutCollision = Pos0;
+        return pCollision->m_MapData.game_layer.data[idx];
+      }
+    } else if (is_hook_blocker(pCollision, idx, Pos0, Pos1)) {
+      *pOutCollision = Pos0;
+      return TILE_NOHOOK;
+    }
+    *pOutCollision = Pos1;
+    return 0;
   }
 
-  for (int i = Start; i <= End; i++) {
-    const int Index = aIndices[i];
-    if (Index < 0 || Index >= Width * Height)
-      break;
-    if (Index == LastIndex)
-      continue;
-    LastIndex = Index;
+  int mapX = ((int)(x0 + 0.5f)) >> TILE_SHIFT;
+  int mapY = ((int)(y0 + 0.5f)) >> TILE_SHIFT;
+  const int endX = ((int)(x1 + 0.5f)) >> TILE_SHIFT;
+  const int endY = ((int)(y1 + 0.5f)) >> TILE_SHIFT;
+
+  const int stepX = (dx > 0.0f) ? 1 : ((dx < 0.0f) ? -1 : 0);
+  const int stepY = (dy > 0.0f) ? 1 : ((dy < 0.0f) ? -1 : 0);
+
+  float tMaxX, tMaxY;
+  float tDeltaX, tDeltaY;
+
+  if (stepX != 0) {
+    int nextBoundaryX = (stepX > 0) ? ((mapX + 1) << TILE_SHIFT) : (mapX << TILE_SHIFT);
+    tMaxX = fabsf((nextBoundaryX - x0) / dx);
+    tDeltaX = fabsf((float)TILE_SIZE / dx);
+  } else {
+    tMaxX = INFINITY;
+    tDeltaX = INFINITY;
+  }
+
+  if (stepY != 0) {
+    int nextBoundaryY = (stepY > 0) ? ((mapY + 1) << TILE_SHIFT) : (mapY << TILE_SHIFT);
+    tMaxY = fabsf((nextBoundaryY - y0) / dy);
+    tDeltaY = fabsf((float)TILE_SIZE / dy);
+  } else {
+    tMaxY = INFINITY;
+    tDeltaY = INFINITY;
+  }
+
+  int off_dx = 0, off_dy = 0;
+  through_offset(Pos0, Pos1, &off_dx, &off_dy);
+
+  float t = 0.0f;
+
+  for (;;) {
+    const int idx = mapY * Width + mapX;
+
     if (pTeleNr) {
-      *pTeleNr = is_teleport_hook(pCollision, Index);
-      if (*pTeleNr) {
-        *pOutCollision = vvfmix(Pos0, Pos1, i / fEnd);
-        free(aIndices);
+      unsigned char tele = is_teleport_hook(pCollision, idx);
+      if (tele) {
+        *pTeleNr = tele;
+        const float param = (t <= 0.0f) ? 0.0f : ((t >= segLen) ? 1.0f : (t / segLen));
+        *pOutCollision = vvfmix(Pos0, Pos1, param);
         return TILE_TELEINHOOK;
       }
     }
 
-    if (check_point_idx(pCollision, Index)) {
-      const mvec2 Pos = vvfmix(Pos0, Pos1, i / fEnd);
-      if (!is_through(pCollision, (int)(vgetx(Pos) + 0.5), (int)(vgety(Pos) + 0.5), dx, dy, Pos0, Pos1)) {
+    if (check_point_idx(pCollision, idx)) {
+      const float param = (t <= 0.0f) ? 0.0f : ((t >= segLen) ? 1.0f : (t / segLen));
+      const mvec2 Pos = vvfmix(Pos0, Pos1, param);
+      if (!is_through(pCollision, (int)(vgetx(Pos) + 0.5f), (int)(vgety(Pos) + 0.5f), off_dx, off_dy, Pos0, Pos1)) {
         *pOutCollision = Pos;
-        free(aIndices);
-        return pCollision->m_MapData.game_layer.data[Index];
+        return pCollision->m_MapData.game_layer.data[idx];
       }
-    } else if (is_hook_blocker(pCollision, Index, Pos0, Pos1)) {
-      *pOutCollision = vvfmix(Pos0, Pos1, i / fEnd);
-      free(aIndices);
+    } else if (is_hook_blocker(pCollision, idx, Pos0, Pos1)) {
+      const float param = (t <= 0.0f) ? 0.0f : ((t >= segLen) ? 1.0f : (t / segLen));
+      *pOutCollision = vvfmix(Pos0, Pos1, param);
       return TILE_NOHOOK;
     }
+
+    if (mapX == endX && mapY == endY)
+      break;
+
+    if (tMaxX < tMaxY) {
+      mapX += stepX;
+      t = tMaxX * segLen;
+      tMaxX += tDeltaX;
+    } else {
+      mapY += stepY;
+      t = tMaxY * segLen;
+      tMaxY += tDeltaY;
+    }
+
+    if (t > segLen) {
+      t = segLen;
+      mapX = endX;
+      mapY = endY;
+    }
   }
+
   *pOutCollision = Pos1;
-  free(aIndices);
   return 0;
 }
-#endif
 
-unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
-                                         mvec2 *__restrict__ pOutCollision,
-                                         mvec2 *__restrict__ pOutBeforeCollision,
-                                         unsigned char *__restrict__ pTeleNr) {
-  uint8_t Check[2] = {broad_check(pCollision, Pos0, Pos1),
-                      pTeleNr ? broad_check_tele(pCollision, Pos0, Pos1) : 0};
+unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
+                                         mvec2 *__restrict__ pOutBeforeCollision, unsigned char *__restrict__ pTeleNr) {
+  uint8_t Check[2] = {broad_check(pCollision, Pos0, Pos1), pTeleNr ? broad_check_tele(pCollision, Pos0, Pos1) : 0};
   if (!Check[0] && !Check[1]) {
     *pOutCollision = Pos1;
     return 0;
@@ -1102,8 +1039,8 @@ bool is_speedup(SCollision *pCollision, int Index) {
   return pCollision->m_MapData.speedup_layer.type && pCollision->m_MapData.speedup_layer.force[Index] > 0;
 }
 
-void get_speedup(SCollision *__restrict__ pCollision, int Index, mvec2 *__restrict__ pDir,
-                 int *__restrict__ pForce, int *__restrict__ pMaxSpeed, int *__restrict__ pType) {
+void get_speedup(SCollision *__restrict__ pCollision, int Index, mvec2 *__restrict__ pDir, int *__restrict__ pForce, int *__restrict__ pMaxSpeed,
+                 int *__restrict__ pType) {
   float Angle = pCollision->m_MapData.speedup_layer.angle[Index] * (PI / 180.0f);
   *pForce = pCollision->m_MapData.speedup_layer.force[Index];
   *pType = pCollision->m_MapData.speedup_layer.type[Index];
@@ -1113,8 +1050,8 @@ void get_speedup(SCollision *__restrict__ pCollision, int Index, mvec2 *__restri
 }
 
 // TODO: do the same optimization as in intersect_line_tele_hook
-bool intersect_line(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
-                    mvec2 *__restrict__ pOutCollision, mvec2 *__restrict__ pOutBeforeCollision) {
+bool intersect_line(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
+                    mvec2 *__restrict__ pOutBeforeCollision) {
   if (!broad_check(pCollision, Pos0, Pos1)) {
     *pOutCollision = Pos1;
     *pOutBeforeCollision = Pos1;
@@ -1148,7 +1085,7 @@ bool intersect_line(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
 }
 
 static inline bool check_point_int(const SCollision *__restrict__ pCollision, int x, int y) {
-  return pCollision->m_pTileInfos[pCollision->m_pWidthLookup[y >> 5] + (x >> 5)] & INFO_ISSOLID;
+  return pCollision->m_pTileInfos[(y >> 5) * pCollision->m_MapData.width + (x >> 5)] & INFO_ISSOLID;
 }
 
 static inline bool test_box_character(const SCollision *__restrict__ pCollision, int x, int y) {
@@ -1172,16 +1109,13 @@ static inline bool test_box_character(const SCollision *__restrict__ pCollision,
   return false;
 }
 
-void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, mvec2 *__restrict__ pOutPos,
-              mvec2 *__restrict__ pOutVel, mvec2 Elasticity, bool *__restrict__ pGrounded) {
+void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, mvec2 *__restrict__ pOutPos, mvec2 *__restrict__ pOutVel,
+              mvec2 Elasticity, bool *__restrict__ pGrounded) {
   float Distance = vsqlength(Vel);
   if (Distance <= 0.00001f * 0.00001f)
     return;
 
   mvec2 NewPos = vvadd(Pos, Vel);
-  // vsetx(NewPos,  fclamp(vgetx(NewPos), HALFPHYSICALSIZE + 1.0f, (pCollision->m_MapData.width * 32) -
-  // (HALFPHYSICALSIZE + 1.0f))); vsety(NewPos,  fclamp(vgety(NewPos), HALFPHYSICALSIZE + 1.0f,
-  // (pCollision->m_MapData.width * 32) - (HALFPHYSICALSIZE + 1.0f)));
   const mvec2 minVec = _mm_min_ps(Pos, NewPos);
   const mvec2 maxVec = _mm_max_ps(Pos, NewPos);
   const mvec2 offset = _mm_set1_ps(HALFPHYSICALSIZE + 1.0f);
@@ -1192,35 +1126,12 @@ void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, m
   const int MaxX = (int)vgetx(maxAdj) >> 5;
   const int MaxY = (int)vgety(maxAdj) >> 5;
   const uint64_t Mask = (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
-  const uint64_t IsSolid =
-      pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] & Mask;
-  // This could be an issue because int(sqrt(int(x))) = int(sqrt(x)) is not true with fp math
-  const unsigned short Max = s_aMaxTable[(int)Distance];
+  const uint64_t IsSolid = pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] & Mask;
   if (!IsSolid) {
-    const float NewPosX = vgetx(NewPos) + 0.5f;
-    const float NewPosY = vgety(NewPos) + 0.5f;
-    const float INewPosX = (float)((int)NewPosX);
-    const float INewPosY = (float)((int)NewPosY);
-    union {
-      float f;
-      uint32_t i;
-    } bits;
-    bits.f = NewPosX;
-    const float EpsilonX = s_aMagicTable[(bits.i >> 23) & 0xFF] * (Max >> 1);
-    bits.f = NewPosY;
-    const float EpsilonY = s_aMagicTable[(bits.i >> 23) & 0xFF] * (Max >> 1);
-    if (NewPosX - INewPosX > EpsilonX && NewPosY - INewPosY > EpsilonY &&
-        (INewPosX + 1.f) - NewPosX > EpsilonX && (INewPosY + 1.f) - NewPosY > EpsilonY) {
-      *pOutPos = NewPos;
-      return;
-    }
-    const mvec2 Frac = vfmul(Vel, s_aFractionTable[Max]);
-    for (int i = 0; i <= Max; i++)
-      Pos = vvadd(Pos, Frac);
-    *pOutPos = Pos;
+    *pOutPos = vvadd(Pos, Vel);
     return;
   }
-
+  const unsigned short Max = s_aMaxTable[(int)Distance];
   const float Fraction = s_aFractionTable[Max];
   uivec2 IPos = (uivec2){(int)(vgetx(Pos) + 0.5f), (int)(vgety(Pos) + 0.5f)};
   uivec2 INewPos;
@@ -1230,20 +1141,18 @@ void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, m
     if (test_box_character(pCollision, INewPos.x, INewPos.y)) {
       bool Hit = false;
       if (test_box_character(pCollision, IPos.x, INewPos.y)) {
-        if (vgety(Elasticity) > 0 && vgety(Vel) > 0)
+        if (vgety(Vel) > 0)
           *pGrounded = true;
         NewPos = vsety(NewPos, vgety(Pos));
-        Vel = vsety(Vel, -vgety(Vel) * vgety(Elasticity));
+        Vel = vsety(Vel, 0);
         Hit = true;
       }
       if (test_box_character(pCollision, INewPos.x, IPos.y)) {
         NewPos = vsetx(NewPos, vgetx(Pos));
-        Vel = vsetx(Vel, -vgetx(Vel) * vgetx(Elasticity));
+        Vel = vsetx(Vel, 0);
         Hit = true;
       }
       if (!Hit) {
-        if (vgety(Elasticity) > 0 && vgety(Vel) > 0)
-          *pGrounded = true;
         NewPos = Pos;
         Vel = vfmul(Vel, -1.0f);
         Vel = vvmul(Vel, Elasticity);
@@ -1257,8 +1166,7 @@ void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, m
   *pOutVel = Vel;
 }
 
-bool get_nearest_air_pos_player(SCollision *__restrict__ pCollision, mvec2 PlayerPos,
-                                mvec2 *__restrict__ pOutPos) {
+bool get_nearest_air_pos_player(SCollision *__restrict__ pCollision, mvec2 PlayerPos, mvec2 *__restrict__ pOutPos) {
   for (int dist = 5; dist >= -1; dist--) {
     *pOutPos = vec2_init(vgetx(PlayerPos), vgety(PlayerPos) - dist);
     if (!test_box(pCollision, *pOutPos, PHYSICALSIZEVEC))
@@ -1267,15 +1175,13 @@ bool get_nearest_air_pos_player(SCollision *__restrict__ pCollision, mvec2 Playe
   return false;
 }
 
-bool get_nearest_air_pos(SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 PrevPos,
-                         mvec2 *__restrict__ pOutPos) {
+bool get_nearest_air_pos(SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 PrevPos, mvec2 *__restrict__ pOutPos) {
   for (int k = 0; k < 16 && check_point(pCollision, Pos); k++) {
     Pos = vvsub(Pos, vnormalize(vvsub(PrevPos, Pos)));
   }
 
   mvec2 PosInBlock = vec2_init((int)(vgetx(Pos) + 0.5f) % 32, (int)(vgety(Pos) + 0.5f) % 32);
-  mvec2 BlockCenter =
-      vfadd(vvsub(vec2_init((int)(vgetx(Pos) + 0.5f), (int)(vgety(Pos) + 0.5f)), PosInBlock), 16.0f);
+  mvec2 BlockCenter = vfadd(vvsub(vec2_init((int)(vgetx(Pos) + 0.5f), (int)(vgety(Pos) + 0.5f)), PosInBlock), 16.0f);
 
   *pOutPos = vec2_init(vgetx(BlockCenter) + (vgetx(PosInBlock) < 16 ? -2.0f : 1.0f), vgety(Pos));
   if (!test_box(pCollision, *pOutPos, PHYSICALSIZEVEC))
@@ -1285,8 +1191,7 @@ bool get_nearest_air_pos(SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 P
   if (!test_box(pCollision, *pOutPos, PHYSICALSIZEVEC))
     return true;
 
-  *pOutPos = vec2_init(vgetx(BlockCenter) + (vgetx(PosInBlock) < 16 ? -2.0f : 1.0f),
-                       vgety(BlockCenter) + (vgety(PosInBlock) < 16 ? -2.0f : 1.0f));
+  *pOutPos = vec2_init(vgetx(BlockCenter) + (vgetx(PosInBlock) < 16 ? -2.0f : 1.0f), vgety(BlockCenter) + (vgety(PosInBlock) < 16 ? -2.0f : 1.0f));
   return !test_box(pCollision, *pOutPos, PHYSICALSIZEVEC);
 }
 

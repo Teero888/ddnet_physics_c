@@ -30,6 +30,7 @@ enum {
   INFO_CANGROUND = 1 << 3,
   INFO_CANHITKILL = 1 << 4,
   INFO_CANHITSOLID = 1 << 5,
+  INFO_CANHITSTOPPER = 1 << 6,
 };
 
 typedef struct TuningParams {
@@ -106,8 +107,7 @@ unsigned char is_check_evil_teleport(SCollision *pCollision, int Index);
 unsigned char is_tele_checkpoint(SCollision *pCollision, int Index);
 unsigned char get_collision_at(SCollision *pCollision, mvec2 Pos);
 unsigned char get_front_collision_at(SCollision *pCollision, mvec2 Pos);
-unsigned char get_move_restrictions(SCollision *pCollision, void *pUser, mvec2 Pos,
-                                    int OverrideCenterTileIndex);
+unsigned char get_move_restrictions(SCollision *pCollision, void *pUser, mvec2 Pos);
 int get_map_index(SCollision *pCollision, mvec2 Pos);
 bool check_point(SCollision *pCollision, mvec2 Pos);
 void move_point(SCollision *pCollision, mvec2 *pInoutPos, mvec2 *pInoutVel, float Elasticity);

@@ -1,5 +1,5 @@
-#include "../include/gamecore.h"
-#include "../include/collision.h"
+#include "../../include/collision.h"
+#include "../../include/gamecore.h"
 #include "../data.h"
 #include "../utils.h"
 #include <getopt.h>
@@ -8,8 +8,10 @@
 #include <stdio.h>
 
 #define ITERATIONS 200
-#define NUM_RUNS 30
+#define NUM_RUNS 300
 #define BAR_WIDTH 50
+#define TICKS_PER_ITERATION 500
+#define NUM_CHARACTERS 1
 
 typedef struct {
   double mean;
@@ -18,6 +20,22 @@ typedef struct {
   double max;
 } SStats;
 
+// ----- FAST PRNG (xorshift32) -----
+static inline unsigned int fast_rand_u32(unsigned int *state) {
+  unsigned int x = *state;
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+  *state = x;
+  return x;
+}
+
+static inline int fast_rand_range(unsigned int *state, int min, int max) {
+  // inclusive range [min, max]
+  return min + (fast_rand_u32(state) % (max - min + 1));
+}
+
+// ----- STATS -----
 static SStats calculate_stats(double *values, int count) {
   SStats stats = {0};
   double sum = 0;
@@ -44,6 +62,7 @@ static SStats calculate_stats(double *values, int count) {
   return stats;
 }
 
+// ----- PROGRESS -----
 void print_progress(int current, int total, double elapsed_time) {
   float progress = (float)current / total;
   int pos = (int)(BAR_WIDTH * progress);
@@ -63,23 +82,28 @@ void print_progress(int current, int total, double elapsed_time) {
 
 void print_help(const char *prog_name) {
   printf("Usage: %s [OPTIONS]\n", prog_name);
-  printf("Benchmark the physics with single or multi-threaded execution.\n\n");
+  printf("Benchmark the physics engine with single or multi-threaded execution.\n\n");
   printf("Options:\n");
   printf("  --multi            Enable multi-threaded execution with OpenMP (default: single-threaded)\n");
   printf("  --help             Display this help message and exit\n");
-  printf("  --test=TEST_NAME   Specify the test to run (required)\n");
+}
+
+static inline void generate_random_input(SPlayerInput *pInput, unsigned int *seed) {
+  pInput->m_Direction = fast_rand_range(seed, -1, 1);
+  pInput->m_Jump = fast_rand_range(seed, 0, 1);
+  pInput->m_Fire = fast_rand_range(seed, 0, 1);
+  pInput->m_Hook = fast_rand_range(seed, 0, 1);
+  pInput->m_TargetX = fast_rand_range(seed, -1000, 1000);
+  pInput->m_TargetY = fast_rand_range(seed, -1000, 1000);
+  pInput->m_WantedWeapon = fast_rand_range(seed, 0, NUM_WEAPONS - 1);
 }
 
 int main(int argc, char *argv[]) {
   int use_multi_threaded = 0;
-  const char *test_name = NULL;
 
   // Parse command-line options
   while (1) {
-    static struct option long_options[] = {{"multi", no_argument, 0, 'm'},
-                                           {"help", no_argument, 0, 'h'},
-                                           {"test", required_argument, 0, 't'},
-                                           {0, 0, 0, 0}};
+    static struct option long_options[] = {{"multi", no_argument, 0, 'm'}, {"help", no_argument, 0, 'h'}, {0, 0, 0, 0}};
     int option_index = 0;
     int c = getopt_long(argc, argv, "", long_options, &option_index);
     if (c == -1)
@@ -92,78 +116,54 @@ int main(int argc, char *argv[]) {
     case 'h':
       print_help(argv[0]);
       return 0;
-    case 't':
-      test_name = optarg;
-      break;
     default:
       printf("Unknown option. Use --help for usage.\n");
       return 1;
     }
   }
 
-  // Ensure a test is specified
-  if (test_name == NULL) {
-    printf("Error: No test specified. Use --test=<test_name>\n");
-    printf("Available tests:\n");
-    for (int i = 0; i < sizeof(s_aTests) / sizeof(s_aTests[0]); i++) {
-      printf("  %s: %s\n", s_aTests[i].m_Name, s_aTests[i].m_Description);
-    }
-    return 1;
-  }
-
-  // Find the selected test
-  const STest *selected_test = NULL;
-  for (int i = 0; i < sizeof(s_aTests) / sizeof(s_aTests[0]); i++) {
-    if (strcmp(s_aTests[i].m_Name, test_name) == 0) {
-      selected_test = &s_aTests[i];
-      break;
-    }
-  }
-  if (selected_test == NULL) {
-    printf("Error: Test '%s' not found.\n", test_name);
-    printf("Available tests:\n");
-    for (int i = 0; i < sizeof(s_aTests) / sizeof(s_aTests[0]); i++) {
-      printf("  %s: %s\n", s_aTests[i].m_Name, s_aTests[i].m_Description);
-    }
-    return 1;
-  }
-
-  const SValidation *selected_validation = selected_test->m_pValidationData;
-  int ticks_per_iteration = selected_validation->m_Ticks;
-  int total_ticks = ITERATIONS * ticks_per_iteration;
+  unsigned int global_seed = 0; // (unsigned)time(NULL);
 
   SCollision Collision;
-  char aMapPath[64];
-  snprintf(aMapPath, 64, "maps/%s", selected_validation->m_aMapName);
-  if (!init_collision(&Collision, aMapPath))
+  if (!init_collision(&Collision, "maps/run_irish_luck.map")) {
+    printf("Error: Failed to load collision map.\n");
     return 1;
+  }
   SConfig Config;
   init_config(&Config);
 
   SWorldCore StartWorld;
   wc_init(&StartWorld, &Collision, &Config);
-  wc_add_character(&StartWorld);
+  for (int i = 0; i < NUM_CHARACTERS; i++)
+    wc_add_character(&StartWorld);
   for (int t = 0; t < 50; ++t)
     wc_tick(&StartWorld);
 
-  // Run benchmark
   double aTPSValues[NUM_RUNS];
-  printf("Benchmarking test: %s - %s\n", selected_test->m_Name, selected_test->m_Description);
+  int total_ticks = ITERATIONS * TICKS_PER_ITERATION;
+
+  printf("Benchmarking physics with random inputs\n");
   printf("Mode: %s-threaded\n", use_multi_threaded ? "multi" : "single");
   if (use_multi_threaded)
     printf("Using %d threads with OpenMP.\n", omp_get_max_threads());
 
   for (int run = 0; run < NUM_RUNS; run++) {
     double StartTime, ElapsedTime;
+    unsigned int run_seed = global_seed ^ (run * 0x9E3779B9u); // vary seeds per run
 
     if (use_multi_threaded) {
       StartTime = omp_get_wtime();
 #pragma omp parallel for
       for (int i = 0; i < ITERATIONS; ++i) {
+        unsigned int local_seed = run_seed ^ i; // per-thread unique seed
         SWorldCore World = (SWorldCore){};
         wc_copy_world(&World, &StartWorld);
-        for (int t = 0; t < ticks_per_iteration; ++t) {
-          cc_on_input(&World.m_pCharacters[0], &selected_validation->m_vStates[0][t].m_Input);
+        for (int t = 0; t < TICKS_PER_ITERATION; ++t) {
+          for (int c = 0; c < NUM_CHARACTERS; c++) {
+            SPlayerInput Input = {};
+            generate_random_input(&Input, &local_seed);
+            cc_on_input(&World.m_pCharacters[c], &Input);
+          }
           wc_tick(&World);
         }
         wc_free(&World);
@@ -172,11 +172,19 @@ int main(int argc, char *argv[]) {
     } else {
       StartTime = omp_get_wtime();
       for (int i = 0; i < ITERATIONS; ++i) {
+        unsigned int local_seed = run_seed ^ i;
         SWorldCore World = (SWorldCore){};
         wc_copy_world(&World, &StartWorld);
-        for (int t = 0; t < ticks_per_iteration; ++t) {
-          cc_on_input(&World.m_pCharacters[0], &selected_validation->m_vStates[0][t].m_Input);
+        for (int t = 0; t < TICKS_PER_ITERATION; ++t) {
+          for (int c = 0; c < NUM_CHARACTERS; c++) {
+            SPlayerInput Input = {};
+            generate_random_input(&Input, &local_seed);
+            cc_on_input(&World.m_pCharacters[c], &Input);
+          }
           wc_tick(&World);
+          // printf("pos:%.2f,%.2f;vel:%.2f,%.2f\n", vgetx(World.m_pCharacters[0].m_Pos),
+          //        vgety(World.m_pCharacters[0].m_Pos), vgetx(World.m_pCharacters[0].m_Vel),
+          //        vgety(World.m_pCharacters[0].m_Vel));
         }
         wc_free(&World);
       }
