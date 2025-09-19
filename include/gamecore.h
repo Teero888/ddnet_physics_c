@@ -51,6 +51,9 @@ enum {
   FLAG_EMOTE_INDEX = 0b1111 << 11, // bits 11..14
 };
 
+// not the same ordering as in ddnet but it matches the texture offsets
+enum { EYE_NORMAL, EYE_ANGRY, EYE_PAIN, EYE_HAPPY, EYE_BLINK, EYE_SURPRISE, NUM_EYES };
+
 static inline int get_flag_kill(const SPlayerInput *p) { return p->m_Flags & FLAG_KILL; }
 
 static inline void set_flag_kill(SPlayerInput *p, int value) {
