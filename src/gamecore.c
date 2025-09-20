@@ -1,6 +1,7 @@
 #include "../include/gamecore.h"
 #include "../include/collision.h"
 #include "../include/vmath.h"
+#include <assert.h>
 #include <ddnet_map_loader.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -542,7 +543,7 @@ void cc_do_pickup(SCharacterCore *pCore) {
 
 // CharacterCore functions {{{
 
-bool wc_next_spawn(SWorldCore *pCore, mvec2 *pOutPos);
+bool wc_next_spawn(SWorldCore *pCore, mvec2 *pOutPos, int Id);
 
 void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   memset(pCore, 0, sizeof(SCharacterCore));
@@ -628,7 +629,7 @@ void cc_die(SCharacterCore *pCore) {
   cc_init(pCore, pCore->m_pWorld);
 
   mvec2 SpawnPos;
-  if (wc_next_spawn(pCore->m_pWorld, &SpawnPos)) {
+  if (wc_next_spawn(pCore->m_pWorld, &SpawnPos, Id)) {
     pCore->m_Pos = SpawnPos;
     pCore->m_PrevPos = SpawnPos;
     cc_calc_indices(pCore);
@@ -661,6 +662,8 @@ void cc_move(SCharacterCore *pCore) {
     return;
   }
 
+  pCore->m_Vel = vvclamp(pCore->m_Vel, vec2_init(-4 * 30, -4 * 30), vec2_init(4 * 30, 4 * 30));
+
   move_box(pCore->m_pCollision, NewPos, pCore->m_Vel, &NewPos, &pCore->m_Vel,
            vec2_init(pCore->m_pTuning->m_GroundElasticityX, pCore->m_pTuning->m_GroundElasticityY), &Grounded);
 
@@ -682,94 +685,105 @@ void cc_move(SCharacterCore *pCore) {
   if (RampValue != 1.f)
     pCore->m_Vel = vsetx(pCore->m_Vel, velX * (1.f / RampValue));
 
-  // Multi-tee shit {{{
-  if (pCore->m_pWorld->m_NumCharacters > 1 && pCore->m_pTuning->m_PlayerCollision && !pCore->m_CollisionDisabled && !pCore->m_Solo) {
-    float Distance = vdistance(pCore->m_Pos, NewPos);
-    if (Distance > 0) {
-      int End = Distance + 1;
-      mvec2 LastPos = pCore->m_Pos;
-      for (int i = 0; i < End; i++) {
-        float a = i / Distance;
-        mvec2 Pos = vvfmix(pCore->m_Pos, NewPos, a);
-        for (int p = 0; p < pCore->m_pWorld->m_NumCharacters; p++) {
-          SCharacterCore *pCharCore = &pCore->m_pWorld->m_pCharacters[p];
-          if (pCharCore == pCore || pCharCore->m_Solo || pCharCore->m_CollisionDisabled)
-            continue;
-          float D = vdistance(Pos, pCharCore->m_Pos);
-          if (D < PHYSICALSIZE) {
-            if (a > 0.0f)
-              pCore->m_Pos = LastPos;
-            else if (vdistance(NewPos, pCharCore->m_Pos) > D)
-              pCore->m_Pos = NewPos;
-            return;
-          }
-        }
-        LastPos = Pos;
-      }
-    }
-  }
-  //}}}
-
   pCore->m_Pos = NewPos;
   cc_calc_indices(pCore);
 }
 
 void cc_world_tick_deferred(SCharacterCore *pCore) {
   cc_move(pCore);
-  // cc_quantize(pCore);
+  cc_quantize(pCore);
+}
+
+static inline float fast_rand(unsigned int *state) {
+  unsigned int x = *state;
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+  *state = x;
+  return (x % 1000) / 1000.0f;
+}
+
+void cc_tee_interact_deferred(SCharacterCore *pCore, int Id, int *pCollisions) {
+  SCharacterCore *pCharCore = &pCore->m_pWorld->m_pCharacters[Id];
+  mvec2 Pos = pCharCore->m_Pos;
+  bool Solo = pCharCore->m_Solo;
+  bool CollisionDisabled = pCharCore->m_CollisionDisabled;
+
+  if (pCore->m_Solo || Solo)
+    return;
+  float Distance = vdistance(pCore->m_Pos, Pos);
+  if (Distance > 0) {
+    mvec2 Dir = vnormalize(vvsub(pCore->m_Pos, Pos));
+    bool CanCollide = (!pCore->m_CollisionDisabled && !CollisionDisabled && pCore->m_pTuning->m_PlayerCollision);
+
+    if (CanCollide && Distance < PHYSICALSIZE * 1.25f) {
+      float a = (PHYSICALSIZE * 1.45f - Distance);
+      float Velocity = 0.5f;
+
+      if (vlength(pCore->m_Vel) > 0.0001f)
+        Velocity = 1 - (vdot(vnormalize_nomask(pCore->m_Vel), Dir) + 1) / 2;
+
+      pCore->m_Vel = vvadd(pCore->m_Vel, vfmul(Dir, a * (Velocity * 0.75f)) * 0.85f);
+      ++*pCollisions;
+    }
+  } else {
+    unsigned int seed = (unsigned int)(pCore->m_Id + Id * 0x1234567) ^ (unsigned int)pCore->m_pWorld->m_GameTick;
+    pCore->m_Vel = vvadd(pCore->m_Vel, vec2_init((fast_rand(&seed) - fast_rand(&seed)) * 0.5f, (fast_rand(&seed) - fast_rand(&seed)) * 0.5f));
+  }
 }
 
 void cc_tick_deferred(SCharacterCore *pCore) {
-  // Multi-tee shit {{{
   if (pCore->m_pWorld->m_NumCharacters > 1) {
-    for (int i = 0; i < pCore->m_pWorld->m_NumCharacters; i++) {
-      SCharacterCore *pCharCore = &pCore->m_pWorld->m_pCharacters[i];
-      if (pCharCore == pCore || pCore->m_Solo || pCharCore->m_Solo)
-        continue;
-
-      float Distance = vdistance(pCore->m_Pos, pCharCore->m_Pos);
-      if (Distance > 0) {
-        mvec2 Dir = vnormalize(vvsub(pCore->m_Pos, pCharCore->m_Pos));
-
-        bool CanCollide = (!pCore->m_CollisionDisabled && !pCharCore->m_CollisionDisabled && pCore->m_pTuning->m_PlayerCollision);
-
-        if (CanCollide && Distance < PHYSICALSIZE * 1.25f) {
-          float a = (PHYSICALSIZE * 1.45f - Distance);
-          float Velocity = 0.5f;
-
-          if (vlength(pCore->m_Vel) > 0.0001f)
-            Velocity = 1 - (vdot(vnormalize_nomask(pCore->m_Vel), Dir) + 1) / 2;
-
-          pCore->m_Vel = vvadd(pCore->m_Vel, vfmul(Dir, a * (Velocity * 0.75f)));
-        }
-
-        if (!pCore->m_HookHitDisabled && pCore->m_HookedPlayer == i && pCore->m_pTuning->m_PlayerHooking) {
-          if (Distance > PHYSICALSIZE * 1.50f) {
-            float HookAccel = pCore->m_pTuning->m_HookDragAccel * (Distance / pCore->m_pTuning->m_HookLength);
-            float DragSpeed = pCore->m_pTuning->m_HookDragSpeed;
-
-            mvec2 Temp;
-            Temp = clamp_vel(pCharCore->m_MoveRestrictions,
-                             vec2_init(saturate_add(-DragSpeed, DragSpeed, vgetx(pCharCore->m_Vel), HookAccel * vgetx(Dir) * 1.5f),
-                                       saturate_add(-DragSpeed, DragSpeed, vgety(pCharCore->m_Vel), HookAccel * vgety(Dir) * 1.5f)));
-            pCharCore->m_Vel = Temp;
-
-            Temp = clamp_vel(pCore->m_MoveRestrictions,
-                             vec2_init(saturate_add(-DragSpeed, DragSpeed, vgetx(pCore->m_Vel), -HookAccel * vgetx(Dir) * 0.25f),
-                                       saturate_add(-DragSpeed, DragSpeed, vgety(pCore->m_Vel), -HookAccel * vgety(Dir) * 0.25f)));
-            pCore->m_Vel = Temp;
+    int Num = 0;
+    for (int dy = -1; dy <= 1; ++dy) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        int Idx = (((int)vgety(pCore->m_Pos) >> 5) + dx) * pCore->m_pCollision->m_MapData.width + (((int)vgetx(pCore->m_Pos) >> 5) + dy);
+        Idx = iclamp(Idx, 0, pCore->m_pCollision->m_MapData.width * pCore->m_pCollision->m_MapData.height - 1);
+        int Id = pCore->m_pWorld->m_Accelerator.m_pGrid->m_pTeeGrid[Idx];
+        while (Id >= 0) {
+          if (pCore->m_Id == Id) {
+            Id = pCore->m_pWorld->m_Accelerator.m_pTeeList[Id].m_Child;
+            continue;
           }
+          cc_tee_interact_deferred(pCore, Id, &Num);
+          Id = pCore->m_pWorld->m_Accelerator.m_pTeeList[Id].m_Child;
+          if (Num > 8)
+            goto EndCollisions;
         }
       }
     }
+    // pCore->m_Vel = vvclamp(pCore->m_Vel, vec2_init(-1, -1), vec2_init(1, 1));
   }
-  ///}}}
+EndCollisions:
+  // player hooking logic
+  if (pCore->m_pWorld->m_NumCharacters > 1 && pCore->m_HookedPlayer >= 0) {
+    SCharacterCore *pCharCore = &pCore->m_pWorld->m_pCharacters[pCore->m_HookedPlayer];
+    float Distance = vdistance(pCore->m_Pos, pCharCore->m_Pos);
+    mvec2 Dir = vnormalize(vvsub(pCore->m_Pos, pCharCore->m_Pos));
+    if (!pCore->m_HookHitDisabled && pCore->m_pTuning->m_PlayerHooking) {
+      if (Distance > PHYSICALSIZE * 1.50f) {
+        float HookAccel = pCore->m_pTuning->m_HookDragAccel * (Distance / pCore->m_pTuning->m_HookLength);
+        float DragSpeed = pCore->m_pTuning->m_HookDragSpeed;
+
+        mvec2 Temp;
+        Temp = clamp_vel(pCharCore->m_MoveRestrictions,
+                         vec2_init(saturate_add(-DragSpeed, DragSpeed, vgetx(pCharCore->m_Vel), HookAccel * vgetx(Dir) * 1.5f),
+                                   saturate_add(-DragSpeed, DragSpeed, vgety(pCharCore->m_Vel), HookAccel * vgety(Dir) * 1.5f)));
+        pCharCore->m_Vel = Temp;
+
+        Temp = clamp_vel(pCore->m_MoveRestrictions,
+                         vec2_init(saturate_add(-DragSpeed, DragSpeed, vgetx(pCore->m_Vel), -HookAccel * vgetx(Dir) * 0.25f),
+                                   saturate_add(-DragSpeed, DragSpeed, vgety(pCore->m_Vel), -HookAccel * vgety(Dir) * 0.25f)));
+        pCore->m_Vel = Temp;
+      }
+    }
+  }
   if (pCore->m_HookState != HOOK_FLYING) {
     pCore->m_NewHook = false;
   }
 
-  // if (pCore->m_VelMag > 250)
-  //   pCore->m_Vel = vfmul(vnormalize_nomask(pCore->m_Vel), 250);
+  if (pCore->m_VelMag > 187.5)
+    pCore->m_Vel = vfmul(vnormalize_nomask(pCore->m_Vel), 187.5);
 }
 
 void cc_ddracetick(SCharacterCore *pCore) {
@@ -1186,7 +1200,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
       }
     }
     mvec2 SpawnPos;
-    if (wc_next_spawn(pCore->m_pWorld, &SpawnPos)) {
+    if (wc_next_spawn(pCore->m_pWorld, &SpawnPos, pCore->m_Id)) {
       pCore->m_Pos = SpawnPos;
       cc_calc_indices(pCore);
       pCore->m_Vel = vec2_init(0, 0);
@@ -1212,7 +1226,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index) {
       }
     }
     mvec2 SpawnPos;
-    if (wc_next_spawn(pCore->m_pWorld, &SpawnPos)) {
+    if (wc_next_spawn(pCore->m_pWorld, &SpawnPos, pCore->m_Id)) {
       pCore->m_Pos = SpawnPos;
       cc_calc_indices(pCore);
 
@@ -1848,12 +1862,37 @@ void init_switchers(SWorldCore *pCore, int HighestSwitchNumber) {
 
 // NOTE: spawn points are not the same as in ddnet. other players will not be
 // respected
-bool wc_next_spawn(SWorldCore *pCore, mvec2 *pOutPos) {
+bool wc_next_spawn(SWorldCore *pCore, mvec2 *pOutPos, int Id) {
+  (void)Id;
   if (!pCore->m_pCollision->m_pSpawnPoints)
     return false;
   *pOutPos = vfadd(vfmul(pCore->m_pCollision->m_pSpawnPoints[0], 32), 16);
   return true;
 }
+
+// static inline unsigned int fast_rand_u32(unsigned int *state) {
+//   unsigned int x = *state;
+//   x ^= x << 13;
+//   x ^= x >> 17;
+//   x ^= x << 5;
+//   *state = x;
+//   return x;
+// }
+// 
+// bool wc_next_spawn(SWorldCore *pCore, mvec2 *pOutPos, int Id) {
+//   if (!pCore->m_pCollision->m_pSpawnPoints)
+//     return false;
+// 
+//   unsigned int state = Id ^ pCore->m_GameTick;
+//   int Idx = fast_rand_u32(&state) % ((pCore->m_pCollision->m_MapData.width - 1) * (pCore->m_pCollision->m_MapData.height - 1));
+//   while (pCore->m_pCollision->m_pTileInfos[Idx] & INFO_ISSOLID)
+//     Idx = fast_rand_u32(&state) % ((pCore->m_pCollision->m_MapData.width - 1) * (pCore->m_pCollision->m_MapData.height - 1));
+// 
+//   int x = Idx % pCore->m_pCollision->m_MapData.width;
+//   int y = Idx / pCore->m_pCollision->m_MapData.width;
+//   *pOutPos = vfadd(vfmul(vec2_init(x, y), 32), 16);
+//   return true;
+// }
 
 void wc_release_hooked(SWorldCore *pCore, int Id) {
   for (int i = 0; i < pCore->m_NumCharacters; ++i)
@@ -2053,12 +2092,21 @@ void wc_create_all_entities(SWorldCore *pCore) {
   }
 }
 
-void wc_init(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig) {
+STeeGrid tg_empty() { return (STeeGrid){}; }
+void tg_init(STeeGrid *pGrid, int width, int height) {
+  free(pGrid->m_pTeeGrid);
+  pGrid->m_pTeeGrid = malloc(sizeof(int) * width * height);
+  memset(pGrid->m_pTeeGrid, -1, sizeof(int) * width * height);
+  pGrid->hash = 0; // gets set by the last used world
+}
+
+void wc_init(SWorldCore *pCore, SCollision *pCollision, STeeGrid *pGrid, SConfig *pConfig) {
   memset(pCore, 0, sizeof(SWorldCore));
   pCore->m_pCollision = pCollision;
+  pCore->m_Accelerator.m_pGrid = pGrid;
+  pCore->m_Accelerator.hash = ((uint64_t)rand() << 32) | rand();
   pCore->m_pConfig = pConfig;
 
-  // TODO: figure out highest switch number in collision
   init_switchers(pCore, pCollision->m_HighestSwitchNumber);
 
   pCore->m_pTunings = pCollision->m_aTuningList;
@@ -2078,6 +2126,64 @@ void wc_free(SWorldCore *pCore) {
   free(pCore->m_pSwitches);
   free(pCore->m_pCharacters);
   memset(pCore, 0, sizeof(SWorldCore));
+}
+
+static void wc_accelerator_tick(SWorldCore *pCore) {
+  if (pCore->m_Accelerator.hash != pCore->m_Accelerator.m_pGrid->hash) {
+    // clear grid
+    memset(pCore->m_Accelerator.m_pGrid->m_pTeeGrid, -1, pCore->m_pCollision->m_MapData.width * pCore->m_pCollision->m_MapData.height * sizeof(int));
+    // hook it up to our own things
+    for (int i = 0; i < pCore->m_NumCharacters; ++i) {
+      STeeLink *pChar = &pCore->m_Accelerator.m_pTeeList[i];
+      if (pChar->m_Parent == -1)
+        pCore->m_Accelerator.m_pGrid->m_pTeeGrid[pChar->m_Tile] = i;
+    }
+  }
+
+  // set up accelerator
+  for (int i = 0; i < pCore->m_NumCharacters; ++i) {
+    SCharacterCore *pChar = &pCore->m_pCharacters[i];
+    STeeLink *pLink = &pCore->m_Accelerator.m_pTeeList[pChar->m_Id];
+    int PrevIdx = pLink->m_Tile;
+    int Idx = ((int)vgety(pChar->m_Pos) >> 5) * pChar->m_pCollision->m_MapData.width + ((int)vgetx(pChar->m_Pos) >> 5);
+    if (PrevIdx == Idx)
+      continue;
+
+    pLink = &pCore->m_Accelerator.m_pTeeList[pChar->m_Id];
+
+    // remove ourselves from the previous index
+    if (pLink->m_Parent >= 0) {
+      pCore->m_Accelerator.m_pTeeList[pLink->m_Parent].m_Child = pLink->m_Child;
+    }
+    if (pLink->m_Child >= 0) {
+      pCore->m_Accelerator.m_pTeeList[pLink->m_Child].m_Parent = pLink->m_Parent;
+    }
+
+    // only update grid head if we were the head
+    if (pCore->m_Accelerator.m_pGrid->m_pTeeGrid[PrevIdx] == (int32_t)pLink->m_TeeId) {
+      if (pLink->m_Child >= 0)
+        pCore->m_Accelerator.m_pGrid->m_pTeeGrid[PrevIdx] = pLink->m_Child;
+      else
+        pCore->m_Accelerator.m_pGrid->m_pTeeGrid[PrevIdx] = -1;
+    }
+
+    if (pLink->m_Parent < 0 && pLink->m_Child < 0)
+      pCore->m_Accelerator.m_pGrid->m_pTeeGrid[PrevIdx] = -1;
+
+    // add ourselves onto the current index
+    // move ourselves into the top of the list at our grid spot
+    pLink->m_Tile = Idx;
+    pLink->m_Parent = -1;
+    pLink->m_Child = -1;
+    if (pCore->m_Accelerator.m_pGrid->m_pTeeGrid[Idx] >= 0) {
+      STeeLink *pTopLink = &pCore->m_Accelerator.m_pTeeList[pCore->m_Accelerator.m_pGrid->m_pTeeGrid[Idx]];
+      if (pTopLink != pLink) {
+        pLink->m_Child = pTopLink->m_TeeId;
+        pTopLink->m_Parent = pLink->m_TeeId;
+      }
+    }
+    pCore->m_Accelerator.m_pGrid->m_pTeeGrid[Idx] = pChar->m_Id;
+  }
 }
 
 void wc_tick(SWorldCore *pCore) {
@@ -2110,6 +2216,7 @@ void wc_tick(SWorldCore *pCore) {
   for (int i = 0; i < pCore->m_NumCharacters; ++i)
     cc_pre_tick(&pCore->m_pCharacters[i]);
 
+  wc_accelerator_tick(pCore);
   for (int i = 0; i < pCore->m_NumCharacters; ++i)
     cc_tick(&pCore->m_pCharacters[i]);
 
@@ -2133,29 +2240,78 @@ void wc_tick(SWorldCore *pCore) {
   }
 }
 
-SCharacterCore *wc_add_character(SWorldCore *pWorld) {
-  const int NewSize = pWorld->m_NumCharacters + 1;
+SCharacterCore *wc_add_character(SWorldCore *pWorld, int Num) {
+  if (Num <= 0) {
+    return NULL; // nothing to add
+  }
+
+  const int OldSize = pWorld->m_NumCharacters;
+  const int NewSize = OldSize + Num;
+
+  // Resize both arrays
   SCharacterCore *pNewArray = realloc(pWorld->m_pCharacters, (size_t)NewSize * sizeof(SCharacterCore));
-  if (!pNewArray)
+  STeeLink *pNewTeeLinkArray = realloc(pWorld->m_Accelerator.m_pTeeList, (size_t)NewSize * sizeof(STeeLink));
+
+  if (!pNewArray || !pNewTeeLinkArray) {
+    // If either failed, clean up the one that succeeded
+    // to prevent memory leaks
+    if (pNewArray) {
+      pWorld->m_pCharacters = pNewArray;
+    }
+    if (pNewTeeLinkArray) {
+      pWorld->m_Accelerator.m_pTeeList = pNewTeeLinkArray;
+    }
     return NULL;
+  }
 
   pWorld->m_pCharacters = pNewArray;
-  SCharacterCore *pChar = &pWorld->m_pCharacters[pWorld->m_NumCharacters];
-  pWorld->m_NumCharacters = NewSize;
+  pWorld->m_Accelerator.m_pTeeList = pNewTeeLinkArray;
 
-  cc_init(pChar, pWorld);
-  pChar->m_Id = pWorld->m_NumCharacters - 1;
+  // Loop for each new character
+  for (int i = 0; i < Num; i++) {
+    SCharacterCore *pChar = &pWorld->m_pCharacters[OldSize + i];
 
-  mvec2 SpawnPos;
-  if (wc_next_spawn(pWorld, &SpawnPos)) {
+    cc_init(pChar, pWorld);
+    pChar->m_Id = OldSize + i;
+    pWorld->m_Accelerator.m_pTeeList[pChar->m_Id].m_TeeId = pChar->m_Id;
+
+    mvec2 SpawnPos;
+    if (!wc_next_spawn(pWorld, &SpawnPos, pChar->m_Id)) {
+      // If no spawn is available, bail out early.
+      // Already created chars remain.
+      pWorld->m_NumCharacters = OldSize + i;
+      return NULL;
+    }
+
     pChar->m_Pos = SpawnPos;
     pChar->m_PrevPos = SpawnPos;
     cc_calc_indices(pChar);
+
+    // Add to grid list structure
+    STeeLink *pLink = &pWorld->m_Accelerator.m_pTeeList[pChar->m_Id];
+    int Idx = ((int)vgety(pChar->m_Pos) >> 5) * pChar->m_pCollision->m_MapData.width + ((int)vgetx(pChar->m_Pos) >> 5);
+    int TopTee = pWorld->m_Accelerator.m_pGrid->m_pTeeGrid[Idx];
+
+    if (TopTee >= 0) {
+      STeeLink *pTopLink = &pWorld->m_Accelerator.m_pTeeList[TopTee];
+      pLink->m_Child = pTopLink->m_TeeId;
+      pTopLink->m_Parent = pLink->m_TeeId;
+    } else {
+      pLink->m_Child = -1;
+    }
+
+    pWorld->m_Accelerator.m_pGrid->m_pTeeGrid[Idx] = pChar->m_Id;
+    pLink->m_Parent = -1;
+    pLink->m_Tile = Idx;
   }
 
-  return pChar;
+  pWorld->m_NumCharacters = NewSize;
+
+  // Return the very *first* of the new characters
+  return &pWorld->m_pCharacters[OldSize];
 }
 
+// TODO: remove ourselves from the grid linked list tater potator structure
 void wc_remove_character(SWorldCore *pWorld, int CharacterId) {
   if (!pWorld || CharacterId < 0 || CharacterId >= pWorld->m_NumCharacters)
     return;
@@ -2277,6 +2433,8 @@ void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom)
   pTo->m_pCollision = pFrom->m_pCollision;
   pTo->m_pConfig = pFrom->m_pConfig;
   pTo->m_pTunings = pFrom->m_pTunings;
+  pTo->m_Accelerator.m_pGrid = pFrom->m_Accelerator.m_pGrid;
+  pTo->m_Accelerator.hash = ((uint64_t)rand() << 32) | rand();
 
   // delete old entities
   for (int i = 0; i < NUM_WORLD_ENTTYPES; ++i) {
@@ -2312,12 +2470,17 @@ void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom)
     }
   }
 
-  // copy characters
+  // copy characters and tee links
   if (pTo->m_NumCharacters != pFrom->m_NumCharacters) {
+    free(pTo->m_Accelerator.m_pTeeList);
     free(pTo->m_pCharacters);
     pTo->m_NumCharacters = pFrom->m_NumCharacters;
+    pTo->m_Accelerator.m_pTeeList = malloc(pTo->m_NumCharacters * sizeof(STeeLink));
     pTo->m_pCharacters = malloc(pTo->m_NumCharacters * sizeof(SCharacterCore));
   }
+
+  for (int i = 0; i < pTo->m_NumCharacters; ++i)
+    pTo->m_Accelerator.m_pTeeList[i] = pFrom->m_Accelerator.m_pTeeList[i];
   for (int i = 0; i < pTo->m_NumCharacters; ++i) {
     pTo->m_pCharacters[i] = pFrom->m_pCharacters[i];
     pTo->m_pCharacters[i].m_pCollision = pTo->m_pCollision;

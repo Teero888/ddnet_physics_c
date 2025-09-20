@@ -202,7 +202,7 @@ typedef struct CharacterCore {
   mvec2 m_HookDir;
   mvec2 m_HookTeleBase;
   int m_HookTick;
-  int m_HookState;
+  uint8_t m_HookState;
 
   unsigned char m_LastWeapon;
   unsigned char m_ActiveWeapon;
@@ -272,19 +272,38 @@ typedef struct CharacterCore {
   int m_ReloadTimer;
 
   int m_aHitObjects[10];
-  int m_NumObjectsHit;
+  uint8_t m_NumObjectsHit;
 
   int m_StartTick;
   int m_FinishTick;
   int m_AttackTick; // for animations
 
-  int m_RespawnDelay;
+  uint8_t m_RespawnDelay;
 
-  int m_HitNum;
+  int m_HitNum; // external use
 } SCharacterCore;
 // }}}
 
 // World {{{
+
+typedef struct {
+  int32_t m_TeeId;
+  int32_t m_Parent; // -1 means no parent explanation -> https://i.imgflip.com/6iwo55.jpg
+  int32_t m_Child;  // -1 means no child
+  uint32_t m_Tile;  // Grid Child index. always exists
+} STeeLink;
+
+// global struct
+typedef struct {
+  int *m_pTeeGrid; // array for the whole map
+  uint64_t hash;
+} STeeGrid;
+
+typedef struct {
+  STeeGrid *m_pGrid;
+  STeeLink *m_pTeeList; // array of tees (world specific)
+  uint64_t hash;        // hash to compare between tee grid world changes
+} STeeAccelerator;
 
 // We don't want teams for the physics, that makes switches easier
 typedef struct {
@@ -297,6 +316,7 @@ typedef struct {
 
 typedef struct WorldCore {
   SCollision *m_pCollision;
+  STeeAccelerator m_Accelerator;
 
   // Expects confg/tunings from outside so you can reuse them as many times as
   // needed
@@ -321,15 +341,18 @@ typedef struct WorldCore {
 
 // }}}
 
+STeeGrid tg_empty();
+void tg_init(STeeGrid *pGrid, int width, int height);
+
 void init_config(SConfig *pConfig);
-void wc_init(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig);
+void wc_init(SWorldCore *pCore, SCollision *pCollision, STeeGrid *pGrid, SConfig *pConfig);
 void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom);
 void wc_tick(SWorldCore *pCore);
 void wc_free(SWorldCore *pCore);
 SWorldCore wc_empty();
 
 void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput);
-SCharacterCore *wc_add_character(SWorldCore *pWorld);
+SCharacterCore *wc_add_character(SWorldCore *pWorld, int Num);
 void wc_remove_character(SWorldCore *pWorld, int CharacterId);
 
 // utility functions you might need

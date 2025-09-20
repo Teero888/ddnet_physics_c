@@ -1125,6 +1125,7 @@ void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, m
   const int MinY = (int)vgety(minAdj) >> 5;
   const int MaxX = (int)vgetx(maxAdj) >> 5;
   const int MaxY = (int)vgety(maxAdj) >> 5;
+  // bitshift by the index in the 8x8 block (max 63)
   const uint64_t Mask = (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
   const uint64_t IsSolid = pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] & Mask;
   if (!IsSolid) {
