@@ -727,7 +727,7 @@ void cc_tee_interact_deferred(SCharacterCore *pCore, int Id, int *pCollisions) {
       ++*pCollisions;
     }
   } else {
-    unsigned int seed = (unsigned int)(pCore->m_Id + Id * 0x1234567) ^ (unsigned int)pCore->m_pWorld->m_GameTick;
+    unsigned int seed = (uint32_t)((uint32_t)pCore->m_Id + (uint32_t)Id * 0x1234567) ^ (uint32_t)pCore->m_pWorld->m_GameTick;
     pCore->m_Vel = vvadd(pCore->m_Vel, vec2_init((fast_rand(&seed) - fast_rand(&seed)) * 0.5f, (fast_rand(&seed) - fast_rand(&seed)) * 0.5f));
   }
 }
@@ -1863,10 +1863,9 @@ void init_switchers(SWorldCore *pCore, int HighestSwitchNumber) {
 // NOTE: spawn points are not the same as in ddnet. other players will not be
 // respected
 bool wc_next_spawn(SWorldCore *pCore, mvec2 *pOutPos, int Id) {
-  (void)Id;
   if (!pCore->m_pCollision->m_pSpawnPoints)
     return false;
-  *pOutPos = vfadd(vfmul(pCore->m_pCollision->m_pSpawnPoints[0], 32), 16);
+  *pOutPos = vfadd(vfmul(pCore->m_pCollision->m_pSpawnPoints[Id % pCore->m_pCollision->m_NumSpawnPoints], 32), 16);
   return true;
 }
 
@@ -1878,16 +1877,16 @@ bool wc_next_spawn(SWorldCore *pCore, mvec2 *pOutPos, int Id) {
 //   *state = x;
 //   return x;
 // }
-// 
+//
 // bool wc_next_spawn(SWorldCore *pCore, mvec2 *pOutPos, int Id) {
 //   if (!pCore->m_pCollision->m_pSpawnPoints)
 //     return false;
-// 
+//
 //   unsigned int state = Id ^ pCore->m_GameTick;
 //   int Idx = fast_rand_u32(&state) % ((pCore->m_pCollision->m_MapData.width - 1) * (pCore->m_pCollision->m_MapData.height - 1));
 //   while (pCore->m_pCollision->m_pTileInfos[Idx] & INFO_ISSOLID)
 //     Idx = fast_rand_u32(&state) % ((pCore->m_pCollision->m_MapData.width - 1) * (pCore->m_pCollision->m_MapData.height - 1));
-// 
+//
 //   int x = Idx % pCore->m_pCollision->m_MapData.width;
 //   int y = Idx / pCore->m_pCollision->m_MapData.width;
 //   *pOutPos = vfadd(vfmul(vec2_init(x, y), 32), 16);
@@ -2099,6 +2098,10 @@ void tg_init(STeeGrid *pGrid, int width, int height) {
   memset(pGrid->m_pTeeGrid, -1, sizeof(int) * width * height);
   pGrid->hash = 0; // gets set by the last used world
 }
+void tg_destroy(STeeGrid *pGrid) {
+  free(pGrid->m_pTeeGrid);
+  *pGrid = tg_empty();
+}
 
 void wc_init(SWorldCore *pCore, SCollision *pCollision, STeeGrid *pGrid, SConfig *pConfig) {
   memset(pCore, 0, sizeof(SWorldCore));
@@ -2124,20 +2127,25 @@ void wc_free(SWorldCore *pCore) {
     }
   }
   free(pCore->m_pSwitches);
+  free(pCore->m_Accelerator.m_pTeeList);
   free(pCore->m_pCharacters);
   memset(pCore, 0, sizeof(SWorldCore));
 }
 
+static void wc_clear_grid(SWorldCore *pCore) {
+  // clear grid
+  memset(pCore->m_Accelerator.m_pGrid->m_pTeeGrid, -1, pCore->m_pCollision->m_MapData.width * pCore->m_pCollision->m_MapData.height * sizeof(int));
+  // hook it up to our own things
+  for (int i = 0; i < pCore->m_NumCharacters; ++i) {
+    STeeLink *pChar = &pCore->m_Accelerator.m_pTeeList[i];
+    if (pChar->m_Parent == -1)
+      pCore->m_Accelerator.m_pGrid->m_pTeeGrid[pChar->m_Tile] = i;
+  }
+}
+
 static void wc_accelerator_tick(SWorldCore *pCore) {
   if (pCore->m_Accelerator.hash != pCore->m_Accelerator.m_pGrid->hash) {
-    // clear grid
-    memset(pCore->m_Accelerator.m_pGrid->m_pTeeGrid, -1, pCore->m_pCollision->m_MapData.width * pCore->m_pCollision->m_MapData.height * sizeof(int));
-    // hook it up to our own things
-    for (int i = 0; i < pCore->m_NumCharacters; ++i) {
-      STeeLink *pChar = &pCore->m_Accelerator.m_pTeeList[i];
-      if (pChar->m_Parent == -1)
-        pCore->m_Accelerator.m_pGrid->m_pTeeGrid[pChar->m_Tile] = i;
-    }
+    wc_clear_grid(pCore);
   }
 
   // set up accelerator
@@ -2266,6 +2274,8 @@ SCharacterCore *wc_add_character(SWorldCore *pWorld, int Num) {
 
   pWorld->m_pCharacters = pNewArray;
   pWorld->m_Accelerator.m_pTeeList = pNewTeeLinkArray;
+
+  wc_clear_grid(pWorld);
 
   // Loop for each new character
   for (int i = 0; i < Num; i++) {

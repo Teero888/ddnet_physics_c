@@ -343,6 +343,7 @@ typedef struct WorldCore {
 
 STeeGrid tg_empty();
 void tg_init(STeeGrid *pGrid, int width, int height);
+void tg_destroy(STeeGrid *pGrid);
 
 void init_config(SConfig *pConfig);
 void wc_init(SWorldCore *pCore, SCollision *pCollision, STeeGrid *pGrid, SConfig *pConfig);
