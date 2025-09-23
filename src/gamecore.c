@@ -3,6 +3,7 @@
 #include "../include/vmath.h"
 #include <assert.h>
 #include <ddnet_map_loader.h>
+#include <float.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1285,57 +1286,78 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
   cc_handle_skippable_tiles(pCore, pCore->m_BlockIdx);
 
   pCore->m_MoveRestrictions = get_move_restrictions(pCore->m_pCollision, pCore, pCore->m_Pos);
+
   const mvec2 PrevPos = pCore->m_PrevPos;
   const mvec2 Pos = pCore->m_Pos;
   const int Width = pCore->m_pCollision->m_MapData.width;
+
   if (broad_indices_check(pCore->m_pCollision, PrevPos, Pos)) {
-    bool Handled = false;
+    const float Cell = 32.0f;
 
-    // Current cell
-    int x0 = (int)vgetx(PrevPos) >> 5;
-    int y0 = (int)vgety(PrevPos) >> 5;
-    int x1 = (int)vgetx(Pos) >> 5;
-    int y1 = (int)vgety(Pos) >> 5;
+    float sx = vgetx(PrevPos);
+    float sy = vgety(PrevPos);
+    float ex = vgetx(Pos);
+    float ey = vgety(Pos);
 
-    int dx = x1 - x0;
-    int dy = y1 - y0;
+    int cx = (int)sx >> 5;
+    int cy = (int)sy >> 5;
+    int tx = (int)ex >> 5;
+    int ty = (int)ey >> 5;
 
-    int sx = (dx > 0) - (dx < 0); // sign of dx
-    int sy = (dy > 0) - (dy < 0);
-    dx = abs(dx);
-    dy = abs(dy);
+    float dx = ex - sx;
+    float dy = ey - sy;
 
-    int err = dx - dy;
-    int cx = x0;
-    int cy = y0;
+    int stepX = (dx > 0.0f) - (dx < 0.0f); // 1, 0, or -1
+    int stepY = (dy > 0.0f) - (dy < 0.0f);
 
-    int LastIndex = -1;
-    for (;;) {
-      int Index = cy * Width + cx;
-      if (Index != LastIndex && (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT)) {
-        cc_handle_tiles(pCore, Index);
-        Handled = true;
-        LastIndex = Index;
+    float adx = fabsf(dx);
+    float ady = fabsf(dy);
+
+    float tDeltaX = stepX ? (Cell / adx) : FLT_MAX;
+    float tDeltaY = stepY ? (Cell / ady) : FLT_MAX;
+
+    float nextBoundaryX = (stepX > 0) ? (float)((cx + 1) << 5) : (float)(cx << 5);
+    float nextBoundaryY = (stepY > 0) ? (float)((cy + 1) << 5) : (float)(cy << 5);
+
+    float tMaxX = stepX ? ((stepX > 0 ? (nextBoundaryX - sx) : (sx - nextBoundaryX)) / adx) : FLT_MAX;
+    float tMaxY = stepY ? ((stepY > 0 ? (nextBoundaryY - sy) : (sy - nextBoundaryY)) / ady) : FLT_MAX;
+
+    cc_handle_tiles(pCore, cy * Width + cx);
+
+    // printf("sx: %.2f, sy: %.2f, ex: %.2f, ey: %.2f\n"
+    //        "cx: %d, cy: %d, tx: %d, ty: %d\n"
+    //        "dx: %.2f, dy: %.2f\n"
+    //        "stepX: %d, stepY: %d\n"
+    //        "adx: %.2f, ady: %.2f\n"
+    //        "tDeltaX: %.2f, tDeltaY: %.2f\n"
+    //        "nextBoundaryX: %.2f, nextBoundaryY: %.2f\n"
+    //        "tMaxX: %.2f, tMaxY: %.2f\n",
+    //        sx, sy, ex, ey, cx, cy, tx, ty, dx, dy, stepX, stepY, adx, ady, tDeltaX, tDeltaY, nextBoundaryX, nextBoundaryY, tMaxX, tMaxY);
+
+    while (cx != tx || cy != ty) {
+      if (tMaxX < tMaxY) {
+        cx += stepX;
+        tMaxX += tDeltaX;
+        cc_handle_tiles(pCore, cy * Width + cx);
+      } else if (tMaxY < tMaxX) {
+        cy += stepY;
+        tMaxY += tDeltaY;
+        cc_handle_tiles(pCore, cy * Width + cx);
+      } else {
+        if (cx != tx) {
+          cx += stepX;
+          tMaxX += tDeltaX;
+          cc_handle_tiles(pCore, cy * Width + cx);
+        }
+        if (cy != ty) {
+          cy += stepY;
+          tMaxY += tDeltaY;
+          cc_handle_tiles(pCore, cy * Width + cx);
+        }
       }
-
-      if (cx == x1 && cy == y1)
-        break;
-
-      int e2 = 2 * err;
-      if (e2 > -dy) {
-        err -= dy;
-        cx += sx;
-      }
-      if (e2 < dx) {
-        err += dx;
-        cy += sy;
-      }
-    }
-
-    if (!Handled) {
-      cc_handle_tiles(pCore, pCore->m_BlockIdx);
     }
   }
+
   // teleport gun
   if (pCore->m_TeleGunTeleport) {
     pCore->m_Pos = pCore->m_TeleGunPos;
