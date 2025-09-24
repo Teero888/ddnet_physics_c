@@ -76,7 +76,7 @@ void print_progress(int current, int total, double elapsed_time) {
     else
       printf(" ");
   }
-  printf("] %3.0f%% (Run %d/%d, %.2fs)", progress * 100, current, total, elapsed_time);
+  printf("] %3.0f%% (Run %d/%d, %.4fs)", progress * 100, current, total, elapsed_time);
   fflush(stdout);
 }
 

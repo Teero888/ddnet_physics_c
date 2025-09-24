@@ -202,7 +202,7 @@ typedef struct CharacterCore {
   mvec2 m_HookDir;
   mvec2 m_HookTeleBase;
   int m_HookTick;
-  uint8_t m_HookState;
+  int8_t m_HookState;
 
   unsigned char m_LastWeapon;
   unsigned char m_ActiveWeapon;
