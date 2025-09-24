@@ -688,6 +688,8 @@ void cc_move(SCharacterCore *pCore) {
 
   pCore->m_Pos = NewPos;
   cc_calc_indices(pCore);
+
+  pCore->m_MoveRestrictions = get_move_restrictions(pCore->m_pCollision, pCore, pCore->m_Pos, pCore->m_BlockIdx);
 }
 
 void cc_world_tick_deferred(SCharacterCore *pCore) {
@@ -746,6 +748,7 @@ void cc_tick_deferred(SCharacterCore *pCore) {
     int Num = 0;
     for (int dy = -1; dy <= 1; ++dy) {
       for (int dx = -1; dx <= 1; ++dx) {
+        // TODO: use the block idx +- 1 +- map_width
         int Idx = (((int)vgety(pCore->m_Pos) >> 5) + dx) * pCore->m_pCollision->m_MapData.width + (((int)vgetx(pCore->m_Pos) >> 5) + dy);
         Idx = iclamp(Idx, 0, pCore->m_pCollision->m_MapData.width * pCore->m_pCollision->m_MapData.height - 1);
         int Id = pCore->m_pWorld->m_Accelerator.m_pGrid->m_pTeeGrid[Idx];
@@ -1293,8 +1296,6 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
 
   cc_handle_skippable_tiles(pCore, pCore->m_BlockIdx);
 
-  pCore->m_MoveRestrictions = get_move_restrictions(pCore->m_pCollision, pCore, pCore->m_Pos);
-
   const mvec2 PrevPos = pCore->m_PrevPos;
   const mvec2 Pos = pCore->m_Pos;
   const int Width = pCore->m_pCollision->m_MapData.width;
@@ -1388,7 +1389,7 @@ static inline int compare_sign_bits(float f, int32_t i) {
 void cc_pre_tick(SCharacterCore *pCore) {
   cc_ddracetick(pCore);
 
-  pCore->m_MoveRestrictions = get_move_restrictions(pCore->m_pCollision, pCore, pCore->m_Pos);
+  // getting move restrictions is always done after moving the character so don't do it here
 
   const bool Grounded =
       (pCore->m_pCollision->m_pTileInfos[pCore->m_BlockIdx] & INFO_CANGROUND) &&
@@ -1734,8 +1735,6 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 
         if (pTarget == pCore || pTarget->m_Solo)
           continue;
-
-        // set his velocity to fast upward (for now)
 
         mvec2 Dir;
         if (vsqlength(vvsub(pTarget->m_Pos, pCore->m_Pos)) > 0.0f)

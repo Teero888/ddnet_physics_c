@@ -647,11 +647,11 @@ inline unsigned char get_front_collision_at(SCollision *pCollision, mvec2 Pos) {
   return Idx * (Idx - 1 <= TILE_NOLASER - 1);
 }
 
-inline unsigned char get_move_restrictions(SCollision *__restrict__ pCollision, void *__restrict__ pUser, mvec2 Pos) {
+inline unsigned char get_move_restrictions(SCollision *__restrict__ pCollision, void *__restrict__ pUser, mvec2 Pos, int Idx) {
 
   if (!pCollision->m_MoveRestrictionsFound && !pCollision->m_MapData.door_layer.index)
     return 0;
-  if (!(pCollision->m_pTileInfos[((int)vgety(Pos) >> 5) * pCollision->m_MapData.width + ((int)vgetx(Pos) >> 5)] & INFO_CANHITSTOPPER))
+  if (!(pCollision->m_pTileInfos[Idx] & INFO_CANHITSTOPPER))
     return 0;
 
   static const mvec2 DIRECTIONS[NUM_MR_DIRS] = {CTVEC2(0, 0), CTVEC2(18, 0), CTVEC2(0, 18), CTVEC2(-18, 0), CTVEC2(0, -18)};
