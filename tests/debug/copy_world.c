@@ -10,7 +10,7 @@ void setup_test_world(SWorldCore *pWorld, SConfig *pConfig, SCollision *pCollisi
   wc_init(pWorld, pCollision, pConfig);
 
   // Add a character
-  SCharacterCore *pChar = wc_add_character(pWorld);
+  SCharacterCore *pChar = wc_add_character(pWorld, 1);
   pChar->m_Pos = vec2_init(100, 200);
   pChar->m_Vel = vec2_init(5, -3);
   pChar->m_ActiveWeapon = WEAPON_SHOTGUN;

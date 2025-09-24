@@ -133,9 +133,10 @@ int main(int argc, char *argv[]) {
   init_config(&Config);
 
   SWorldCore StartWorld;
-  wc_init(&StartWorld, &Collision, &Config);
-  for (int i = 0; i < NUM_CHARACTERS; i++)
-    wc_add_character(&StartWorld);
+  STeeGrid Grid;
+  tg_init(&Grid, Collision.m_MapData.width, Collision.m_MapData.height);
+  wc_init(&StartWorld, &Collision, &Grid, &Config);
+  wc_add_character(&StartWorld, NUM_CHARACTERS);
   for (int t = 0; t < 50; ++t)
     wc_tick(&StartWorld);
 

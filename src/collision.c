@@ -863,8 +863,8 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec
     tMaxX = fabsf((nextBoundaryX - x0) / dx);
     tDeltaX = fabsf((float)TILE_SIZE / dx);
   } else {
-    tMaxX = INFINITY;
-    tDeltaX = INFINITY;
+    tMaxX = 1e9;
+    tDeltaX = 1e9;
   }
 
   if (stepY != 0) {
@@ -872,8 +872,8 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec
     tMaxY = fabsf((nextBoundaryY - y0) / dy);
     tDeltaY = fabsf((float)TILE_SIZE / dy);
   } else {
-    tMaxY = INFINITY;
-    tDeltaY = INFINITY;
+    tMaxY = 1e9;
+    tDeltaY = 1e9;
   }
 
   int off_dx = 0, off_dy = 0;

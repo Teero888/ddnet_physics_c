@@ -29,8 +29,8 @@ target_include_directories(ddnet_physics PUBLIC include)
 target_compile_options(ddnet_physics PRIVATE -Wall -Wextra -msse4.2 -mavx -mavx2 -mfma)
 
 # Define debug and optimized configurations
-set(CMAKE_C_FLAGS_DEBUG "-g -DDEBUG -fsanitize=address,undefined")
-set(CMAKE_C_FLAGS_RELEASE "-g -O3 -funroll-loops -mfpmath=sse -fomit-frame-pointer -fno-trapping-math -fno-signed-zeros")
+set(CMAKE_C_FLAGS_DEBUG "-g -ffast-math -DDEBUG -fsanitize=address,undefined")
+set(CMAKE_C_FLAGS_RELEASE "-g -O3 -ffast-math -funroll-loops -mfpmath=sse -fomit-frame-pointer -fno-trapping-math -fno-signed-zeros")
 
 # Aggressive optimizations if enabled
 if(ENABLE_AGGRESSIVE_OPTIM)

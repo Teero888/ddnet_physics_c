@@ -703,6 +703,14 @@ static inline float fast_rand(unsigned int *state) {
   *state = x;
   return (x % 1000) / 1000.0f;
 }
+static inline unsigned int ifast_rand(unsigned int *state) {
+  unsigned int x = *state;
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+  *state = x;
+  return x;
+}
 
 void cc_tee_interact_deferred(SCharacterCore *pCore, int Id, int *pCollisions) {
   SCharacterCore *pCharCore = &pCore->m_pWorld->m_pCharacters[Id];
@@ -2246,7 +2254,8 @@ void wc_tick(SWorldCore *pCore) {
   for (int i = 0; i < pCore->m_NumCharacters; ++i)
     cc_pre_tick(&pCore->m_pCharacters[i]);
 
-  wc_accelerator_tick(pCore);
+  if (pCore->m_NumCharacters > 1)
+    wc_accelerator_tick(pCore);
   for (int i = 0; i < pCore->m_NumCharacters; ++i)
     cc_tick(&pCore->m_pCharacters[i]);
 
@@ -2466,7 +2475,8 @@ void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom)
   pTo->m_pConfig = pFrom->m_pConfig;
   pTo->m_pTunings = pFrom->m_pTunings;
   pTo->m_Accelerator.m_pGrid = pFrom->m_Accelerator.m_pGrid;
-  pTo->m_Accelerator.hash = ((uint64_t)rand() << 32) | rand();
+  uint32_t state = (uint32_t)((uint64_t)pTo->m_Accelerator.m_pGrid & 0xFFFFFFFF);
+  pTo->m_Accelerator.hash = ((uint64_t)ifast_rand(&state) << 32) | ifast_rand(&state);
 
   // delete old entities
   for (int i = 0; i < NUM_WORLD_ENTTYPES; ++i) {

@@ -11,8 +11,8 @@ target_link_libraries(benchmark PRIVATE ddnet_physics ddnet_map_loader m z omp)
 target_link_libraries(movebox PRIVATE ddnet_physics ddnet_map_loader m z omp)
 
 # Ensure optimized build
-target_compile_options(benchmark PRIVATE -O3 -funroll-loops -mfpmath=sse -fomit-frame-pointer -fno-trapping-math -fno-signed-zeros)
-target_compile_options(movebox PRIVATE -O3 -funroll-loops -mfpmath=sse -fomit-frame-pointer -fno-trapping-math -fno-signed-zeros)
+target_compile_options(benchmark PRIVATE -O3 -fopenmp -funroll-loops -mfpmath=sse -fomit-frame-pointer -fno-trapping-math -fno-signed-zeros)
+target_compile_options(movebox PRIVATE -O3 -fopenmp -funroll-loops -mfpmath=sse -fomit-frame-pointer -fno-trapping-math -fno-signed-zeros)
 
 # Apply aggressive optimizations if enabled
 if(ENABLE_AGGRESSIVE_OPTIM)
