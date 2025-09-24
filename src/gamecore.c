@@ -1540,7 +1540,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
         pCore->m_HookState = HOOK_RETRACTED;
         pCore->m_HookPos = pCore->m_Pos;
       }
-    } else if (vsqdistance(pCore->m_HookPos, pCore->m_Pos) > 46 * 46 || vdistance(pCore->m_HookPos, pCore->m_Pos) > 46.0f) {
+    } else if (vsqdistance(pCore->m_HookPos, pCore->m_Pos) > 46 * 46) {
       mvec2 HookVel = vfmul(vnormalize_nomask(vvsub(pCore->m_HookPos, pCore->m_Pos)), pCore->m_pTuning->m_HookDragAccel);
       if (vgety(HookVel) > 0)
         HookVel = vsety(HookVel, vgety(HookVel) * 0.3f);

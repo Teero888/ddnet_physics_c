@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
   unsigned int global_seed = 0; // (unsigned)time(NULL);
 
   SCollision Collision;
-  if (!init_collision(&Collision, "maps/run_irish_luck.map")) {
+  if (!init_collision(&Collision, "maps/Aip-Gores.map")) {
     printf("Error: Failed to load collision map.\n");
     return 1;
   }

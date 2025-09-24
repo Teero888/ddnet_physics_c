@@ -88,8 +88,7 @@ int main(int argc, char *argv[]) {
   int use_multi_threaded = 0;
 
   while (1) {
-    static struct option long_options[] = {
-        {"multi", no_argument, 0, 'm'}, {"help", no_argument, 0, 'h'}, {0, 0, 0, 0}};
+    static struct option long_options[] = {{"multi", no_argument, 0, 'm'}, {"help", no_argument, 0, 'h'}, {0, 0, 0, 0}};
     int option_index = 0;
     int c = getopt_long(argc, argv, "", long_options, &option_index);
     if (c == -1)
@@ -109,7 +108,7 @@ int main(int argc, char *argv[]) {
   }
 
   SCollision Collision;
-  if (!init_collision(&Collision, "maps/run_irish_luck.map")) {
+  if (!init_collision(&Collision, "maps/Aip-Gores.map")) {
     printf("Error: Failed to load collision map.\n");
     return 1;
   }
@@ -134,10 +133,8 @@ int main(int argc, char *argv[]) {
         unsigned int local_seed = run_seed ^ i;
         for (int t = 0; t < TICKS_PER_ITERATION; ++t) {
           // Generate synthetic random positions and velocities
-          mvec2 Pos =
-              vec2_init(fast_rand_float(&local_seed, 128.0f, max), fast_rand_float(&local_seed, 128.0f, max));
-          mvec2 Vel = vec2_init(fast_rand_float(&local_seed, -32.0f, 32.0f),
-                                fast_rand_float(&local_seed, -32.0f, 32.0f));
+          mvec2 Pos = vec2_init(fast_rand_float(&local_seed, 128.0f, max), fast_rand_float(&local_seed, 128.0f, max));
+          mvec2 Vel = vec2_init(fast_rand_float(&local_seed, -32.0f, 32.0f), fast_rand_float(&local_seed, -32.0f, 32.0f));
           bool Grounded = false;
           mvec2 NewPos, NewVel;
           move_box(&Collision, Pos, Vel, &NewPos, &NewVel, vec2_init(0, 0), &Grounded);
@@ -149,10 +146,8 @@ int main(int argc, char *argv[]) {
       for (int i = 0; i < ITERATIONS; ++i) {
         unsigned int local_seed = run_seed ^ i;
         for (int t = 0; t < TICKS_PER_ITERATION; ++t) {
-          mvec2 Pos =
-              vec2_init(fast_rand_float(&local_seed, 128.0f, max), fast_rand_float(&local_seed, 128.0f, max));
-          mvec2 Vel = vec2_init(fast_rand_float(&local_seed, -32.0f, 32.0f),
-                                fast_rand_float(&local_seed, -32.0f, 32.0f));
+          mvec2 Pos = vec2_init(fast_rand_float(&local_seed, 128.0f, max), fast_rand_float(&local_seed, 128.0f, max));
+          mvec2 Vel = vec2_init(fast_rand_float(&local_seed, -32.0f, 32.0f), fast_rand_float(&local_seed, -32.0f, 32.0f));
           bool Grounded = false;
           mvec2 NewPos, NewVel;
           move_box(&Collision, Pos, Vel, &NewPos, &NewVel, vec2_init(0, 0), &Grounded);
