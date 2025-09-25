@@ -231,19 +231,21 @@ void lsr_bounce(SLaser *pLaser) {
       pLaser->m_From = pLaser->m_Base.m_Pos;
       pLaser->m_Base.m_Pos = To;
 
-      bool div = false;
-      if (check_point(pLaser->m_Base.m_pCollision, vvadd(pLaser->m_Base.m_Pos, vec2_init(0, 1))) ||
-          check_point(pLaser->m_Base.m_pCollision, vvadd(pLaser->m_Base.m_Pos, vec2_init(0, -1)))) {
-        pLaser->m_Dir = vvmul(pLaser->m_Dir, vec2_init(1, -1));
-        div = true;
+      if (Res != TILE_TELEINWEAPON) {
+        bool div = false;
+        if (check_point(pLaser->m_Base.m_pCollision, vvadd(pLaser->m_Base.m_Pos, vec2_init(0, 1))) ||
+            check_point(pLaser->m_Base.m_pCollision, vvadd(pLaser->m_Base.m_Pos, vec2_init(0, -1)))) {
+          pLaser->m_Dir = vvmul(pLaser->m_Dir, vec2_init(1, -1));
+          div = true;
+        }
+        if (check_point(pLaser->m_Base.m_pCollision, vvadd(pLaser->m_Base.m_Pos, vec2_init(1, 0))) ||
+            check_point(pLaser->m_Base.m_pCollision, vvadd(pLaser->m_Base.m_Pos, vec2_init(-1, 0)))) {
+          pLaser->m_Dir = vvmul(pLaser->m_Dir, vec2_init(-1, 1));
+          div = true;
+        }
+        if (!div)
+          pLaser->m_Dir = vvmul(pLaser->m_Dir, vec2_init(-1, -1));
       }
-      if (check_point(pLaser->m_Base.m_pCollision, vvadd(pLaser->m_Base.m_Pos, vec2_init(1, 0))) ||
-          check_point(pLaser->m_Base.m_pCollision, vvadd(pLaser->m_Base.m_Pos, vec2_init(-1, 0)))) {
-        pLaser->m_Dir = vvmul(pLaser->m_Dir, vec2_init(-1, 1));
-        div = true;
-      }
-      if (!div)
-        pLaser->m_Dir = vvmul(pLaser->m_Dir, vec2_init(-1, -1));
 
       const float Distance = vdistance(pLaser->m_From, pLaser->m_Base.m_Pos);
       // Prevent infinite bounces
@@ -695,8 +697,11 @@ void cc_move(SCharacterCore *pCore) {
   float OldVel = vgetx(pCore->m_Vel);
 
   float RampValue = 1.f;
-  if (VelMag >= pCore->m_pTuning->m_VelrampStart)
-    RampValue = expf(pCore->m_pTuning->m_VelrampValue * (VelMag - pCore->m_pTuning->m_VelrampStart));
+  if (VelMag >= pCore->m_pTuning->m_VelrampStart) {
+    float t = VelMag - pCore->m_pTuning->m_VelrampStart;
+    RampValue = expf(-t * pCore->m_pTuning->m_VelrampValue);
+  }
+  pCore->m_VelRamp = RampValue;
 
   OldVel = OldVel * RampValue;
   pCore->m_Vel = vsetx(pCore->m_Vel, OldVel);
