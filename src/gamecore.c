@@ -13,6 +13,27 @@
 #define NINJA_MOVETIME 200
 #define NINJA_VELOCITY 50
 
+#define CLIP(p, q)                                                                                                                                   \
+  do {                                                                                                                                               \
+    if ((p) == 0.0f) {                                                                                                                               \
+      if ((q) < 0.0f)                                                                                                                                \
+        break;                                                                                                                                       \
+    } else {                                                                                                                                         \
+      float r = (q) / (p);                                                                                                                           \
+      if ((p) < 0.0f) {                                                                                                                              \
+        if (r > t1)                                                                                                                                  \
+          break;                                                                                                                                     \
+        if (r > t0)                                                                                                                                  \
+          t0 = r;                                                                                                                                    \
+      } else if ((p) > 0.0f) {                                                                                                                       \
+        if (r < t0)                                                                                                                                  \
+          break;                                                                                                                                     \
+        if (r < t1)                                                                                                                                  \
+          t1 = r;                                                                                                                                    \
+      }                                                                                                                                              \
+    }                                                                                                                                                \
+  } while (0)
+
 void init_config(SConfig *pConfig) {
 #define MACRO_CONFIG_INT(Name, Def) pConfig->m_##Name = Def;
 #include "config.h"
@@ -182,39 +203,15 @@ void lsr_bounce(SLaser *pLaser) {
   float W = (float)pLaser->m_Base.m_pCollision->m_MapData.width * 32.0f;
   float H = (float)pLaser->m_Base.m_pCollision->m_MapData.height * 32.0f;
 
-  // bounds inclusive
   float xmin = 0.0f, ymin = 0.0f;
-  float xmax = W, ymax = H;
+  float xmax = W - 1.f, ymax = H - 1.f;
 
   float t0 = 0.0f, t1 = 1.0f;
-
-#define CLIP(p, q)                                                                                                                                   \
-  do {                                                                                                                                               \
-    if ((p) == 0.0f) {                                                                                                                               \
-      if ((q) < 0.0f)                                                                                                                                \
-        return;                                                                                                                                      \
-    } else {                                                                                                                                         \
-      float r = (q) / (p);                                                                                                                           \
-      if ((p) < 0.0f) {                                                                                                                              \
-        if (r > t1)                                                                                                                                  \
-          return;                                                                                                                                    \
-        if (r > t0)                                                                                                                                  \
-          t0 = r;                                                                                                                                    \
-      } else if ((p) > 0.0f) {                                                                                                                       \
-        if (r < t0)                                                                                                                                  \
-          return;                                                                                                                                    \
-        if (r < t1)                                                                                                                                  \
-          t1 = r;                                                                                                                                    \
-      }                                                                                                                                              \
-    }                                                                                                                                                \
-  } while (0)
 
   CLIP(-dx, x0 - xmin); // left
   CLIP(dx, xmax - x0);  // right
   CLIP(-dy, y0 - ymin); // top
   CLIP(dy, ymax - y0);  // bottom
-
-#undef CLIP
 
   // we only care about moving the end point inside, so use t1
   To = vec2_init(x0 + dx * t1, y0 + dy * t1);
@@ -692,6 +689,9 @@ void cc_die(SCharacterCore *pCore) {
 }
 
 void cc_move(SCharacterCore *pCore) {
+  if (pCore->m_VelMag > 187.5)
+    pCore->m_Vel = vfmul(vnormalize_nomask(pCore->m_Vel), 187.5);
+
   pCore->m_VelMag = vlength(pCore->m_Vel);
   const float VelMag = pCore->m_VelMag * 50;
   float OldVel = vgetx(pCore->m_Vel);
@@ -717,8 +717,6 @@ void cc_move(SCharacterCore *pCore) {
     cc_die(pCore);
     return;
   }
-
-  pCore->m_Vel = vvclamp(pCore->m_Vel, vec2_init(-4 * 30, -4 * 30), vec2_init(4 * 30, 4 * 30));
 
   move_box(pCore->m_pCollision, NewPos, pCore->m_Vel, &NewPos, &pCore->m_Vel,
            vec2_init(pCore->m_pTuning->m_GroundElasticityX, pCore->m_pTuning->m_GroundElasticityY), &Grounded);
@@ -848,9 +846,6 @@ EndCollisions:
   if (pCore->m_HookState != HOOK_FLYING) {
     pCore->m_NewHook = false;
   }
-
-  if (pCore->m_VelMag > 187.5)
-    pCore->m_Vel = vfmul(vnormalize_nomask(pCore->m_Vel), 187.5);
 }
 
 void cc_ddracetick(SCharacterCore *pCore) {
@@ -1524,6 +1519,32 @@ void cc_pre_tick(SCharacterCore *pCore) {
     if (vsqdistance(HookBase, NewPos) > pCore->m_pTuning->m_HookLength * pCore->m_pTuning->m_HookLength) {
       pCore->m_HookState = HOOK_RETRACT_START;
       NewPos = vvadd(HookBase, vfmul(vnormalize_nomask(vvsub(NewPos, HookBase)), pCore->m_pTuning->m_HookLength));
+    }
+    // NOTE: this only really matters at the edge of the map but since we offset maps by 200 block idk if it actually matters. might remove this if it
+    // ends up being a hot path. same for this logic in laser bounce
+    {
+      float x0 = vgetx(pCore->m_HookPos), y0 = vgety(pCore->m_HookPos);
+      float x1 = vgetx(NewPos), y1 = vgety(NewPos);
+
+      float dx = x1 - x0;
+      float dy = y1 - y0;
+
+      float W = (float)pCore->m_pCollision->m_MapData.width * 32.0f;
+      float H = (float)pCore->m_pCollision->m_MapData.height * 32.0f;
+
+      float xmin = 0.0f, ymin = 0.0f;
+      float xmax = W - 1.0f, ymax = H - 1.0f;
+
+      float t0 = 0.0f, t1 = 1.0f;
+
+      CLIP(-dx, x0 - xmin); // left
+      CLIP(dx, xmax - x0);  // right
+      CLIP(-dy, y0 - ymin); // top
+      CLIP(dy, ymax - y0);  // bottom
+
+      // printf("Before: From:%.f,%.f, To:%.f,%.f\n", x0, y0, vgetx(NewPos), vgety(NewPos));
+      NewPos = vec2_init(x0 + dx * t1, y0 + dy * t1);
+      // printf("After: From:%.f,%.f, To:%.f,%.f\n", x0, y0, vgetx(NewPos), vgety(NewPos)); }
     }
 
     bool GoingToHitGround = false;
@@ -2596,3 +2617,5 @@ void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom)
 SWorldCore wc_empty() { return (SWorldCore){}; }
 
 // }}}
+
+#undef CLIP

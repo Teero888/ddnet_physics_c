@@ -102,7 +102,7 @@ static bool tile_exists(SCollision *pCollision, int Index) {
 }
 
 #define SQRT2 1.4142135623730951
-static void init_distance_field(SCollision *pCollision) {
+__attribute__((unused)) static void init_distance_field(SCollision *pCollision) {
   const size_t orig_width = pCollision->m_MapData.width;
   const size_t orig_height = pCollision->m_MapData.height;
   const unsigned char *pInfos = pCollision->m_pTileInfos;
@@ -171,6 +171,7 @@ static void init_distance_field(SCollision *pCollision) {
   }
   free(hr_field);
 }
+#undef SQRT2
 
 static void init_tuning_params(STuningParams *pTunings) {
 #define MACRO_TUNING_PARAM(Name, Value) pTunings->m_##Name = Value;
@@ -634,7 +635,7 @@ inline unsigned char get_collision_at(SCollision *pCollision, mvec2 Pos) {
   const unsigned char Idx = pCollision->m_MapData.game_layer.data[pCollision->m_pWidthLookup[Ny] + Nx];
   return Idx * (Idx - 1 <= TILE_NOLASER - 1);
 }
-static inline unsigned char get_collision_at_idx(SCollision *pCollision, int Idx) {
+__attribute__((unused)) static inline unsigned char get_collision_at_idx(SCollision *pCollision, int Idx) {
   const unsigned char Tile = pCollision->m_MapData.game_layer.data[Idx];
   return Tile * (Tile - 1 <= TILE_NOLASER - 1);
 }
@@ -773,8 +774,8 @@ static inline bool broad_check(const SCollision *__restrict__ pCollision, mvec2 
   const mvec2 MaxVec = _mm_max_ps(Start, End);
   const int MinX = (int)vgetx(MinVec) >> 5;
   const int MinY = (int)vgety(MinVec) >> 5;
-  const int MaxX = ((int)vgetx(MaxVec) + 1) >> 5;
-  const int MaxY = ((int)vgety(MaxVec) + 1) >> 5;
+  const int MaxX = (int)vgetx(MaxVec) >> 5;
+  const int MaxY = (int)vgety(MaxVec) >> 5;
   const int DiffY = (MaxY - MinY);
   const int DiffX = (MaxX - MinX);
   if (MinY < 0 || MaxY >= pCollision->m_MapData.height || MinX < 0 || MaxX >= pCollision->m_MapData.width)
@@ -788,8 +789,8 @@ static inline bool broad_check_tele(const SCollision *__restrict__ pCollision, m
   const mvec2 MaxVec = _mm_max_ps(Start, End);
   const int MinX = (int)vgetx(MinVec) >> 5;
   const int MinY = (int)vgety(MinVec) >> 5;
-  const int MaxX = ((int)vgetx(MaxVec) + 1) >> 5;
-  const int MaxY = ((int)vgety(MaxVec) + 1) >> 5;
+  const int MaxX = (int)vgetx(MaxVec) >> 5;
+  const int MaxY = (int)vgety(MaxVec) >> 5;
   const int DiffY = (MaxY - MinY);
   const int DiffX = (MaxX - MinX);
   if (MinY < 0 || MaxY >= pCollision->m_MapData.height || MinX < 0 || MaxX >= pCollision->m_MapData.width)
@@ -1142,8 +1143,8 @@ static inline bool check_point_int(const SCollision *__restrict__ pCollision, in
 
 static inline bool test_box_character(const SCollision *__restrict__ pCollision, int x, int y) {
   // NOTE: doesn't work out of bounds
-  const int frac_x = x & 31;
-  const int frac_y = y & 31;
+  const uint32_t frac_x = x & 31;
+  const uint32_t frac_y = y & 31;
   const uint32_t mask = (1U << 13) | (1U << 18);
   uint32_t check = (1U << frac_x) | (1U << frac_y);
   if ((mask & check) == 0)
