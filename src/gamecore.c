@@ -169,31 +169,81 @@ void lsr_bounce(SLaser *pLaser) {
     pLaser->m_TelePos = vec2_init(0, 0);
   }
 
+  mvec2 From = pLaser->m_Base.m_Pos;
   mvec2 To = vvadd(pLaser->m_Base.m_Pos, vfmul(pLaser->m_Dir, pLaser->m_Energy));
-  Res = intersect_line_tele_weapon(pLaser->m_Base.m_pCollision, pLaser->m_Base.m_Pos, To, &Coltile, &To,
-                                   pLaser->m_Base.m_pCollision->m_MapData.tele_layer.type ? &z : NULL);
+
+  // printf("Before: From:%.f,%.f, To:%.f,%.f\n", vgetx(From), vgety(From), vgetx(To), vgety(To));
+  float x0 = vgetx(From), y0 = vgety(From);
+  float x1 = vgetx(To), y1 = vgety(To);
+
+  float dx = x1 - x0;
+  float dy = y1 - y0;
+
+  float W = (float)pLaser->m_Base.m_pCollision->m_MapData.width * 32.0f;
+  float H = (float)pLaser->m_Base.m_pCollision->m_MapData.height * 32.0f;
+
+  // bounds inclusive
+  float xmin = 0.0f, ymin = 0.0f;
+  float xmax = W, ymax = H;
+
+  float t0 = 0.0f, t1 = 1.0f;
+
+#define CLIP(p, q)                                                                                                                                   \
+  do {                                                                                                                                               \
+    if ((p) == 0.0f) {                                                                                                                               \
+      if ((q) < 0.0f)                                                                                                                                \
+        return;                                                                                                                                      \
+    } else {                                                                                                                                         \
+      float r = (q) / (p);                                                                                                                           \
+      if ((p) < 0.0f) {                                                                                                                              \
+        if (r > t1)                                                                                                                                  \
+          return;                                                                                                                                    \
+        if (r > t0)                                                                                                                                  \
+          t0 = r;                                                                                                                                    \
+      } else if ((p) > 0.0f) {                                                                                                                       \
+        if (r < t0)                                                                                                                                  \
+          return;                                                                                                                                    \
+        if (r < t1)                                                                                                                                  \
+          t1 = r;                                                                                                                                    \
+      }                                                                                                                                              \
+    }                                                                                                                                                \
+  } while (0)
+
+  CLIP(-dx, x0 - xmin); // left
+  CLIP(dx, xmax - x0);  // right
+  CLIP(-dy, y0 - ymin); // top
+  CLIP(dy, ymax - y0);  // bottom
+
+#undef CLIP
+
+  // we only care about moving the end point inside, so use t1
+  To = vec2_init(x0 + dx * t1, y0 + dy * t1);
+
+  // printf("After: From:%.f,%.f, To:%.f,%.f\n", vgetx(From), vgety(From), vgetx(To), vgety(To));
+  Res =
+      intersect_line_tele_weapon(pLaser->m_Base.m_pCollision, From, To, &Coltile, pLaser->m_Base.m_pCollision->m_MapData.tele_layer.type ? &z : NULL);
 
   if (Res) {
+    To = Coltile;
+    // printf("From:%.f,%.f, To:%.f,%.f\n", vgetx(From), vgety(From), vgetx(To), vgety(To));
     if (!lsr_hit_character(pLaser, pLaser->m_Base.m_Pos, To)) {
       // intersected
       pLaser->m_From = pLaser->m_Base.m_Pos;
       pLaser->m_Base.m_Pos = To;
 
-      mvec2 TempPos = pLaser->m_Base.m_Pos;
-      mvec2 TempDir = vfmul(pLaser->m_Dir, 4.0f);
-
-      int f = 0;
-      int Idx = get_map_index(pLaser->m_Base.m_pCollision, vec2_init(vgetx(Coltile) + 0.5, vgety(Coltile) + 0.5));
-      if (Res == -1) {
-        f = get_tile_index(pLaser->m_Base.m_pCollision, Idx);
-        pLaser->m_Base.m_pCollision->m_MapData.game_layer.data[Idx] = TILE_SOLID;
+      bool div = false;
+      if (check_point(pLaser->m_Base.m_pCollision, vvadd(pLaser->m_Base.m_Pos, vec2_init(0, 1))) ||
+          check_point(pLaser->m_Base.m_pCollision, vvadd(pLaser->m_Base.m_Pos, vec2_init(0, -1)))) {
+        pLaser->m_Dir = vvmul(pLaser->m_Dir, vec2_init(1, -1));
+        div = true;
       }
-      move_point(pLaser->m_Base.m_pCollision, &TempPos, &TempDir, 1.0f);
-      if (Res == -1)
-        pLaser->m_Base.m_pCollision->m_MapData.game_layer.data[Idx] = f;
-
-      pLaser->m_Base.m_Pos = TempPos;
-      pLaser->m_Dir = vnormalize(TempDir);
+      if (check_point(pLaser->m_Base.m_pCollision, vvadd(pLaser->m_Base.m_Pos, vec2_init(1, 0))) ||
+          check_point(pLaser->m_Base.m_pCollision, vvadd(pLaser->m_Base.m_Pos, vec2_init(-1, 0)))) {
+        pLaser->m_Dir = vvmul(pLaser->m_Dir, vec2_init(-1, 1));
+        div = true;
+      }
+      if (!div)
+        pLaser->m_Dir = vvmul(pLaser->m_Dir, vec2_init(-1, -1));
 
       const float Distance = vdistance(pLaser->m_From, pLaser->m_Base.m_Pos);
       // Prevent infinite bounces

@@ -115,7 +115,7 @@ bool is_hook_blocker(SCollision *pCollision, int Index, mvec2 Pos0, mvec2 Pos1);
 unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
                                        unsigned char *__restrict__ pTeleNr);
 unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
-                                         mvec2 *__restrict__ pOutBeforeCollision, unsigned char *__restrict__ pTeleNr);
+                                         unsigned char *__restrict__ pTeleNr);
 
 bool test_box(SCollision *pCollision, mvec2 Pos, mvec2 Size);
 unsigned char is_tune(SCollision *pCollision, int Index);
