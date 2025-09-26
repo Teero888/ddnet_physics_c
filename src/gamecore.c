@@ -606,8 +606,6 @@ void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   pCore->m_aWeaponGot[1] = true;
   pCore->m_ActiveWeapon = WEAPON_GUN;
   pCore->m_Input.m_TargetY = -1;
-  pCore->m_SavedInput.m_TargetY = -1;
-  pCore->m_LatestInput.m_TargetY = -1;
 
   pCore->m_StartTick = -1;
   pCore->m_FinishTick = -1;
@@ -849,8 +847,6 @@ EndCollisions:
 }
 
 void cc_ddracetick(SCharacterCore *pCore) {
-  memcpy(&pCore->m_Input, &pCore->m_SavedInput, sizeof(pCore->m_Input));
-
   if (pCore->m_LiveFrozen) {
     pCore->m_Input.m_Direction = 0;
     pCore->m_Input.m_Jump = 0;
@@ -1736,10 +1732,10 @@ void cc_handle_ninja(SCharacterCore *pCore) {
 }
 
 void cc_handle_jetpack(SCharacterCore *pCore) {
-  if (!(pCore->m_LatestInput.m_Fire & 1) || pCore->m_FreezeTime)
+  if (!(pCore->m_Input.m_Fire & 1) || pCore->m_FreezeTime)
     return;
 
-  const mvec2 Direction = vnormalize(vec2_init(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY));
+  const mvec2 Direction = vnormalize(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
   float Strength = pCore->m_pTuning->m_JetpackStrength;
   cc_take_damage(pCore, vfmul(Direction, -(Strength / 100.f / 6.11f)));
 }
@@ -1770,9 +1766,9 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 
   // check if we gonna fire
   bool WillFire = false;
-  if (pCore->m_PrevFire != pCore->m_LatestInput.m_Fire) {
+  if (pCore->m_PrevFire != pCore->m_Input.m_Fire) {
     WillFire = true;
-  } else if (pCore->m_LatestInput.m_Fire & 1) {
+  } else if (pCore->m_Input.m_Fire & 1) {
     if (pCore->m_ActiveWeapon >= WEAPON_SHOTGUN && pCore->m_ActiveWeapon <= WEAPON_LASER)
       WillFire = true;
     else if (pCore->m_Jetpack && pCore->m_ActiveWeapon == WEAPON_GUN)
@@ -1784,7 +1780,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   if (!WillFire)
     return;
 
-  const mvec2 Direction = vnormalize_nomask(vec2_init(pCore->m_LatestInput.m_TargetX, pCore->m_LatestInput.m_TargetY));
+  const mvec2 Direction = vnormalize_nomask(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
   const mvec2 ProjStartPos = vvadd(pCore->m_Pos, vfmul(Direction, PHYSICALSIZE * 0.75f));
   if (vgetx(ProjStartPos) < 0 || vgety(ProjStartPos) < 0 || vgetx(ProjStartPos) >= pCore->m_pCollision->m_MapData.width * 32 ||
       vgety(ProjStartPos) >= pCore->m_pCollision->m_MapData.height * 32) {
@@ -1929,20 +1925,15 @@ void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
     pCore->m_RespawnDelay = 25;
   }
 
-  pCore->m_LatestInput = *pNewInput;
-  if (pCore->m_LatestInput.m_TargetX == 0 && pCore->m_LatestInput.m_TargetY == 0)
-    pCore->m_LatestInput.m_TargetY = -1;
+  pCore->m_Input = *pNewInput;
+  if (pCore->m_Input.m_TargetX == 0 && pCore->m_Input.m_TargetY == 0)
+    pCore->m_Input.m_TargetY = -1;
 
   cc_do_weapon_switch(pCore);
   if (!pCore->m_ReloadTimer)
     cc_fire_weapon(pCore);
 
-  pCore->m_PrevFire = pCore->m_LatestInput.m_Fire;
-}
-
-void cc_on_predicted_input(SCharacterCore *pCore, SPlayerInput *pNewInput) {
-  pCore->m_Input = *pNewInput;
-  pCore->m_SavedInput = pCore->m_Input;
+  pCore->m_PrevFire = pCore->m_Input.m_Fire;
 }
 
 // }}}
@@ -2301,8 +2292,6 @@ static void wc_accelerator_tick(SWorldCore *pCore) {
 
 void wc_tick(SWorldCore *pCore) {
   ++pCore->m_GameTick;
-  for (int i = 0; i < pCore->m_NumCharacters; ++i)
-    cc_on_predicted_input(&pCore->m_pCharacters[i], &pCore->m_pCharacters[i].m_LatestInput);
 
   // Tick entities
 
@@ -2550,8 +2539,8 @@ void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom)
   pTo->m_pConfig = pFrom->m_pConfig;
   pTo->m_pTunings = pFrom->m_pTunings;
   pTo->m_Accelerator.m_pGrid = pFrom->m_Accelerator.m_pGrid;
-  uint32_t state = (uint32_t)((uint64_t)pTo->m_Accelerator.m_pGrid & 0xFFFFFFFF);
-  pTo->m_Accelerator.hash = ((uint64_t)ifast_rand(&state) << 32) | ifast_rand(&state);
+  // TODO: fix, this is very bad:
+  pTo->m_Accelerator.hash = ((uint64_t)rand() << 32) | rand();
 
   // delete old entities
   for (int i = 0; i < NUM_WORLD_ENTTYPES; ++i) {

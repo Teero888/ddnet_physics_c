@@ -20,8 +20,8 @@ enum { WEAPON_HAMMER = 0, WEAPON_GUN, WEAPON_SHOTGUN, WEAPON_GRENADE, WEAPON_LAS
 
 typedef struct {
   int8_t m_Direction;
-  int m_TargetX;
-  int m_TargetY;
+  int16_t m_TargetX;
+  int16_t m_TargetY;
   uint8_t m_Jump;
   uint8_t m_Fire;
   uint8_t m_Hook;
@@ -226,9 +226,7 @@ typedef struct CharacterCore {
   int m_Jumps;
 
   unsigned char m_PrevFire;
-  SPlayerInput m_LatestInput;
   SPlayerInput m_Input;
-  SPlayerInput m_SavedInput;
 
   // DDRace
   int m_StartTime;
