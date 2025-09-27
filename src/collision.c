@@ -179,8 +179,329 @@ static void init_tuning_params(STuningParams *pTunings) {
 #undef MACRO_TUNING_PARAM
 }
 
+/* Helper: expand an unsigned-char layer with clamp-repeat edges.
+ * old == NULL -> *out_new = NULL and return true (layer absent).
+ * newW/newH computed by caller to avoid recomputation/overflow checks in each helper.
+ */
+static bool expand_uchar_layer(const unsigned char *old, unsigned char **out_new, int oldW, int oldH, int pad, int newW, int newH) {
+  if (!old) {
+    *out_new = NULL;
+    return true;
+  }
+
+  /* safety checks */
+  if (oldW <= 0 || oldH <= 0 || pad < 0)
+    return false;
+
+  size_t newSize = (size_t)newW * (size_t)newH;
+  /* guard overflow */
+  if (newSize == 0)
+    return false;
+
+  unsigned char *newBuf = (unsigned char *)malloc(newSize * sizeof(unsigned char));
+  if (!newBuf)
+    return false;
+
+  for (int y = 0; y < newH; ++y) {
+    int src_y = (y < pad) ? 0 : ((y >= pad + oldH) ? (oldH - 1) : (y - pad));
+    const unsigned char *src_row = old + (size_t)src_y * (size_t)oldW;
+    unsigned char *dst_row = newBuf + (size_t)y * (size_t)newW;
+
+    /* left clamp region */
+    if (pad > 0) {
+      /* src_row[0] repeated */
+      memset(dst_row, (int)src_row[0], (size_t)pad);
+    }
+
+    /* middle region: contiguous copy of old row */
+    memcpy(dst_row + pad, src_row, (size_t)oldW);
+
+    /* right clamp region */
+    int right = newW - pad - oldW;
+    if (right > 0) {
+      memset(dst_row + pad + oldW, (int)src_row[oldW - 1], (size_t)right);
+    }
+  }
+
+  *out_new = newBuf;
+  return true;
+}
+
+/* Helper: expand short (signed 16-bit) layer */
+static bool expand_short_layer(const short *old, short **out_new, int oldW, int oldH, int pad, int newW, int newH) {
+  if (!old) {
+    *out_new = NULL;
+    return true;
+  }
+  if (oldW <= 0 || oldH <= 0 || pad < 0)
+    return false;
+
+  size_t newSize = (size_t)newW * (size_t)newH;
+  if (newSize == 0)
+    return false;
+
+  short *newBuf = (short *)malloc(newSize * sizeof(short));
+  if (!newBuf)
+    return false;
+
+  for (int y = 0; y < newH; ++y) {
+    int src_y = (y < pad) ? 0 : ((y >= pad + oldH) ? (oldH - 1) : (y - pad));
+    const short *src_row = old + (size_t)src_y * (size_t)oldW;
+    short *dst_row = newBuf + (size_t)y * (size_t)newW;
+
+    /* left */
+    for (int i = 0; i < pad; ++i)
+      dst_row[i] = src_row[0];
+
+    /* middle */
+    memcpy((void *)(dst_row + pad), (const void *)src_row, (size_t)oldW * sizeof(short));
+
+    /* right */
+    int right = newW - pad - oldW;
+    for (int i = 0; i < right; ++i)
+      dst_row[pad + oldW + i] = src_row[oldW - 1];
+  }
+
+  *out_new = newBuf;
+  return true;
+}
+
+/* Helper: expand int (32-bit) layer */
+static bool expand_int_layer(const int *old, int **out_new, int oldW, int oldH, int pad, int newW, int newH) {
+  if (!old) {
+    *out_new = NULL;
+    return true;
+  }
+  if (oldW <= 0 || oldH <= 0 || pad < 0)
+    return false;
+
+  size_t newSize = (size_t)newW * (size_t)newH;
+  if (newSize == 0)
+    return false;
+
+  int *newBuf = (int *)malloc(newSize * sizeof(int));
+  if (!newBuf)
+    return false;
+
+  for (int y = 0; y < newH; ++y) {
+    int src_y = (y < pad) ? 0 : ((y >= pad + oldH) ? (oldH - 1) : (y - pad));
+    const int *src_row = old + (size_t)src_y * (size_t)oldW;
+    int *dst_row = newBuf + (size_t)y * (size_t)newW;
+
+    /* left */
+    for (int i = 0; i < pad; ++i)
+      dst_row[i] = src_row[0];
+
+    /* middle */
+    memcpy((void *)(dst_row + pad), (const void *)src_row, (size_t)oldW * sizeof(int));
+
+    /* right */
+    int right = newW - pad - oldW;
+    for (int i = 0; i < right; ++i)
+      dst_row[pad + oldW + i] = src_row[oldW - 1];
+  }
+
+  *out_new = newBuf;
+  return true;
+}
+
+/* Main function to expand & shift the whole map_data_t by 'pad' on each axis.
+ * On success: map is updated and old buffers freed.
+ * On failure: map is left untouched and function returns false.
+ */
+bool expand_and_shift_map(map_data_t *map, int pad) {
+  if (!map)
+    return false;
+  if (pad <= 0)
+    return true; /* nothing to do */
+
+  int oldW = map->width;
+  int oldH = map->height;
+  if (oldW <= 0 || oldH <= 0)
+    return false;
+
+  /* compute new dims with overflow checks */
+  size_t newW_sz = (size_t)oldW + (size_t)2 * (size_t)pad;
+  size_t newH_sz = (size_t)oldH + (size_t)2 * (size_t)pad;
+  if (newW_sz == 0 || newH_sz == 0)
+    return false;
+  if (newW_sz > SIZE_MAX / newH_sz)
+    return false; /* would overflow size_t multiply */
+
+  int newW = (int)newW_sz;
+  int newH = (int)newH_sz;
+
+  /* Temporary pointers for new buffers. NULL means "layer absent" (preserve absence). */
+  unsigned char *new_game_data = NULL, *new_game_flags = NULL;
+  unsigned char *new_front_data = NULL, *new_front_flags = NULL;
+  unsigned char *new_tele_number = NULL, *new_tele_type = NULL;
+  unsigned char *new_spd_force = NULL, *new_spd_max = NULL, *new_spd_type = NULL;
+  short *new_spd_angle = NULL;
+  unsigned char *new_switch_number = NULL, *new_switch_type = NULL, *new_switch_flags = NULL, *new_switch_delay = NULL;
+  unsigned char *new_door_index = NULL, *new_door_flags = NULL;
+  int *new_door_number = NULL;
+  unsigned char *new_tune_number = NULL, *new_tune_type = NULL;
+
+  /* Expand each layer that exists. If any allocation fails -> cleanup and return false. */
+  if (!expand_uchar_layer(map->game_layer.data, &new_game_data, oldW, oldH, pad, newW, newH))
+    goto fail;
+  if (!expand_uchar_layer(map->game_layer.flags, &new_game_flags, oldW, oldH, pad, newW, newH))
+    goto fail;
+
+  if (!expand_uchar_layer(map->front_layer.data, &new_front_data, oldW, oldH, pad, newW, newH))
+    goto fail;
+  if (!expand_uchar_layer(map->front_layer.flags, &new_front_flags, oldW, oldH, pad, newW, newH))
+    goto fail;
+
+  if (!expand_uchar_layer(map->tele_layer.number, &new_tele_number, oldW, oldH, pad, newW, newH))
+    goto fail;
+  if (!expand_uchar_layer(map->tele_layer.type, &new_tele_type, oldW, oldH, pad, newW, newH))
+    goto fail;
+
+  if (!expand_uchar_layer(map->speedup_layer.force, &new_spd_force, oldW, oldH, pad, newW, newH))
+    goto fail;
+  if (!expand_uchar_layer(map->speedup_layer.max_speed, &new_spd_max, oldW, oldH, pad, newW, newH))
+    goto fail;
+  if (!expand_uchar_layer(map->speedup_layer.type, &new_spd_type, oldW, oldH, pad, newW, newH))
+    goto fail;
+  if (!expand_short_layer(map->speedup_layer.angle, &new_spd_angle, oldW, oldH, pad, newW, newH))
+    goto fail;
+
+  if (!expand_uchar_layer(map->switch_layer.number, &new_switch_number, oldW, oldH, pad, newW, newH))
+    goto fail;
+  if (!expand_uchar_layer(map->switch_layer.type, &new_switch_type, oldW, oldH, pad, newW, newH))
+    goto fail;
+  if (!expand_uchar_layer(map->switch_layer.flags, &new_switch_flags, oldW, oldH, pad, newW, newH))
+    goto fail;
+  if (!expand_uchar_layer(map->switch_layer.delay, &new_switch_delay, oldW, oldH, pad, newW, newH))
+    goto fail;
+
+  if (!expand_uchar_layer(map->door_layer.index, &new_door_index, oldW, oldH, pad, newW, newH))
+    goto fail;
+  if (!expand_uchar_layer(map->door_layer.flags, &new_door_flags, oldW, oldH, pad, newW, newH))
+    goto fail;
+  if (!expand_int_layer(map->door_layer.number, &new_door_number, oldW, oldH, pad, newW, newH))
+    goto fail;
+
+  if (!expand_uchar_layer(map->tune_layer.number, &new_tune_number, oldW, oldH, pad, newW, newH))
+    goto fail;
+  if (!expand_uchar_layer(map->tune_layer.type, &new_tune_type, oldW, oldH, pad, newW, newH))
+    goto fail;
+
+  /* All allocations succeeded. Free old buffers and commit new ones. */
+  if (map->game_layer.data)
+    free(map->game_layer.data);
+  if (map->game_layer.flags)
+    free(map->game_layer.flags);
+  if (map->front_layer.data)
+    free(map->front_layer.data);
+  if (map->front_layer.flags)
+    free(map->front_layer.flags);
+  if (map->tele_layer.number)
+    free(map->tele_layer.number);
+  if (map->tele_layer.type)
+    free(map->tele_layer.type);
+  if (map->speedup_layer.force)
+    free(map->speedup_layer.force);
+  if (map->speedup_layer.max_speed)
+    free(map->speedup_layer.max_speed);
+  if (map->speedup_layer.type)
+    free(map->speedup_layer.type);
+  if (map->speedup_layer.angle)
+    free(map->speedup_layer.angle);
+  if (map->switch_layer.number)
+    free(map->switch_layer.number);
+  if (map->switch_layer.type)
+    free(map->switch_layer.type);
+  if (map->switch_layer.flags)
+    free(map->switch_layer.flags);
+  if (map->switch_layer.delay)
+    free(map->switch_layer.delay);
+  if (map->door_layer.index)
+    free(map->door_layer.index);
+  if (map->door_layer.flags)
+    free(map->door_layer.flags);
+  if (map->door_layer.number)
+    free(map->door_layer.number);
+  if (map->tune_layer.number)
+    free(map->tune_layer.number);
+  if (map->tune_layer.type)
+    free(map->tune_layer.type);
+
+  /* assign new buffers */
+  map->game_layer.data = new_game_data;
+  map->game_layer.flags = new_game_flags;
+  map->front_layer.data = new_front_data;
+  map->front_layer.flags = new_front_flags;
+  map->tele_layer.number = new_tele_number;
+  map->tele_layer.type = new_tele_type;
+  map->speedup_layer.force = new_spd_force;
+  map->speedup_layer.max_speed = new_spd_max;
+  map->speedup_layer.type = new_spd_type;
+  map->speedup_layer.angle = new_spd_angle;
+  map->switch_layer.number = new_switch_number;
+  map->switch_layer.type = new_switch_type;
+  map->switch_layer.flags = new_switch_flags;
+  map->switch_layer.delay = new_switch_delay;
+  map->door_layer.index = new_door_index;
+  map->door_layer.flags = new_door_flags;
+  map->door_layer.number = new_door_number;
+  map->tune_layer.number = new_tune_number;
+  map->tune_layer.type = new_tune_type;
+
+  /* update sizes */
+  map->width = newW;
+  map->height = newH;
+
+  return true;
+
+fail:
+  /* free any new buffers allocated so far */
+  if (new_game_data)
+    free(new_game_data);
+  if (new_game_flags)
+    free(new_game_flags);
+  if (new_front_data)
+    free(new_front_data);
+  if (new_front_flags)
+    free(new_front_flags);
+  if (new_tele_number)
+    free(new_tele_number);
+  if (new_tele_type)
+    free(new_tele_type);
+  if (new_spd_force)
+    free(new_spd_force);
+  if (new_spd_max)
+    free(new_spd_max);
+  if (new_spd_type)
+    free(new_spd_type);
+  if (new_spd_angle)
+    free(new_spd_angle);
+  if (new_switch_number)
+    free(new_switch_number);
+  if (new_switch_type)
+    free(new_switch_type);
+  if (new_switch_flags)
+    free(new_switch_flags);
+  if (new_switch_delay)
+    free(new_switch_delay);
+  if (new_door_index)
+    free(new_door_index);
+  if (new_door_flags)
+    free(new_door_flags);
+  if (new_door_number)
+    free(new_door_number);
+  if (new_tune_number)
+    free(new_tune_number);
+  if (new_tune_type)
+    free(new_tune_type);
+  return false;
+}
+
 bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict__ pMap) {
+  // TODO: shift the all of the blocks by 200 and expand by 200 hmmm
   pCollision->m_MapData = load_map(pMap);
+  expand_and_shift_map(&pCollision->m_MapData, 200);
   if (!pCollision->m_MapData.game_layer.data)
     return false;
 
