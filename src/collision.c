@@ -499,7 +499,6 @@ fail:
 }
 
 bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict__ pMap) {
-  // TODO: shift the all of the blocks by 200 and expand by 200 hmmm
   pCollision->m_MapData = load_map(pMap);
   expand_and_shift_map(&pCollision->m_MapData, 200);
   if (!pCollision->m_MapData.game_layer.data)
