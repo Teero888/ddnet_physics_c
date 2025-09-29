@@ -1403,6 +1403,8 @@ bool test_box(SCollision *pCollision, mvec2 Pos, mvec2 Size) {
 unsigned char is_tune(SCollision *pCollision, int Index) {
   if (!pCollision->m_MapData.tune_layer.type)
     return 0;
+  if (Index < 0)
+    return 0;
   if (pCollision->m_MapData.tune_layer.type[Index])
     return pCollision->m_MapData.tune_layer.number[Index];
   return 0;
