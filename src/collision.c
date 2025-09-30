@@ -881,13 +881,13 @@ void free_collision(SCollision *pCollision) {
   memset(pCollision, 0, sizeof(SCollision));
 }
 
-inline int get_pure_map_index(SCollision *pCollision, mvec2 Pos) {
+int get_pure_map_index(SCollision *pCollision, mvec2 Pos) {
   const int nx = (int)(vgetx(Pos) + 0.5f) >> 5;
   const int ny = (int)(vgety(Pos) + 0.5f) >> 5;
   return pCollision->m_pWidthLookup[ny] + nx;
 }
 
-static inline unsigned char get_move_restrictions_raw(unsigned char Tile, unsigned char Flags) {
+static unsigned char get_move_restrictions_raw(unsigned char Tile, unsigned char Flags) {
   Flags &= (TILEFLAG_XFLIP | TILEFLAG_YFLIP | TILEFLAG_ROTATE);
   switch (Tile) {
   case TILE_STOP: {
@@ -916,7 +916,7 @@ static inline unsigned char get_move_restrictions_raw(unsigned char Tile, unsign
   }
 }
 
-inline unsigned char move_restrictions(unsigned char Direction, unsigned char Tile, unsigned char Flags) {
+unsigned char move_restrictions(unsigned char Direction, unsigned char Tile, unsigned char Flags) {
   unsigned char Result = get_move_restrictions_raw(Tile, Flags);
   if (Direction == MR_DIR_HERE && Tile == TILE_STOP)
     return Result;
@@ -924,47 +924,47 @@ inline unsigned char move_restrictions(unsigned char Direction, unsigned char Ti
   return Result & aDirections[Direction];
 }
 
-inline unsigned char get_tile_index(SCollision *pCollision, int Index) { return pCollision->m_MapData.game_layer.data[Index]; }
-inline unsigned char get_front_tile_index(SCollision *pCollision, int Index) { return pCollision->m_MapData.front_layer.data[Index]; }
-inline unsigned char get_tile_flags(SCollision *pCollision, int Index) { return pCollision->m_MapData.game_layer.flags[Index]; }
-inline unsigned char get_front_tile_flags(SCollision *pCollision, int Index) { return pCollision->m_MapData.front_layer.flags[Index]; }
-inline unsigned char get_switch_number(SCollision *pCollision, int Index) { return pCollision->m_MapData.switch_layer.number[Index]; }
-inline unsigned char get_switch_type(SCollision *pCollision, int Index) { return pCollision->m_MapData.switch_layer.type[Index]; }
-inline unsigned char get_switch_delay(SCollision *pCollision, int Index) { return pCollision->m_MapData.switch_layer.delay[Index]; }
-inline unsigned char is_teleport(SCollision *pCollision, int Index) {
+unsigned char get_tile_index(SCollision *pCollision, int Index) { return pCollision->m_MapData.game_layer.data[Index]; }
+unsigned char get_front_tile_index(SCollision *pCollision, int Index) { return pCollision->m_MapData.front_layer.data[Index]; }
+unsigned char get_tile_flags(SCollision *pCollision, int Index) { return pCollision->m_MapData.game_layer.flags[Index]; }
+unsigned char get_front_tile_flags(SCollision *pCollision, int Index) { return pCollision->m_MapData.front_layer.flags[Index]; }
+unsigned char get_switch_number(SCollision *pCollision, int Index) { return pCollision->m_MapData.switch_layer.number[Index]; }
+unsigned char get_switch_type(SCollision *pCollision, int Index) { return pCollision->m_MapData.switch_layer.type[Index]; }
+unsigned char get_switch_delay(SCollision *pCollision, int Index) { return pCollision->m_MapData.switch_layer.delay[Index]; }
+unsigned char is_teleport(SCollision *pCollision, int Index) {
   return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELEIN ? pCollision->m_MapData.tele_layer.number[Index] : 0;
 }
-inline unsigned char is_teleport_hook(SCollision *pCollision, int Index) {
+unsigned char is_teleport_hook(SCollision *pCollision, int Index) {
   return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELEINHOOK ? pCollision->m_MapData.tele_layer.number[Index] : 0;
 }
-inline unsigned char is_teleport_weapon(SCollision *pCollision, int Index) {
+unsigned char is_teleport_weapon(SCollision *pCollision, int Index) {
   return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELEINWEAPON ? pCollision->m_MapData.tele_layer.number[Index] : 0;
 }
-inline unsigned char is_evil_teleport(SCollision *pCollision, int Index) {
+unsigned char is_evil_teleport(SCollision *pCollision, int Index) {
   return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELEINEVIL ? pCollision->m_MapData.tele_layer.number[Index] : 0;
 }
-inline unsigned char is_check_teleport(SCollision *pCollision, int Index) {
+unsigned char is_check_teleport(SCollision *pCollision, int Index) {
   return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELECHECKIN ? pCollision->m_MapData.tele_layer.number[Index] : 0;
 }
-inline unsigned char is_check_evil_teleport(SCollision *pCollision, int Index) {
+unsigned char is_check_evil_teleport(SCollision *pCollision, int Index) {
   return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELECHECKINEVIL ? pCollision->m_MapData.tele_layer.number[Index] : 0;
 }
-inline unsigned char is_tele_checkpoint(SCollision *pCollision, int Index) {
+unsigned char is_tele_checkpoint(SCollision *pCollision, int Index) {
   return pCollision->m_MapData.tele_layer.type[Index] == TILE_TELECHECK ? pCollision->m_MapData.tele_layer.number[Index] : 0;
 }
 
-inline unsigned char get_collision_at(SCollision *pCollision, mvec2 Pos) {
+unsigned char get_collision_at(SCollision *pCollision, mvec2 Pos) {
   const int Nx = (int)vgetx(Pos) >> 5;
   const int Ny = (int)vgety(Pos) >> 5;
   const unsigned char Idx = pCollision->m_MapData.game_layer.data[pCollision->m_pWidthLookup[Ny] + Nx];
   return Idx * (Idx - 1 <= TILE_NOLASER - 1);
 }
-__attribute__((unused)) static inline unsigned char get_collision_at_idx(SCollision *pCollision, int Idx) {
+__attribute__((unused)) static unsigned char get_collision_at_idx(SCollision *pCollision, int Idx) {
   const unsigned char Tile = pCollision->m_MapData.game_layer.data[Idx];
   return Tile * (Tile - 1 <= TILE_NOLASER - 1);
 }
 
-inline unsigned char get_front_collision_at(SCollision *pCollision, mvec2 Pos) {
+unsigned char get_front_collision_at(SCollision *pCollision, mvec2 Pos) {
   const int Nx = (int)vgetx(Pos) >> 5;
   const int Ny = (int)vgety(Pos) >> 5;
   const int pos = pCollision->m_pWidthLookup[Ny] + Nx;
@@ -972,7 +972,7 @@ inline unsigned char get_front_collision_at(SCollision *pCollision, mvec2 Pos) {
   return Idx * (Idx - 1 <= TILE_NOLASER - 1);
 }
 
-inline unsigned char get_move_restrictions(SCollision *__restrict__ pCollision, void *__restrict__ pUser, mvec2 Pos, int Idx) {
+unsigned char get_move_restrictions(SCollision *__restrict__ pCollision, void *__restrict__ pUser, mvec2 Pos, int Idx) {
 
   if (!pCollision->m_MoveRestrictionsFound && !pCollision->m_MapData.door_layer.index)
     return 0;
@@ -1008,15 +1008,15 @@ int get_map_index(SCollision *pCollision, mvec2 Pos) {
   return -1;
 }
 
-inline bool check_point(SCollision *pCollision, mvec2 Pos) {
+bool check_point(SCollision *pCollision, mvec2 Pos) {
   const int Nx = (int)(vgetx(Pos) + 0.5f) >> 5;
   const int Ny = (int)(vgety(Pos) + 0.5f) >> 5;
   return pCollision->m_pTileInfos[pCollision->m_pWidthLookup[Ny] + Nx] & INFO_ISSOLID;
 }
 
-static inline bool check_point_idx(SCollision *pCollision, int Idx) { return pCollision->m_pTileInfos[Idx] & INFO_ISSOLID; }
+static bool check_point_idx(SCollision *pCollision, int Idx) { return pCollision->m_pTileInfos[Idx] & INFO_ISSOLID; }
 
-static inline void through_offset(mvec2 Pos0, mvec2 Pos1, int *__restrict__ pOffsetX, int *__restrict__ pOffsetY) {
+static void through_offset(mvec2 Pos0, mvec2 Pos1, int *__restrict__ pOffsetX, int *__restrict__ pOffsetY) {
   static const int offsets[8][2] = {{32, 0}, {0, 32}, {-32, 0}, {0, 32}, {32, 0}, {0, -32}, {-32, 0}, {0, -32}};
   const float dx = vgetx(Pos0) - vgetx(Pos1);
   const float dy = vgety(Pos0) - vgety(Pos1);
@@ -1025,7 +1025,7 @@ static inline void through_offset(mvec2 Pos0, mvec2 Pos1, int *__restrict__ pOff
   *pOffsetY = offsets[index][1];
 }
 
-static inline bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY, mvec2 Pos0, mvec2 Pos1) {
+static bool is_through(SCollision *pCollision, int x, int y, int OffsetX, int OffsetY, mvec2 Pos0, mvec2 Pos1) {
   if (x < 0 || y < 0 || x >= pCollision->m_MapData.width * 32 || y >= pCollision->m_MapData.width * 32)
     return false;
   int pos = get_pure_map_index(pCollision, vec2_init(x, y));
@@ -1093,7 +1093,7 @@ bool is_hook_blocker(SCollision *pCollision, int Index, mvec2 Pos0, mvec2 Pos1) 
   return false;
 }
 
-static inline bool broad_check(const SCollision *__restrict__ pCollision, mvec2 Start, mvec2 End) {
+static bool broad_check(const SCollision *__restrict__ pCollision, mvec2 Start, mvec2 End) {
   const mvec2 MinVec = _mm_min_ps(Start, End);
   const mvec2 MaxVec = _mm_max_ps(Start, End);
   const int MinX = (int)vgetx(MinVec) >> 5;
@@ -1108,7 +1108,7 @@ static inline bool broad_check(const SCollision *__restrict__ pCollision, mvec2 
   return (bool)(pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] & (uint64_t)1 << ((DiffY << 3) + DiffX));
 }
 
-static inline bool broad_check_tele(const SCollision *__restrict__ pCollision, mvec2 Start, mvec2 End) {
+static bool broad_check_tele(const SCollision *__restrict__ pCollision, mvec2 Start, mvec2 End) {
   const mvec2 MinVec = _mm_min_ps(Start, End);
   const mvec2 MaxVec = _mm_max_ps(Start, End);
   const int MinX = (int)vgetx(MinVec) >> 5;
@@ -1126,7 +1126,7 @@ static inline bool broad_check_tele(const SCollision *__restrict__ pCollision, m
 #define TILE_SHIFT 5
 #define TILE_SIZE (1 << TILE_SHIFT)
 
-static inline float fast_absf(float v) { return v < 0.0f ? -v : v; }
+static float fast_absf(float v) { return v < 0.0f ? -v : v; }
 
 unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
                                        unsigned char *__restrict__ pTeleNr) {
@@ -1463,11 +1463,11 @@ bool intersect_line(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
   return false;
 }
 
-static inline bool check_point_int(const SCollision *__restrict__ pCollision, int x, int y) {
+static bool check_point_int(const SCollision *__restrict__ pCollision, int x, int y) {
   return pCollision->m_pTileInfos[(y >> 5) * pCollision->m_MapData.width + (x >> 5)] & INFO_ISSOLID;
 }
 
-static inline bool test_box_character(const SCollision *__restrict__ pCollision, int x, int y) {
+static bool test_box_character(const SCollision *__restrict__ pCollision, int x, int y) {
   // NOTE: doesn't work out of bounds
   const uint32_t frac_x = x & 31;
   const uint32_t frac_y = y & 31;
