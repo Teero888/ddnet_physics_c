@@ -2187,13 +2187,14 @@ void wc_create_all_entities(SWorldCore *pCore) {
   }
 }
 
-STeeGrid tg_empty() { return (STeeGrid){}; }
+STeeGrid tg_empty(void) { return (STeeGrid){}; }
 void tg_init(STeeGrid *pGrid, int width, int height) {
   free(pGrid->m_pTeeGrid);
   pGrid->m_pTeeGrid = malloc(sizeof(int) * width * height);
   memset(pGrid->m_pTeeGrid, -1, sizeof(int) * width * height);
   pGrid->hash = 0; // gets set by the last used world
 }
+
 void tg_destroy(STeeGrid *pGrid) {
   free(pGrid->m_pTeeGrid);
   *pGrid = tg_empty();

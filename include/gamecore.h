@@ -30,6 +30,7 @@ typedef struct {
   uint16_t m_Flags;
 } SPlayerInput;
 
+// sadly binary integer literals are a C23 extension xdd
 enum {
   FLAG_KILL = 1 << 0,
   FLAG_SPEC = 1 << 1,
@@ -38,9 +39,9 @@ enum {
   FLAG_SIT = 1 << 4,
   FLAG_CONNECT = 1 << 5,
   FLAG_DISCONNECT = 1 << 6,
-  FLAG_EYESTATE = 0b111 << 7, // bits 7..9
+  FLAG_EYESTATE = 7 << 7, // bits 7..9; 0b111 << 7
   FLAG_EMOTE_TRIGGER = 1 << 10,
-  FLAG_EMOTE_INDEX = 0b1111 << 11, // bits 11..14
+  FLAG_EMOTE_INDEX = 15 << 11, // bits 11..14; 0b1111 << 11
 };
 
 // not the same ordering as in ddnet but it matches the texture offsets
@@ -340,7 +341,7 @@ typedef struct WorldCore {
 
 // }}}
 
-STeeGrid tg_empty();
+STeeGrid tg_empty(void);
 void tg_init(STeeGrid *pGrid, int width, int height);
 void tg_destroy(STeeGrid *pGrid);
 
@@ -349,7 +350,7 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision, STeeGrid *pGrid, SConfig
 void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom);
 void wc_tick(SWorldCore *pCore);
 void wc_free(SWorldCore *pCore);
-SWorldCore wc_empty();
+SWorldCore wc_empty(void);
 
 void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput);
 SCharacterCore *wc_add_character(SWorldCore *pWorld, int Num);
