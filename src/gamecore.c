@@ -785,7 +785,7 @@ void cc_tee_interact_deferred(SCharacterCore *pCore, int Id, int *pCollisions) {
       if (vlength(pCore->m_Vel) > 0.0001f)
         Velocity = 1 - (vdot(vnormalize_nomask(pCore->m_Vel), Dir) + 1) / 2;
 
-      pCore->m_Vel = vvadd(pCore->m_Vel, vfmul(Dir, a * (Velocity * 0.75f)) * 0.85f);
+      pCore->m_Vel = vvadd(pCore->m_Vel, vfmul(Dir, a * (Velocity * 0.75f * 0.85f)));
       ++*pCollisions;
     }
   } else {
@@ -2187,7 +2187,7 @@ void wc_create_all_entities(SWorldCore *pCore) {
   }
 }
 
-STeeGrid tg_empty(void) { return (STeeGrid){}; }
+STeeGrid tg_empty(void) { return (STeeGrid){0}; }
 void tg_init(STeeGrid *pGrid, int width, int height) {
   free(pGrid->m_pTeeGrid);
   pGrid->m_pTeeGrid = malloc(sizeof(int) * width * height);
@@ -2604,7 +2604,7 @@ void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom)
     pTo->m_pSwitches[i] = pFrom->m_pSwitches[i];
 }
 
-SWorldCore wc_empty() { return (SWorldCore){}; }
+SWorldCore wc_empty() { return (SWorldCore){0}; }
 
 // }}}
 

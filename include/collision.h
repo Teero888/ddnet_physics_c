@@ -1,6 +1,13 @@
 #ifndef LIB_COLLISION_H
 #define LIB_COLLISION_H
 
+#if defined(_MSC_VER) && !defined(__clang__)
+#  ifndef __restrict__
+#    define __restrict__ __restrict
+#  endif
+#  define __attribute__(x) 
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

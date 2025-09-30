@@ -7,7 +7,11 @@
 #include <ddnet_map_loader.h>
 #include <float.h>
 #include <immintrin.h>
-#include <mm_malloc.h>
+#if defined(_MSC_VER) && !defined(__clang__)
+  #include <malloc.h>
+#else
+  #include <mm_malloc.h>
+#endif
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
