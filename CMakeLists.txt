@@ -26,7 +26,7 @@ add_library(ddnet_physics STATIC
 target_include_directories(ddnet_physics PUBLIC include)
 
 # Default compiler options
-target_compile_options(ddnet_physics PRIVATE -Wall -Wextra -msse4.2 -mavx -mavx2 -mfma)
+target_compile_options(ddnet_physics PRIVATE -Wall -msse4.2 -mavx -mavx2 -mfma)
 
 # Define debug and optimized configurations
 set(CMAKE_C_FLAGS_DEBUG "-g -ffast-math -DDEBUG -fsanitize=address,undefined")
