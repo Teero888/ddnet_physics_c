@@ -6,6 +6,7 @@
 #    define __restrict__ __restrict
 #  endif
 #  define __attribute__(x) 
+#  define __builtin_unreachable() __assume(0)
 #endif
 
 #ifdef __cplusplus
