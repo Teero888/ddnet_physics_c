@@ -687,9 +687,6 @@ void cc_die(SCharacterCore *pCore) {
 }
 
 void cc_move(SCharacterCore *pCore) {
-  if (pCore->m_VelMag > 187.5)
-    pCore->m_Vel = vfmul(vnormalize_nomask(pCore->m_Vel), 187.5);
-
   pCore->m_VelMag = vlength(pCore->m_Vel);
   const float VelMag = pCore->m_VelMag * 50;
   float OldVel = vgetx(pCore->m_Vel);
@@ -715,6 +712,8 @@ void cc_move(SCharacterCore *pCore) {
     cc_die(pCore);
     return;
   }
+
+  pCore->m_Vel = vvclamp(pCore->m_Vel, vec2_init(-4*32, -4*32), vec2_init(4*32, 4*32));
 
   move_box(pCore->m_pCollision, NewPos, pCore->m_Vel, &NewPos, &pCore->m_Vel,
            vec2_init(pCore->m_pTuning->m_GroundElasticityX, pCore->m_pTuning->m_GroundElasticityY), &Grounded);
