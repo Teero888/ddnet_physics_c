@@ -1560,23 +1560,110 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
     if (pCore->m_pWorld->m_NumCharacters > 1 && !pCore->m_HookHitDisabled && pCore->m_pTuning->m_PlayerHooking &&
         (pCore->m_HookState == HOOK_FLYING || !pCore->m_NewHook)) {
-      float Distance = 0.0f;
 
-      for (int i = 0; i < pCore->m_pWorld->m_NumCharacters; ++i) {
-        SCharacterCore *pEntity = &pCore->m_pWorld->m_pCharacters[i];
-        if (pEntity == pCore || pEntity->m_Solo || pCore->m_Solo)
-          continue;
+      SWorldCore *pWorld = pCore->m_pWorld;
+      float ClosestDist = FLT_MAX;
+      
+      mvec2 StartPos = pCore->m_HookPos;
+      mvec2 EndPos = NewPos;
 
-        mvec2 ClosestPoint;
-        if (closest_point_on_line(pCore->m_HookPos, NewPos, pEntity->m_Pos, &ClosestPoint)) {
-          if (vdistance(pEntity->m_Pos, ClosestPoint) < PHYSICALSIZE + 2.0f) {
-            if (pCore->m_HookedPlayer == -1 || vdistance(pCore->m_HookPos, pEntity->m_Pos) < Distance) {
-              pCore->m_HookState = HOOK_GRABBED;
-              pCore->m_HookedPlayer = pEntity->m_Id;
-              Distance = vdistance(pCore->m_HookPos, pEntity->m_Pos);
+      int MapWidth = pWorld->m_pCollision->m_MapData.width;
+      int MapHeight = pWorld->m_pCollision->m_MapData.height;
+
+      int StartX = (int)vgetx(StartPos) >> 5;
+      int StartY = (int)vgety(StartPos) >> 5;
+      int EndX = (int)vgetx(EndPos) >> 5;
+      int EndY = (int)vgety(EndPos) >> 5;
+      
+      int CurrentX = StartX;
+      int CurrentY = StartY;
+
+      mvec2 Dir = vvsub(EndPos, StartPos);
+      float dx = vgetx(Dir);
+      float dy = vgety(Dir);
+
+      int StepX = (dx > 0) ? 1 : -1;
+      int StepY = (dy > 0) ? 1 : -1;
+      
+      float NextBoundaryX = (CurrentX + (dx > 0 ? 1 : 0)) * 32.0f;
+      float NextBoundaryY = (CurrentY + (dy > 0 ? 1 : 0)) * 32.0f;
+
+      float tMaxX = (dx != 0.0f) ? (NextBoundaryX - vgetx(StartPos)) / dx : FLT_MAX;
+      float tMaxY = (dy != 0.0f) ? (NextBoundaryY - vgety(StartPos)) / dy : FLT_MAX;
+
+      float tDeltaX = (dx != 0.0f) ? (32.0f * StepX) / dx : FLT_MAX;
+      float tDeltaY = (dy != 0.0f) ? (32.0f * StepY) / dy : FLT_MAX;
+
+      int aCheckedIndices[128]; 
+      int NumChecked = 0;
+
+      while (true) {
+        // 3x3 block around the current cell
+        for (int offsetY = -1; offsetY <= 1; ++offsetY) {
+            for (int offsetX = -1; offsetX <= 1; ++offsetX) {
+                int CheckX = CurrentX + offsetX;
+                int CheckY = CurrentY + offsetY;
+
+                // Bounds check
+                if (CheckX < 0 || CheckY < 0 || CheckX >= MapWidth || CheckY >= MapHeight)
+                    continue;
+
+                int MapIndex = CheckY * MapWidth + CheckX;
+                
+                // Check if we already processed this cell for this hook tick
+                bool bAlreadyChecked = false;
+                for(int j = 0; j < NumChecked; ++j) {
+                    if(aCheckedIndices[j] == MapIndex) {
+                        bAlreadyChecked = true;
+                        break;
+                    }
+                }
+
+                if(bAlreadyChecked)
+                    continue;
+                
+                // Add to checked list
+                if(NumChecked < 128) {
+                    aCheckedIndices[NumChecked++] = MapIndex;
+                }
+
+                // Now, check against all players in this cell
+                int PlayerId = pWorld->m_Accelerator.m_pGrid->m_pTeeGrid[MapIndex];
+                while(PlayerId >= 0) {
+                    SCharacterCore *pEntity = &pWorld->m_pCharacters[PlayerId];
+
+                    if (pEntity != pCore && !pEntity->m_Solo && !pCore->m_Solo) {
+                        mvec2 ClosestPoint;
+                        if (closest_point_on_line(StartPos, EndPos, pEntity->m_Pos, &ClosestPoint)) {
+                            if (vdistance(pEntity->m_Pos, ClosestPoint) < PHYSICALSIZE + 2.0f) {
+                                float dist = vdistance(StartPos, pEntity->m_Pos);
+                                if (dist < ClosestDist) {
+                                    ClosestDist = dist;
+                                    pCore->m_HookedPlayer = pEntity->m_Id;
+                                }
+                            }
+                        }
+                    }
+                    PlayerId = pWorld->m_Accelerator.m_pTeeList[PlayerId].m_Child;
+                }
             }
-          }
         }
+
+        if (CurrentX == EndX && CurrentY == EndY) {
+            break;
+        }
+        
+        if (tMaxX < tMaxY) {
+            tMaxX += tDeltaX;
+            CurrentX += StepX;
+        } else {
+            tMaxY += tDeltaY;
+            CurrentY += StepY;
+        }
+      }
+      
+      if (pCore->m_HookedPlayer != -1) {
+        pCore->m_HookState = HOOK_GRABBED;
       }
     }
 
