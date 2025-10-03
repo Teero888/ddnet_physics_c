@@ -713,7 +713,7 @@ void cc_move(SCharacterCore *pCore) {
     return;
   }
 
-  pCore->m_Vel = vvclamp(pCore->m_Vel, vec2_init(-4*32, -4*32), vec2_init(4*32, 4*32));
+  pCore->m_Vel = vvclamp(pCore->m_Vel, vec2_init(-4 * 32, -4 * 32), vec2_init(4 * 32, 4 * 32));
 
   move_box(pCore->m_pCollision, NewPos, pCore->m_Vel, &NewPos, &pCore->m_Vel,
            vec2_init(pCore->m_pTuning->m_GroundElasticityX, pCore->m_pTuning->m_GroundElasticityY), &Grounded);
@@ -1563,7 +1563,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
       SWorldCore *pWorld = pCore->m_pWorld;
       float ClosestDist = FLT_MAX;
-      
+
       mvec2 StartPos = pCore->m_HookPos;
       mvec2 EndPos = NewPos;
 
@@ -1574,7 +1574,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
       int StartY = (int)vgety(StartPos) >> 5;
       int EndX = (int)vgetx(EndPos) >> 5;
       int EndY = (int)vgety(EndPos) >> 5;
-      
+
       int CurrentX = StartX;
       int CurrentY = StartY;
 
@@ -1584,7 +1584,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
       int StepX = (dx > 0) ? 1 : -1;
       int StepY = (dy > 0) ? 1 : -1;
-      
+
       float NextBoundaryX = (CurrentX + (dx > 0 ? 1 : 0)) * 32.0f;
       float NextBoundaryY = (CurrentY + (dy > 0 ? 1 : 0)) * 32.0f;
 
@@ -1594,74 +1594,74 @@ void cc_pre_tick(SCharacterCore *pCore) {
       float tDeltaX = (dx != 0.0f) ? (32.0f * StepX) / dx : FLT_MAX;
       float tDeltaY = (dy != 0.0f) ? (32.0f * StepY) / dy : FLT_MAX;
 
-      int aCheckedIndices[128]; 
+      int aCheckedIndices[128];
       int NumChecked = 0;
 
       while (true) {
         // 3x3 block around the current cell
         for (int offsetY = -1; offsetY <= 1; ++offsetY) {
-            for (int offsetX = -1; offsetX <= 1; ++offsetX) {
-                int CheckX = CurrentX + offsetX;
-                int CheckY = CurrentY + offsetY;
+          for (int offsetX = -1; offsetX <= 1; ++offsetX) {
+            int CheckX = CurrentX + offsetX;
+            int CheckY = CurrentY + offsetY;
 
-                // Bounds check
-                if (CheckX < 0 || CheckY < 0 || CheckX >= MapWidth || CheckY >= MapHeight)
-                    continue;
+            // Bounds check
+            if (CheckX < 0 || CheckY < 0 || CheckX >= MapWidth || CheckY >= MapHeight)
+              continue;
 
-                int MapIndex = CheckY * MapWidth + CheckX;
-                
-                // Check if we already processed this cell for this hook tick
-                bool bAlreadyChecked = false;
-                for(int j = 0; j < NumChecked; ++j) {
-                    if(aCheckedIndices[j] == MapIndex) {
-                        bAlreadyChecked = true;
-                        break;
-                    }
-                }
+            int MapIndex = CheckY * MapWidth + CheckX;
 
-                if(bAlreadyChecked)
-                    continue;
-                
-                // Add to checked list
-                if(NumChecked < 128) {
-                    aCheckedIndices[NumChecked++] = MapIndex;
-                }
-
-                // Now, check against all players in this cell
-                int PlayerId = pWorld->m_Accelerator.m_pGrid->m_pTeeGrid[MapIndex];
-                while(PlayerId >= 0) {
-                    SCharacterCore *pEntity = &pWorld->m_pCharacters[PlayerId];
-
-                    if (pEntity != pCore && !pEntity->m_Solo && !pCore->m_Solo) {
-                        mvec2 ClosestPoint;
-                        if (closest_point_on_line(StartPos, EndPos, pEntity->m_Pos, &ClosestPoint)) {
-                            if (vdistance(pEntity->m_Pos, ClosestPoint) < PHYSICALSIZE + 2.0f) {
-                                float dist = vdistance(StartPos, pEntity->m_Pos);
-                                if (dist < ClosestDist) {
-                                    ClosestDist = dist;
-                                    pCore->m_HookedPlayer = pEntity->m_Id;
-                                }
-                            }
-                        }
-                    }
-                    PlayerId = pWorld->m_Accelerator.m_pTeeList[PlayerId].m_Child;
-                }
+            // Check if we already processed this cell for this hook tick
+            bool bAlreadyChecked = false;
+            for (int j = 0; j < NumChecked; ++j) {
+              if (aCheckedIndices[j] == MapIndex) {
+                bAlreadyChecked = true;
+                break;
+              }
             }
+
+            if (bAlreadyChecked)
+              continue;
+
+            // Add to checked list
+            if (NumChecked < 128) {
+              aCheckedIndices[NumChecked++] = MapIndex;
+            }
+
+            // Now, check against all players in this cell
+            int PlayerId = pWorld->m_Accelerator.m_pGrid->m_pTeeGrid[MapIndex];
+            while (PlayerId >= 0) {
+              SCharacterCore *pEntity = &pWorld->m_pCharacters[PlayerId];
+
+              if (pEntity != pCore && !pEntity->m_Solo && !pCore->m_Solo) {
+                mvec2 ClosestPoint;
+                if (closest_point_on_line(StartPos, EndPos, pEntity->m_Pos, &ClosestPoint)) {
+                  if (vdistance(pEntity->m_Pos, ClosestPoint) < PHYSICALSIZE + 2.0f) {
+                    float dist = vdistance(StartPos, pEntity->m_Pos);
+                    if (dist < ClosestDist) {
+                      ClosestDist = dist;
+                      pCore->m_HookedPlayer = pEntity->m_Id;
+                    }
+                  }
+                }
+              }
+              PlayerId = pWorld->m_Accelerator.m_pTeeList[PlayerId].m_Child;
+            }
+          }
         }
 
         if (CurrentX == EndX && CurrentY == EndY) {
-            break;
+          break;
         }
-        
+
         if (tMaxX < tMaxY) {
-            tMaxX += tDeltaX;
-            CurrentX += StepX;
+          tMaxX += tDeltaX;
+          CurrentX += StepX;
         } else {
-            tMaxY += tDeltaY;
-            CurrentY += StepY;
+          tMaxY += tDeltaY;
+          CurrentY += StepY;
         }
       }
-      
+
       if (pCore->m_HookedPlayer != -1) {
         pCore->m_HookState = HOOK_GRABBED;
       }
@@ -1851,10 +1851,8 @@ void cc_fire_weapon(SCharacterCore *pCore) {
     return;
 
   // check if we gonna fire
-  bool WillFire = false;
-  if (pCore->m_PrevFire != pCore->m_Input.m_Fire) {
-    WillFire = true;
-  } else if (pCore->m_Input.m_Fire & 1) {
+  bool WillFire = !pCore->m_PrevFire && pCore->m_Input.m_Fire;
+  if (pCore->m_Input.m_Fire & 1) {
     if (pCore->m_ActiveWeapon >= WEAPON_SHOTGUN && pCore->m_ActiveWeapon <= WEAPON_LASER)
       WillFire = true;
     else if (pCore->m_Jetpack && pCore->m_ActiveWeapon == WEAPON_GUN)
