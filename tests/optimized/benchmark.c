@@ -7,10 +7,10 @@
 #include <omp.h>
 #include <stdio.h>
 
-#define ITERATIONS 200
+#define ITERATIONS 20
 #define NUM_RUNS 300
 #define BAR_WIDTH 50
-#define TICKS_PER_ITERATION 500
+#define TICKS_PER_ITERATION 50000
 #define NUM_CHARACTERS 1
 
 typedef struct {

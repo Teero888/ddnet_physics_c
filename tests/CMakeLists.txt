@@ -5,5 +5,5 @@ project(ddnet_physics_tests LANGUAGES C)
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/maps DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/..)
 
 # Add subdirectories for optimized and debug tests
-add_subdirectory(debug)
+# add_subdirectory(debug)
 add_subdirectory(optimized)

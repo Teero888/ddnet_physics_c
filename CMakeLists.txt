@@ -8,7 +8,7 @@ project(ddnet_physics LANGUAGES C)
 
 # Option to enable aggressive optimizations
 option(ENABLE_AGGRESSIVE_OPTIM "Enable aggressive optimizations with LTO and native tuning" OFF)
-option(COMPILE_TESTS "Whether to compile tests" OFF)
+option(TESTS "Whether to compile tests" OFF)
 
 # Define the static library
 add_library(ddnet_physics STATIC
@@ -48,7 +48,7 @@ endif()
 add_subdirectory(libs/ddnet_map_loader)
 target_link_libraries(ddnet_physics PRIVATE ddnet_map_loader)
 
-if(COMPILE_TESTS)
+if(TESTS)
     # Add subdirectory for tests
     add_subdirectory(tests)
 endif()

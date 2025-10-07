@@ -755,14 +755,14 @@ static inline float fast_rand(unsigned int *state) {
   *state = x;
   return (x % 1000) / 1000.0f;
 }
-static inline unsigned int ifast_rand(unsigned int *state) {
-  unsigned int x = *state;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *state = x;
-  return x;
-}
+// static inline unsigned int ifast_rand(unsigned int *state) {
+//   unsigned int x = *state;
+//   x ^= x << 13;
+//   x ^= x >> 17;
+//   x ^= x << 5;
+//   *state = x;
+//   return x;
+// }
 
 void cc_tee_interact_deferred(SCharacterCore *pCore, int Id, int *pCollisions) {
   SCharacterCore *pCharCore = &pCore->m_pWorld->m_pCharacters[Id];
@@ -2506,6 +2506,7 @@ void wc_remove_character(SWorldCore *pWorld, int CharacterId) {
   if (!pWorld || CharacterId < 0 || CharacterId >= pWorld->m_NumCharacters)
     return;
 
+  wc_clear_grid(pWorld);
   SCharacterCore *pChars = pWorld->m_pCharacters;
   int lastIdx = pWorld->m_NumCharacters - 1;
 
