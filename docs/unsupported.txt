@@ -1,3 +1,2 @@
-# Going out of bounds. Player pos < 0 or > mapsize
 # moving pickups
-# you may not move faster than 8 tiles per tick per axis.
+# you may not move faster than 4 tiles per tick per axis.

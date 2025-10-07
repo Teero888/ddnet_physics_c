@@ -210,6 +210,7 @@ int main(int argc, char *argv[]) {
   printf("%s ticks/s\t%d runs\n", aBuf, NUM_RUNS);
 
   wc_free(&StartWorld);
+  tg_destroy(&Grid);
   free_collision(&Collision);
 
   return 0;

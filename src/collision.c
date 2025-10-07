@@ -1512,11 +1512,10 @@ void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, m
     return;
   }
   const unsigned short Max = s_aMaxTable[(int)Distance];
-  const mvec2 Fraction = vfmul(Vel, s_aFractionTable[Max]);
   uivec2 IPos = (uivec2){(int)(vgetx(Pos) + 0.5f), (int)(vgety(Pos) + 0.5f)};
   uivec2 INewPos;
   for (int i = 0; i <= Max; i++) {
-    NewPos = vvadd(Pos, Fraction);
+    NewPos = vvadd(Pos, vfmul(Vel, s_aFractionTable[Max]));
     INewPos = (uivec2){(int)(vgetx(NewPos) + 0.5f), (int)(vgety(NewPos) + 0.5f)};
     if (test_box_character(pCollision, INewPos.x, INewPos.y)) {
       bool Hit = false;
