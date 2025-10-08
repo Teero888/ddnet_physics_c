@@ -276,7 +276,7 @@ typedef struct CharacterCore {
 
   int m_StartTick;
   int m_FinishTick;
-  int m_AttackTick; // for animations
+  int m_AttackTick; // for external animations
 
   uint8_t m_RespawnDelay;
 

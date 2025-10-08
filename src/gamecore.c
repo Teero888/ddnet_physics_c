@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <ddnet_map_loader.h>
 #include <float.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -609,6 +610,8 @@ void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
 
   pCore->m_StartTick = -1;
   pCore->m_FinishTick = -1;
+
+  pCore->m_AttackTick = INT_MIN;
 
   // The world assigns ids to the core
   pCore->m_Id = -1;
@@ -1856,15 +1859,15 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 
     int Hits = 0;
     for (int i = 0; i < pCore->m_pWorld->m_NumCharacters; ++i) {
-      if (vdistance(pCore->m_pWorld->m_pCharacters[i].m_Pos, pCore->m_Pos) < (PHYSICALSIZE * 0.5f) + PHYSICALSIZE) {
+      if (vdistance(pCore->m_pWorld->m_pCharacters[i].m_Pos, ProjStartPos) < HALFPHYSICALSIZE + PHYSICALSIZE) {
         SCharacterCore *pTarget = &pCore->m_pWorld->m_pCharacters[i];
 
         if (pTarget == pCore || pTarget->m_Solo)
           continue;
 
         mvec2 Dir;
-        if (vsqlength(vvsub(pTarget->m_Pos, pCore->m_Pos)) > 0.0f)
-          Dir = vnormalize(vvsub(pTarget->m_Pos, pCore->m_Pos));
+        if (vsqlength(vvsub(pTarget->m_Pos, ProjStartPos)) > 0.0f)
+          Dir = vnormalize(vvsub(pTarget->m_Pos, ProjStartPos));
         else
           Dir = vec2_init(0.f, -1.f);
 
