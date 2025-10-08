@@ -502,8 +502,9 @@ fail:
   return false;
 }
 
-bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict__ pMap) {
-  pCollision->m_MapData = load_map(pMap);
+// SCollision now OWNS the pMap data, DO NOT FREE IT
+bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict__ pMap) {
+  pCollision->m_MapData = *pMap;
   expand_and_shift_map(&pCollision->m_MapData, 200);
   if (!pCollision->m_MapData.game_layer.data)
     return false;

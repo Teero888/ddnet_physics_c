@@ -107,11 +107,14 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  map_data_t Map = load_map("maps/Aip-Gores.map");
   SCollision Collision;
-  if (!init_collision(&Collision, "maps/Aip-Gores.map")) {
+  if (!init_collision(&Collision, &Map)) {
     printf("Error: Failed to load collision map.\n");
     return 1;
   }
+  // Map is now owned by the collision and not needed here anymore
+  (void)Map;
 
   double aTPSValues[NUM_RUNS];
   unsigned int global_seed = 0; // (unsigned)time(NULL);

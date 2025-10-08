@@ -2,11 +2,11 @@
 #define LIB_COLLISION_H
 
 #if defined(_MSC_VER) && !defined(__clang__)
-#  ifndef __restrict__
-#    define __restrict__ __restrict
-#  endif
-#  define __attribute__(x) 
-#  define __builtin_unreachable() __assume(0)
+#ifndef __restrict__
+#define __restrict__ __restrict
+#endif
+#define __attribute__(x)
+#define __builtin_unreachable() __assume(0)
 #endif
 
 #ifdef __cplusplus
@@ -95,7 +95,7 @@ typedef struct Collision {
   bool m_MoveRestrictionsFound;
 } SCollision;
 
-bool init_collision(SCollision *__restrict__ pCollision, const char *__restrict__ pMap);
+bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict__ pMap);
 void free_collision(SCollision *pCollision);
 int get_pure_map_index(SCollision *pCollision, mvec2 Pos);
 unsigned char move_restrictions(unsigned char Direction, unsigned char Tile, unsigned char Flags);
