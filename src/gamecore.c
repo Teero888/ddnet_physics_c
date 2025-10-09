@@ -611,7 +611,7 @@ void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   pCore->m_StartTick = -1;
   pCore->m_FinishTick = -1;
 
-  pCore->m_AttackTick = INT_MIN;
+  pCore->m_AttackTick = INT_MIN * 0.5;
 
   // The world assigns ids to the core
   pCore->m_Id = -1;
@@ -2300,6 +2300,7 @@ static void wc_clear_grid(SWorldCore *pCore) {
 static void wc_accelerator_tick(SWorldCore *pCore) {
   if (pCore->m_Accelerator.hash != pCore->m_Accelerator.m_pGrid->hash) {
     wc_clear_grid(pCore);
+    pCore->m_Accelerator.m_pGrid->hash = pCore->m_Accelerator.hash;
   }
 
   // set up accelerator
@@ -2373,11 +2374,10 @@ void wc_tick(SWorldCore *pCore) {
     cc_do_pickup(&pCore->m_pCharacters[i]);
 
   // Tick characters
-  for (int i = 0; i < pCore->m_NumCharacters; ++i)
-    cc_pre_tick(&pCore->m_pCharacters[i]);
-
   if (pCore->m_NumCharacters > 1)
     wc_accelerator_tick(pCore);
+  for (int i = 0; i < pCore->m_NumCharacters; ++i)
+    cc_pre_tick(&pCore->m_pCharacters[i]);
   for (int i = 0; i < pCore->m_NumCharacters; ++i)
     cc_tick(&pCore->m_pCharacters[i]);
 
