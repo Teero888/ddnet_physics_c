@@ -1866,8 +1866,8 @@ void cc_fire_weapon(SCharacterCore *pCore) {
           continue;
 
         mvec2 Dir;
-        if (vsqlength(vvsub(pTarget->m_Pos, pCore->m_pWorld->m_pCharacters[i].m_Pos)) > 0.0f)
-          Dir = vnormalize(vvsub(pTarget->m_Pos, pCore->m_pWorld->m_pCharacters[i].m_Pos));
+        if (vsqdistance(pTarget->m_Pos, pCore->m_Pos) > 0.0f)
+          Dir = vnormalize(vvsub(pTarget->m_Pos, pCore->m_Pos));
         else
           Dir = vec2_init(0.f, -1.f);
 
