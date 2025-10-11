@@ -692,7 +692,7 @@ bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict_
           if (pCollision->m_pFrontPickups[dIdx].m_Type > 0)
             pCollision->m_pTileInfos[Idx] |= INFO_PICKUPNEXT;
           if (pCollision->m_MapData.game_layer.data[dIdx] == TILE_DEATH ||
-              (pCollision->m_MapData.front_layer.data && pCollision->m_MapData.front_layer.data[dIdx]))
+              (pCollision->m_MapData.front_layer.data && pCollision->m_MapData.front_layer.data[dIdx] == TILE_DEATH))
             pCollision->m_pTileInfos[Idx] |= INFO_CANHITKILL;
         }
       }
