@@ -1349,40 +1349,40 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
   const mvec2 Pos = pCore->m_Pos;
   const int Width = pCore->m_pCollision->m_MapData.width;
 
-  if (broad_indices_check(pCore->m_pCollision, PrevPos, Pos)) {
-    int cx = (int)vgetx(PrevPos) >> 5;
-    int cy = (int)vgety(PrevPos) >> 5;
-    int tx = (int)vgetx(Pos) >> 5;
-    int ty = (int)vgety(Pos) >> 5;
+  int sx = (int)vgetx(PrevPos) >> 5;
+  int sy = (int)vgety(PrevPos) >> 5;
+  int ex = (int)vgetx(Pos) >> 5;
+  int ey = (int)vgety(Pos) >> 5;
 
-    int dx = tx - cx;
-    int dy = ty - cy;
-
-    int stepX = (dx > 0) ? 1 : -1;
-    int stepY = (dy > 0) ? 1 : -1;
-
-    int ddx = abs(dx);
-    int ddy = abs(dy);
-
-    long long err = (long long)ddx - ddy;
-    long long e2;
-
-    for (;;) {
-      cc_handle_tiles(pCore, cy * Width + cx);
-      if (cx == tx && cy == ty)
-        break;
-      e2 = 2 * err;
-
-      if (e2 > -ddy) {
-        err -= ddy;
-        cx += stepX;
-      }
-
-      if (e2 < ddx) {
-        err += ddx;
-        cy += stepY;
+  if ((sx != ex || sy != ey)) {
+    bool yFirst = false;
+    if (sx != ex && sy != ey) {
+      float corner_x = (float)((sx < ex) ? sx + 1 : sx) * 32.f;
+      float corner_y = (float)((sy < ey) ? sy + 1 : sy) * 32.f;
+      mvec2 to_corner = vec2_init(corner_x - vgetx(PrevPos), corner_y - vgety(PrevPos));
+      mvec2 to_pos = vec2_init(vgetx(Pos) - vgetx(PrevPos), vgety(Pos) - vgety(PrevPos));
+      float cross_product = vgetx(to_pos) * vgety(to_corner) - vgety(to_pos) * vgetx(to_corner);
+      if (cross_product * vgety(to_pos) < 0) {
+        yFirst = true;
       }
     }
+    if (yFirst) {
+      int stepY = (ey > sy) ? 1 : -1;
+      for (int y = sy; y != ey; y += stepY)
+        cc_handle_tiles(pCore, y * Width + sx);
+      int stepX = (ex > sx) ? 1 : -1;
+      for (int x = sx; x != ex; x += stepX)
+        cc_handle_tiles(pCore, ey * Width + x);
+
+    } else {
+      int stepX = (ex > sx) ? 1 : -1;
+      for (int x = sx; x != ex; x += stepX)
+        cc_handle_tiles(pCore, sy * Width + x);
+      int stepY = (ey > sy) ? 1 : -1;
+      for (int y = sy; y != ey; y += stepY)
+        cc_handle_tiles(pCore, y * Width + ex);
+    }
+    cc_handle_tiles(pCore, ey * Width + ex);
   }
 
   // teleport gun
