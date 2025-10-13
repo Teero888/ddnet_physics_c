@@ -130,17 +130,16 @@ void lsr_init(SLaser *pLaser, SWorldCore *pGameWorld, int Type, int Owner, mvec2
 void cc_unfreeze(SCharacterCore *pCore);
 void cc_take_damage(SCharacterCore *pCore, mvec2 Force);
 bool lsr_hit_character(SLaser *pLaser, mvec2 From, mvec2 To) {
-  static const mvec2 StackedLaserShotgunBugSpeed = CTVEC2(-2147483648.0f, -2147483648.0f);
   mvec2 At;
   SCharacterCore *pOwnerChar = &pLaser->m_Base.m_pWorld->m_pCharacters[pLaser->m_Owner];
   SCharacterCore *pHit;
   bool pDontHitSelf = pLaser->m_Bounces == 0 && !pLaser->m_WasTele;
   if (pOwnerChar ? (!pOwnerChar->m_LaserHitDisabled && pLaser->m_Type == WEAPON_LASER) ||
                        (!pOwnerChar->m_ShotgunHitDisabled && pLaser->m_Type == WEAPON_SHOTGUN)
-                 : pLaser->m_Base.m_pWorld->m_pConfig->m_SvHit)
-    pHit = wc_intersect_character(pLaser->m_Base.m_pWorld, pLaser->m_Base.m_Pos, To, 0.f, &At, pDontHitSelf ? pOwnerChar : NULL, pOwnerChar);
-  else
+                 : pLaser->m_Base.m_pWorld->m_pConfig->m_SvHit) {
     pHit = wc_intersect_character(pLaser->m_Base.m_pWorld, pLaser->m_Base.m_Pos, To, 0.f, &At, pDontHitSelf ? pOwnerChar : NULL, NULL);
+  } else
+    pHit = wc_intersect_character(pLaser->m_Base.m_pWorld, pLaser->m_Base.m_Pos, To, 0.f, &At, pDontHitSelf ? pOwnerChar : NULL, pOwnerChar);
 
   if (!pHit || (pHit != pOwnerChar && pOwnerChar ? (pOwnerChar->m_LaserHitDisabled && pLaser->m_Type == WEAPON_LASER) ||
                                                        (pOwnerChar->m_ShotgunHitDisabled && pLaser->m_Type == WEAPON_SHOTGUN)
@@ -151,12 +150,7 @@ bool lsr_hit_character(SLaser *pLaser, mvec2 From, mvec2 To) {
   pLaser->m_Energy = -1;
   switch (pLaser->m_Type) {
   case WEAPON_SHOTGUN: {
-    float Strength = pLaser->m_pTuning->m_ShotgunStrength;
-    const mvec2 HitPos = pHit->m_Pos;
-    if (!vvcmp(pLaser->m_PrevPos, HitPos))
-      pHit->m_Vel = vvadd(pHit->m_Vel, vfmul(vnormalize(vvsub(pLaser->m_PrevPos, HitPos)), Strength));
-    else
-      pHit->m_Vel = StackedLaserShotgunBugSpeed;
+    pHit->m_Vel = vvadd(pHit->m_Vel, vfmul(vnormalize(vvsub(pLaser->m_PrevPos, pHit->m_Pos)), pLaser->m_pTuning->m_ShotgunStrength));
     break;
   }
   case WEAPON_LASER: {
