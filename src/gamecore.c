@@ -683,6 +683,15 @@ void cc_die(SCharacterCore *pCore) {
   pCore->m_Id = Id;
 }
 
+static inline float fast_expf(float x) {
+  union {
+    float f;
+    int i;
+  } v;
+  v.i = (int)(x * (1 << 23) / 0.69314718f + 127 * (1 << 23));
+  return v.f;
+}
+
 void cc_move(SCharacterCore *pCore) {
   pCore->m_VelMag = vlength(pCore->m_Vel);
   const float VelMag = pCore->m_VelMag * 50;
@@ -691,7 +700,7 @@ void cc_move(SCharacterCore *pCore) {
   float RampValue = 1.f;
   if (VelMag >= pCore->m_pTuning->m_VelrampStart) {
     float t = VelMag - pCore->m_pTuning->m_VelrampStart;
-    RampValue = expf(-t * pCore->m_pTuning->m_VelrampValue);
+    RampValue = fast_expf(-t * pCore->m_pTuning->m_VelrampValue);
   }
   pCore->m_VelRamp = RampValue;
 
@@ -1375,8 +1384,8 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
         for (int y = sy; y != ey; y += stepY)
           cc_handle_tiles(pCore, y * Width + ex);
       }
-      cc_handle_tiles(pCore, ey * Width + ex);
     }
+    cc_handle_tiles(pCore, ey * Width + ex);
   }
   // teleport gun
   if (pCore->m_TeleGunTeleport) {
