@@ -505,7 +505,7 @@ fail:
 // SCollision now OWNS the pMap data, DO NOT FREE IT
 bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict__ pMap) {
   pCollision->m_MapData = *pMap;
-  expand_and_shift_map(&pCollision->m_MapData, 200);
+  expand_and_shift_map(&pCollision->m_MapData, MAP_EXPAND);
   if (!pCollision->m_MapData.game_layer.data)
     return false;
 

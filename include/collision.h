@@ -30,6 +30,8 @@ enum {
 #define PHYSICALSIZE 28.f
 #define HALFPHYSICALSIZE 14
 #define PHYSICALSIZEVEC vec2_init(28.f, 28.f)
+#define MAP_EXPAND 200
+#define MAP_EXPAND32 (200*32)
 
 enum {
   INFO_ISSOLID = 1 << 0,
