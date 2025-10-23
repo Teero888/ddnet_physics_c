@@ -90,19 +90,6 @@ mvec2 calc_pos(mvec2 Pos, mvec2 Velocity, float Curvature, float Speed, float Ti
 
 // }}}
 
-// Necessary enums {{{
-
-enum {
-  HOOK_RETRACTED = -1,
-  HOOK_IDLE = 0,
-  HOOK_RETRACT_START = 1,
-  HOOK_RETRACT_END = 3,
-  HOOK_FLYING,
-  HOOK_GRABBED,
-};
-
-// }}}
-
 // Entities {{{
 
 void ent_init(SEntity *pEnt, SWorldCore *pGameWorld, int ObjType, mvec2 Pos) {
@@ -113,6 +100,7 @@ void ent_init(SEntity *pEnt, SWorldCore *pGameWorld, int ObjType, mvec2 Pos) {
   pEnt->m_MarkedForDestroy = false;
   pEnt->m_pPrevTypeEntity = NULL;
   pEnt->m_pNextTypeEntity = NULL;
+  pEnt->m_Spawned = true;
 }
 
 void lsr_bounce(SLaser *pLaser);
@@ -324,6 +312,7 @@ void lsr_bounce(SLaser *pLaser) {
 void lsr_tick(SLaser *pLaser) {
   if ((pLaser->m_Base.m_pWorld->m_GameTick - pLaser->m_EvalTick) > (GAME_TICK_SPEED * pLaser->m_pTuning->m_LaserBounceDelay / 1000.0f))
     lsr_bounce(pLaser);
+  pLaser->m_Base.m_Spawned = false;
 }
 
 void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner, mvec2 Pos, mvec2 Dir, int Span, bool Freeze, bool Explosive, int Layer,
@@ -373,6 +362,7 @@ bool cc_freeze(SCharacterCore *pCore, int Seconds);
 void wc_create_explosion(SWorldCore *pWorld, mvec2 Pos, int Owner);
 
 void prj_tick(SProjectile *pProj) {
+  pProj->m_Base.m_Spawned = false;
   float Pt = (pProj->m_Base.m_pWorld->m_GameTick - pProj->m_StartTick - 1) / (float)GAME_TICK_SPEED;
   float Ct = (pProj->m_Base.m_pWorld->m_GameTick - pProj->m_StartTick) / (float)GAME_TICK_SPEED;
   mvec2 PrevPos = prj_get_pos(pProj, Pt);
@@ -680,6 +670,7 @@ void cc_die(SCharacterCore *pCore) {
     cc_calc_indices(pCore);
   }
 
+  pCore->m_RespawnDelay = 25;
   pCore->m_Id = Id;
 }
 
@@ -1417,7 +1408,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
        check_point(pCore->m_pCollision, vec2_init(vgetx(pCore->m_Pos) - HALFPHYSICALSIZE, vgety(pCore->m_Pos) + HALFPHYSICALSIZE + 5)));
 
   pCore->m_Vel = vadd_y(pCore->m_Vel, pCore->m_pTuning->m_Gravity);
-
+  pCore->m_Grounded = Grounded;
   if (pCore->m_Input.m_Jump) {
     if (!(pCore->m_Jumped & 1)) {
       if (Grounded && (!(pCore->m_Jumped & 2) || pCore->m_Jumps != 0)) {
@@ -1979,10 +1970,8 @@ void cc_tick(SCharacterCore *pCore) {
 
 void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput) {
   // kill trigger
-  if (!pCore->m_RespawnDelay && get_flag_kill(pNewInput)) {
+  if (!pCore->m_RespawnDelay && get_flag_kill(pNewInput))
     cc_die(pCore);
-    pCore->m_RespawnDelay = 25;
-  }
 
   pCore->m_Input = *pNewInput;
   if (pCore->m_Input.m_TargetX == 0 && pCore->m_Input.m_TargetY == 0)

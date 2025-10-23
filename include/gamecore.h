@@ -30,6 +30,15 @@ typedef struct {
   uint16_t m_Flags;
 } SPlayerInput;
 
+enum {
+  HOOK_RETRACTED = -1,
+  HOOK_IDLE = 0,
+  HOOK_RETRACT_START = 1,
+  HOOK_RETRACT_END = 3,
+  HOOK_FLYING,
+  HOOK_GRABBED,
+};
+
 // sadly binary integer literals are a C23 extension xdd
 enum {
   FLAG_KILL = 1 << 0,
@@ -149,6 +158,7 @@ typedef struct Entity {
   int m_Number;
   int m_Layer;
   bool m_MarkedForDestroy;
+  bool m_Spawned;
 } SEntity;
 
 typedef struct Projectile {
@@ -221,6 +231,7 @@ typedef struct CharacterCore {
 
   bool m_NewHook;
 
+  bool m_Grounded;
   int m_Jumped;
   // m_JumpedTotal counts the jumps performed in the air
   int m_JumpedTotal;
