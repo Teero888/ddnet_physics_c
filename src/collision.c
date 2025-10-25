@@ -4,7 +4,11 @@
 #include "collision_tables.h"
 #include "limits.h"
 #include <assert.h>
+#if __has_include("../libs/ddnet_map_loader/ddnet_map_loader.h")
+#include "../libs/ddnet_map_loader/ddnet_map_loader.h"
+#else
 #include <ddnet_map_loader.h>
+#endif
 #include <float.h>
 #include <immintrin.h>
 #if defined(_MSC_VER) && !defined(__clang__)
