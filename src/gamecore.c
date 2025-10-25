@@ -1,8 +1,8 @@
-#include <ddnet_physics/gamecore.h>
-#include <ddnet_physics/collision.h>
-#include <ddnet_physics/vmath.h>
 #include <assert.h>
 #include <ddnet_map_loader.h>
+#include <ddnet_physics/collision.h>
+#include <ddnet_physics/gamecore.h>
+#include <ddnet_physics/vmath.h>
 #include <float.h>
 #include <limits.h>
 #include <stdint.h>
