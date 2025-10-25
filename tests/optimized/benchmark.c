@@ -1,8 +1,8 @@
-#include "../../include/collision.h"
-#include "../../include/gamecore.h"
 #include "../data.h"
 #include "../utils.h"
 #include "ddnet_map_loader.h"
+#include <ddnet_physics/collision.h>
+#include <ddnet_physics/gamecore.h>
 #include <getopt.h>
 #include <math.h>
 #include <omp.h>

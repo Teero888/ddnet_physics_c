@@ -1,6 +1,6 @@
-#include "../include/collision.h"
-#include "../include/vmath.h"
 #include "../utils.h"
+#include <ddnet_physics/collision.h>
+#include <ddnet_physics/vmath.h>
 #include <getopt.h>
 #include <math.h>
 #include <omp.h>
