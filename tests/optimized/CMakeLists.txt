@@ -3,17 +3,34 @@ cmake_minimum_required(VERSION 3.16)
 project(ddnet_physics_optimized LANGUAGES C)
 
 find_package(OpenMP REQUIRED)
+find_package(ZLIB REQUIRED)
 
 set(PGO_STAGE "NONE" CACHE STRING "Set the PGO stage (NONE, GENERATE, USE)")
 set_property(CACHE PGO_STAGE PROPERTY STRINGS NONE GENERATE USE)
+
 
 # Define executables
 add_executable(benchmark benchmark.c)
 add_executable(movebox movebox.c)
 
-# Link against ddnet_physics, ddnet_map_loader, and OpenMP
-target_link_libraries(benchmark PRIVATE ddnet_physics ddnet_map_loader m z OpenMP::OpenMP_C)
-target_link_libraries(movebox PRIVATE ddnet_physics ddnet_map_loader m z OpenMP::OpenMP_C)
+# Windows is a bitch
+target_link_libraries(benchmark PRIVATE
+    ddnet_physics
+    ddnet_map_loader
+    ZLIB::ZLIB
+    OpenMP::OpenMP_C
+)
+target_link_libraries(movebox PRIVATE
+    ddnet_physics
+    ddnet_map_loader
+    ZLIB::ZLIB
+    OpenMP::OpenMP_C
+)
+
+if(UNIX AND NOT APPLE)
+    target_link_libraries(benchmark PRIVATE m)
+    target_link_libraries(movebox PRIVATE m)
+endif()
 
 # Default compile options
 target_compile_options(benchmark PRIVATE -O3 -ffast-math -g -funroll-loops -mfpmath=sse -fomit-frame-pointer -fno-trapping-math -fno-signed-zeros)
