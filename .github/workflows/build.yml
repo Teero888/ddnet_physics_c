@@ -1,0 +1,36 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  merge_group:
+
+jobs:
+  build-cmake:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+    - name: Build release
+      run: |
+        mkdir release
+        cd release
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+        cmake --build .
+    - name: Build debug
+      run: |
+        mkdir debug
+        cd debug
+        cmake .. -DCMAKE_BUILD_TYPE=Debug
+        cmake --build .
+    - name: Run tests
+      run: |
+        mkdir test
+        cd test
+        cmake .. -DCMAKE_BUILD_TYPE=Debug -DTESTS=ON
+        cmake --build .
