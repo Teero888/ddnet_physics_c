@@ -26,15 +26,23 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         sudo apt-get update
+        # Install clang, openmp, ninja, AND zlib
         sudo apt-get install -y clang libomp-dev ninja-build zlib1g-dev
 
     - name: Setup Environment (Windows)
       if: runner.os == 'Windows'
       run: |
+        # Install LLVM and ninja
         choco install llvm ninja --no-progress --params="'/AddToPath:Machine'"
+        
         # Install zlib using the script from horta/zlib.install
         powershell -Command "(Invoke-WebRequest -Uri https://git.io/JnHTY -OutFile install_zlib.bat)"; ./install_zlib.bat; del install_zlib.bat
+        
+        # Add LLVM to the path for this session
         echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        
+        # Add LLVM to CMAKE_PREFIX_PATH so find_package(OpenMP) can find it
+        echo "CMAKE_PREFIX_PATH=C:\Program Files\LLVM" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       shell: pwsh
 
     - name: Build release
