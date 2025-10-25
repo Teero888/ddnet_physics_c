@@ -16,10 +16,16 @@ jobs:
     - uses: actions/checkout@v4
       with:
         submodules: true
-    - name: Build
+    - name: Build release
       run: |
-        mkdir build
-        cd build
-        cmake ..
+        mkdir release
+        cd release
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+        cmake --build .
+    - name: Build debug
+      run: |
+        mkdir debug
+        cd debug
+        cmake .. -DCMAKE_BUILD_TYPE=Debug
         cmake --build .
 
