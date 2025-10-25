@@ -12,25 +12,49 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+
+    env:
+      CC: clang
+      CXX: clang++
+
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: true
+
+    - name: Setup Environment (Ubuntu)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang libomp-dev ninja-build
+
+    - name: Setup Environment (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        choco install llvm ninja --no-progress --params="'/AddToPath:Machine'"
+        echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      shell: pwsh
+
     - name: Build release
       run: |
         mkdir release
         cd release
-        cmake .. -DCMAKE_BUILD_TYPE=Release
+        cmake .. -DCMAKE_BUILD_TYPE=Release -G Ninja
         cmake --build .
+      shell: bash
+
     - name: Build debug
       run: |
         mkdir debug
         cd debug
-        cmake .. -DCMAKE_BUILD_TYPE=Debug
+        cmake .. -DCMAKE_BUILD_TYPE=Debug -G Ninja
         cmake --build .
+      shell: bash
+
     - name: Run tests
       run: |
         mkdir test
         cd test
-        cmake .. -DCMAKE_BUILD_TYPE=Debug -DTESTS=ON
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DTESTS=ON -G Ninja
         cmake --build .
+      shell: bash

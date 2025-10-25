@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 
 project(ddnet_physics_optimized LANGUAGES C)
 
+find_package(OpenMP REQUIRED)
+
 set(PGO_STAGE "NONE" CACHE STRING "Set the PGO stage (NONE, GENERATE, USE)")
 set_property(CACHE PGO_STAGE PROPERTY STRINGS NONE GENERATE USE)
 
@@ -9,13 +11,13 @@ set_property(CACHE PGO_STAGE PROPERTY STRINGS NONE GENERATE USE)
 add_executable(benchmark benchmark.c)
 add_executable(movebox movebox.c)
 
-# Link against ddnet_physics and ddnet_map_loader
-target_link_libraries(benchmark PRIVATE ddnet_physics ddnet_map_loader m z omp)
-target_link_libraries(movebox PRIVATE ddnet_physics ddnet_map_loader m z omp)
+# Link against ddnet_physics, ddnet_map_loader, and OpenMP
+target_link_libraries(benchmark PRIVATE ddnet_physics ddnet_map_loader m z OpenMP::OpenMP_C)
+target_link_libraries(movebox PRIVATE ddnet_physics ddnet_map_loader m z OpenMP::OpenMP_C)
 
 # Default compile options
-target_compile_options(benchmark PRIVATE -O3 -ffast-math -g -fopenmp -funroll-loops -mfpmath=sse -fomit-frame-pointer -fno-trapping-math -fno-signed-zeros)
-target_compile_options(movebox PRIVATE -O3 -ffast-math -g -fopenmp -funroll-loops -mfpmath=sse -fomit-frame-pointer -fno-trapping-math -fno-signed-zeros)
+target_compile_options(benchmark PRIVATE -O3 -ffast-math -g -funroll-loops -mfpmath=sse -fomit-frame-pointer -fno-trapping-math -fno-signed-zeros)
+target_compile_options(movebox PRIVATE -O3 -ffast-math -g -funroll-loops -mfpmath=sse -fomit-frame-pointer -fno-trapping-math -fno-signed-zeros)
 
 # Apply aggressive optimizations if enabled
 if(ENABLE_AGGRESSIVE_OPTIM)
