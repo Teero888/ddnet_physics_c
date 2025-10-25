@@ -106,3 +106,24 @@ if(TESTS)
     # Add subdirectory for tests
     add_subdirectory(tests)
 endif()
+
+# install
+target_include_directories(ddnet_physics PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:include>
+)
+install(TARGETS ddnet_physics
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION bin
+)
+install(FILES
+    include/collision.h
+    include/gamecore.h
+    include/vmath.h
+    DESTINATION include/ddnet_physics
+)
+
+# uninstall
+configure_file(cmake/cmake_uninstall.cmake.in cmake_uninstall.cmake IMMEDIATE @ONLY)
+add_custom_target(uninstall COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
