@@ -1,6 +1,6 @@
-#include "../include/gamecore.h"
-#include "../include/collision.h"
-#include "../include/vmath.h"
+#include <ddnet_physics/gamecore.h>
+#include <ddnet_physics/collision.h>
+#include <ddnet_physics/vmath.h>
 #include <assert.h>
 #include <ddnet_map_loader.h>
 #include <float.h>
@@ -37,7 +37,7 @@
 
 void init_config(SConfig *pConfig) {
 #define MACRO_CONFIG_INT(Name, Def) pConfig->m_##Name = Def;
-#include "config.h"
+#include <ddnet_physics/config.h>
 #undef MACRO_CONFIG_INT
 }
 

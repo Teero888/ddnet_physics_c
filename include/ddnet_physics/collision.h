@@ -49,7 +49,7 @@ enum {
 
 typedef struct TuningParams {
 #define MACRO_TUNING_PARAM(Name, Value) float m_##Name;
-#include "../src/tuning.h"
+#include <ddnet_physics/tuning.h>
 #undef MACRO_TUNING_PARAM
 } STuningParams;
 
