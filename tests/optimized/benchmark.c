@@ -3,7 +3,6 @@
 #include "ddnet_map_loader.h"
 #include <ddnet_physics/collision.h>
 #include <ddnet_physics/gamecore.h>
-#include <getopt.h>
 #include <math.h>
 #include <omp.h>
 #include <stdio.h>
@@ -103,22 +102,14 @@ int main(int argc, char *argv[]) {
   int use_multi_threaded = 0;
 
   // Parse command-line options
-  while (1) {
-    static struct option long_options[] = {{"multi", no_argument, 0, 'm'}, {"help", no_argument, 0, 'h'}, {0, 0, 0, 0}};
-    int option_index = 0;
-    int c = getopt_long(argc, argv, "", long_options, &option_index);
-    if (c == -1)
-      break;
-
-    switch (c) {
-    case 'm':
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "--multi") == 0) {
       use_multi_threaded = 1;
-      break;
-    case 'h':
+    } else if (strcmp(argv[i], "--help") == 0) {
       print_help(argv[0]);
       return 0;
-    default:
-      printf("Unknown option. Use --help for usage.\n");
+    } else if (argv[i][0] == '-') {
+      printf("Unknown option: %s. Use --help for usage.\n", argv[i]);
       return 1;
     }
   }
