@@ -119,7 +119,7 @@ __attribute__((unused)) static void init_distance_field(SCollision *pCollision) 
   const size_t hr_height = orig_height * DISTANCE_FIELD_RESOLUTION;
   float *hr_field = _mm_malloc(hr_width * hr_height * sizeof(float), 32);
   if (!hr_field) {
-    printf("Error: could not allocate %lu bytes of memory\n", hr_width * hr_height * sizeof(float));
+    printf("Error: could not allocate %zu bytes of memory\n", hr_width * hr_height * sizeof(float));
     return;
   }
   for (size_t y = 0; y < hr_height; ++y) {

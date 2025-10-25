@@ -6,12 +6,18 @@ set(CMAKE_C_EXTENSIONS OFF)
 
 project(ddnet_physics LANGUAGES C)
 
-# Option to enable aggressive optimizations
 option(ENABLE_AGGRESSIVE_OPTIM "Enable aggressive optimizations with LTO and native tuning" OFF)
 option(TESTS "Whether to compile tests" OFF)
+option(SHARED_LIB "Build ddnet_physics as a shared library" OFF)
 
-# Define the static library
-add_library(ddnet_physics STATIC
+if(SHARED_LIB)
+    set(DDNET_PHYSICS_LIB_TYPE SHARED)
+else()
+    set(DDNET_PHYSICS_LIB_TYPE STATIC)
+endif()
+
+# Define the library
+add_library(ddnet_physics ${DDNET_PHYSICS_LIB_TYPE}
     include/ddnet_physics/collision.h
     include/ddnet_physics/config.h
     include/ddnet_physics/gamecore.h
