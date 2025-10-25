@@ -12,14 +12,14 @@ option(TESTS "Whether to compile tests" OFF)
 
 # Define the static library
 add_library(ddnet_physics STATIC
-    include/collision.h
-    include/gamecore.h
-    include/vmath.h
+    include/ddnet_physics/collision.h
+    include/ddnet_physics/config.h
+    include/ddnet_physics/gamecore.h
+    include/ddnet_physics/tuning.h
+    include/ddnet_physics/vmath.h
     src/collision.c
     src/collision_tables.h
-    src/config.h
     src/gamecore.c
-    src/tuning.h
 )
 
 include(CheckCCompilerFlag)
@@ -118,9 +118,11 @@ install(TARGETS ddnet_physics
     RUNTIME DESTINATION bin
 )
 install(FILES
-    include/collision.h
-    include/gamecore.h
-    include/vmath.h
+    include/ddnet_physics/collision.h
+    include/ddnet_physics/config.h
+    include/ddnet_physics/gamecore.h
+    include/ddnet_physics/tuning.h
+    include/ddnet_physics/vmath.h
     DESTINATION include/ddnet_physics
 )
 

@@ -1,6 +1,6 @@
-#include "../include/collision.h"
-#include "../include/gamecore.h"
-#include "../include/vmath.h"
+#include <ddnet_physics/collision.h>
+#include <ddnet_physics/gamecore.h>
+#include <ddnet_physics/vmath.h>
 #include "collision_tables.h"
 #include "limits.h"
 #include <assert.h>
@@ -183,7 +183,7 @@ __attribute__((unused)) static void init_distance_field(SCollision *pCollision) 
 
 static void init_tuning_params(STuningParams *pTunings) {
 #define MACRO_TUNING_PARAM(Name, Value) pTunings->m_##Name = Value;
-#include "tuning.h"
+#include <ddnet_physics/tuning.h>
 #undef MACRO_TUNING_PARAM
 }
 

@@ -5,14 +5,14 @@
 extern "C" {
 #endif
 
-#include "collision.h"
-#include "vmath.h"
+#include <ddnet_physics/collision.h>
+#include <ddnet_physics/vmath.h>
 #include <stdbool.h>
 #include <stdint.h>
 
 typedef struct Config {
 #define MACRO_CONFIG_INT(Name, Def) int m_##Name;
-#include "../src/config.h"
+#include <ddnet_physics/config.h>
 #undef MACRO_CONFIG_INT
 } SConfig;
 
