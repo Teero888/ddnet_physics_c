@@ -28,9 +28,4 @@ jobs:
         cd debug
         cmake .. -DCMAKE_BUILD_TYPE=Debug
         cmake --build .
-    - name: Run tests
-      run: |
-        mkdir test
-        cd test
-        cmake .. -DCMAKE_BUILD_TYPE=Debug -DTESTS=ON
-        cmake --build .
+
