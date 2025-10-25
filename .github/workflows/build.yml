@@ -26,12 +26,12 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         sudo apt-get update
-        sudo apt-get install -y clang libomp-dev ninja-build
+        sudo apt-get install -y clang libomp-dev ninja-build zlib1g-dev
 
     - name: Setup Environment (Windows)
       if: runner.os == 'Windows'
       run: |
-        choco install llvm ninja --no-progress --params="'/AddToPath:Machine'"
+        choco install llvm ninja zlib --no-progress --params="'/AddToPath:Machine'"
         echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       shell: pwsh
 
