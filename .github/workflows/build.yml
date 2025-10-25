@@ -31,7 +31,9 @@ jobs:
     - name: Setup Environment (Windows)
       if: runner.os == 'Windows'
       run: |
-        choco install llvm ninja zlib --no-progress --params="'/AddToPath:Machine'"
+        choco install llvm ninja --no-progress --params="'/AddToPath:Machine'"
+        # Install zlib using the script from horta/zlib.install
+        powershell -Command "(Invoke-WebRequest -Uri https://git.io/JnHTY -OutFile install_zlib.bat)"; ./install_zlib.bat; del install_zlib.bat
         echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       shell: pwsh
 
