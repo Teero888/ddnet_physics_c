@@ -1,0 +1,27 @@
+name: Check style
+
+on:
+  push:
+  pull_request:
+  merge_group:
+
+jobs:
+  check-style:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Prepare Linux
+      run: |
+        wget https://github.com/muttleyxd/clang-tools-static-binaries/releases/download/master-796e77c/clang-format-20_linux-amd64
+        mkdir -p ~/.local/bin
+        mv clang-format-20_linux-amd64 ~/.local/bin/clang-format
+        chmod +x ~/.local/bin/clang-format
+
+    - name: Check code style (ClangFormat)
+      run: |
+        clang-format -version
+        scripts/fix_style.py --dry-run
