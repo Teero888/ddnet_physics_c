@@ -63,16 +63,16 @@ jobs:
 
     - name: Compile tests
       run: |
-        mkdir test
-        cd test
+        mkdir build_tests
+        cd build_tests
         cmake .. -DCMAKE_BUILD_TYPE=Release -DTESTS=ON -G Ninja
         cmake --build .
       shell: bash
 
     - name: Compile examples
       run: |
-        mkdir examples
-        cd examples
+        mkdir build_examples
+        cd build_examples
         cmake .. -DCMAKE_BUILD_TYPE=Release -DEXAMPLES=ON -G Ninja
         cmake --build .
       shell: bash
