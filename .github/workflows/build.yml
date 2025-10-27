@@ -61,7 +61,7 @@ jobs:
         cmake --build .
       shell: bash
 
-    - name: Compile examples
+    - name: Compile tests
       run: |
         mkdir test
         cd test
@@ -71,8 +71,8 @@ jobs:
 
     - name: Compile examples
       run: |
-        mkdir test
-        cd test
+        mkdir examples
+        cd examples
         cmake .. -DCMAKE_BUILD_TYPE=Release -DEXAMPLES=ON -G Ninja
         cmake --build .
       shell: bash
