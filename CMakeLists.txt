@@ -8,6 +8,7 @@ project(ddnet_physics LANGUAGES C)
 
 option(ENABLE_AGGRESSIVE_OPTIM "Enable aggressive optimizations with LTO and native tuning" OFF)
 option(TESTS "Whether to compile tests" OFF)
+option(EXAMPLES "Whether to compile examples" OFF)
 option(SHARED_LIB "Build ddnet_physics as a shared library" OFF)
 
 if(SHARED_LIB)
@@ -106,11 +107,13 @@ endif()
 
 # Add subdirectory for ddnet_map_loader
 add_subdirectory(libs/ddnet_map_loader)
-target_link_libraries(ddnet_physics PRIVATE ddnet_map_loader)
+target_link_libraries(ddnet_physics PRIVATE ddnet_map_loader m)
 
 if(TESTS)
-    # Add subdirectory for tests
     add_subdirectory(tests)
+endif()
+if(EXAMPLES)
+    add_subdirectory(examples)
 endif()
 
 # install

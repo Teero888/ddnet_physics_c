@@ -10,7 +10,7 @@ int main()
   SCollision collision = {};
   STeeGrid tee_grid = {};
 
-  map_data_t map = load_map("tinycave.map");
+  map_data_t map = load_map("maps/tinycave.map");
   if(!map._map_file_data)
   {
     puts("failed to load map");
