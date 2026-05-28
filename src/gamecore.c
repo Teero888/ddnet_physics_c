@@ -958,7 +958,7 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
       static const float MaxSpeedScale = 5.0f;
       if (MaxSpeed == 0) {
         float MaxRampSpeed = pCore->m_pTuning->m_VelrampRange / (50 * logf(fmaxf((float)pCore->m_pTuning->m_VelrampCurvature, 1.01f)));
-        MaxSpeed = fmaxf(MaxRampSpeed, pCore->m_pTuning->m_VelrampStart) / 50 * MaxSpeedScale;
+        MaxSpeed = fmaxf(MaxRampSpeed, pCore->m_pTuning->m_VelrampStart / 50) * MaxSpeedScale;
       }
 
       float CurrentDirectionalSpeed = vdot(Direction, pCore->m_Vel);

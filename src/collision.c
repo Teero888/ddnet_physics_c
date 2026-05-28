@@ -775,7 +775,7 @@ bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict_
                 pCollision->m_pBroadIndicesBitField[Idx] |= BitIdx;
               if (pRowInfos[ix] & INFO_ISSOLID)
                 pCollision->m_pBroadSolidBitField[Idx] |= BitIdx;
-              if (pRowTele && (pRowTele[x] == TILE_TELEINHOOK || pRowTele[x] == TILE_TELEINWEAPON))
+              if (pRowTele && (pRowTele[ix] == TILE_TELEINHOOK || pRowTele[ix] == TILE_TELEINWEAPON))
                 pCollision->m_pBroadTeleInBitField[Idx] |= BitIdx;
             }
           }
