@@ -71,6 +71,13 @@ endfunction()
 # include directories
 target_include_directories(ddnet_physics PUBLIC include)
 
+if(SHARED_LIB)
+    target_compile_definitions(ddnet_physics PRIVATE "DDNET_PHYSICS_API=__declspec(dllexport)")
+    target_compile_definitions(ddnet_physics INTERFACE "DDNET_PHYSICS_API=__declspec(dllimport)")
+else()
+    target_compile_definitions(ddnet_physics PUBLIC "DDNET_PHYSICS_API=")
+endif()
+
 # default compiler options
 add_c_flag_if_compiler_supported(BASE_C_FLAGS -Wall)
 add_c_flag_if_compiler_supported(BASE_C_FLAGS -msse4.1)

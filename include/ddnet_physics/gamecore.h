@@ -1,6 +1,19 @@
 #ifndef LIB_GAMECORE_H
 #define LIB_GAMECORE_H
 
+#ifndef DDNET_PHYSICS_API
+  #if defined(_WIN32)
+    #if defined(FRAMETEE_EXPORTS)
+      #define DDNET_PHYSICS_API __declspec(dllexport)
+    #else
+      #define DDNET_PHYSICS_API __declspec(dllimport)
+    #endif
+  #else
+    #define DDNET_PHYSICS_API
+  #endif
+#endif
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -144,7 +157,7 @@ static inline void set_flag_emote_index(SPlayerInput *p, uint8_t index) {
 
 enum { WORLD_ENTTYPE_PROJECTILE = 0, WORLD_ENTTYPE_LASER, NUM_WORLD_ENTTYPES };
 
-bool is_switch_active_cb(int Number, void *pUser);
+DDNET_PHYSICS_API bool is_switch_active_cb(int Number, void *pUser);
 
 // Entities {{{
 
@@ -373,30 +386,30 @@ typedef struct WorldCore {
 
 // }}}
 
-STeeGrid tg_empty(void);
-void tg_init(STeeGrid *pGrid, int width, int height);
-void tg_destroy(STeeGrid *pGrid);
+DDNET_PHYSICS_API STeeGrid tg_empty(void);
+DDNET_PHYSICS_API void tg_init(STeeGrid *pGrid, int width, int height);
+DDNET_PHYSICS_API void tg_destroy(STeeGrid *pGrid);
 
-void init_config(SConfig *pConfig);
-void wc_init(SWorldCore *pCore, SCollision *pCollision, STeeGrid *pGrid, SConfig *pConfig);
-void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom);
-void wc_tick(SWorldCore *pCore);
-void wc_free(SWorldCore *pCore);
-SWorldCore wc_empty(void);
+DDNET_PHYSICS_API void init_config(SConfig *pConfig);
+DDNET_PHYSICS_API void wc_init(SWorldCore *pCore, SCollision *pCollision, STeeGrid *pGrid, SConfig *pConfig);
+DDNET_PHYSICS_API void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom);
+DDNET_PHYSICS_API void wc_tick(SWorldCore *pCore);
+DDNET_PHYSICS_API void wc_free(SWorldCore *pCore);
+DDNET_PHYSICS_API SWorldCore wc_empty(void);
 
-void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput);
-SCharacterCore *wc_add_character(SWorldCore *pWorld, int Num);
-void wc_remove_character(SWorldCore *pWorld, int CharacterId);
+DDNET_PHYSICS_API void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput);
+DDNET_PHYSICS_API SCharacterCore *wc_add_character(SWorldCore *pWorld, int Num);
+DDNET_PHYSICS_API void wc_remove_character(SWorldCore *pWorld, int CharacterId);
 
 // utility functions you might need
-mvec2 prj_get_pos(SProjectile *pProj, float Time);
-SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius, mvec2 *pNewPos, const SCharacterCore *pNotThis,
+DDNET_PHYSICS_API mvec2 prj_get_pos(SProjectile *pProj, float Time);
+DDNET_PHYSICS_API SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius, mvec2 *pNewPos, const SCharacterCore *pNotThis,
                                        const SCharacterCore *pThisOnly);
-void wc_insert_entity(SWorldCore *pWorld, SEntity *pEnt);
-bool cc_freeze(SCharacterCore *pCore, int Seconds);
-void cc_unfreeze(SCharacterCore *pCore);
-void cc_calc_indices(SCharacterCore *pCore);
-void cc_die(SCharacterCore *pCore);
+DDNET_PHYSICS_API void wc_insert_entity(SWorldCore *pWorld, SEntity *pEnt);
+DDNET_PHYSICS_API bool cc_freeze(SCharacterCore *pCore, int Seconds);
+DDNET_PHYSICS_API void cc_unfreeze(SCharacterCore *pCore);
+DDNET_PHYSICS_API void cc_calc_indices(SCharacterCore *pCore);
+DDNET_PHYSICS_API void cc_die(SCharacterCore *pCore);
 
 #ifdef __cplusplus
 }
