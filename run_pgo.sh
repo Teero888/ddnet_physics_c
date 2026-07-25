@@ -3,6 +3,10 @@
 
 VERBOSE=false
 AGGRESSIVE_CLEANUP=false
+export CMAKE_C_COMPILER=clang
+export CMAKE_CXX_COMPILER=clang++
+export CC=clang
+export CXX=clang++
 
 for arg in "$@"; do
   case $arg in
