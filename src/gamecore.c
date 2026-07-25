@@ -11,6 +11,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+static uint64_t next_world_hash(void) {
+  static __thread uint64_t s_Hash = 0;
+  if (s_Hash == 0) {
+    s_Hash = ((uint64_t)rand() << 32) | rand();
+  }
+  return ++s_Hash;
+}
+
 #define NINJA_DURATION 15000
 #define NINJA_MOVETIME 200
 #define NINJA_VELOCITY 50
@@ -2193,7 +2201,7 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision, STeeGrid *pGrid, SConfig
   memset(pCore, 0, sizeof(SWorldCore));
   pCore->m_pCollision = pCollision;
   pCore->m_Accelerator.m_pGrid = pGrid;
-  pCore->m_Accelerator.hash = ((uint64_t)rand() << 32) | rand();
+  pCore->m_Accelerator.hash = next_world_hash();
   pCore->m_pConfig = pConfig;
 
   init_switchers(pCore, pCollision->m_HighestSwitchNumber);
@@ -2524,7 +2532,7 @@ void wc_remove_character(SWorldCore *pWorld, int CharacterId) {
   wc_clear_grid(pWorld);
   // Force hash update if needed, though wc_clear_grid is usually called when hash changes.
   // We manually cleared it, so it is consistent with current state.
-  pWorld->m_Accelerator.hash = ((uint64_t)rand() << 32) | rand();
+  pWorld->m_Accelerator.hash = next_world_hash();
   pWorld->m_Accelerator.m_pGrid->hash = pWorld->m_Accelerator.hash;
 }
 
@@ -2630,7 +2638,7 @@ void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom)
   pTo->m_pTunings = pFrom->m_pTunings;
   pTo->m_Accelerator.m_pGrid = pFrom->m_Accelerator.m_pGrid;
   // TODO: fix, this is very bad:
-  pTo->m_Accelerator.hash = ((uint64_t)rand() << 32) | rand();
+  pTo->m_Accelerator.hash = next_world_hash();
 
   // delete old entities
   for (int i = 0; i < NUM_WORLD_ENTTYPES; ++i) {
