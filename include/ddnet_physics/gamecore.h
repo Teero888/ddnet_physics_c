@@ -304,6 +304,8 @@ typedef struct CharacterCore {
   float m_RaceTime; // finished time in seconds, -1 while unfinished
   float m_TileFraction;
   bool m_aGotFastcapFlag[2];
+  int m_DamageTick;
+  int m_DamageTaken;
 
   uint8_t m_RespawnDelay;
 
@@ -406,6 +408,7 @@ typedef struct WorldCore {
   // these get called so someone constructing a demo for example can capture these without meddling with the physics or recalculating them
   void *user_data;
   void (*particle)(mvec2 pos, int type, int cid, void *user_data);
+  void (*damage_indicator)(mvec2 pos, float angle, int amount, int cid, void *user_data);
 } SWorldCore;
 
 // }}}

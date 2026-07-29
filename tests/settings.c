@@ -24,6 +24,19 @@ static void init_test_tunings(STuningParams *pTunings) {
   }
 }
 
+typedef struct {
+  int m_Amount;
+  float m_Angle;
+} SDamageIndicatorCapture;
+
+static void count_damage_indicators(mvec2 Pos, float Angle, int Amount, int Cid, void *pUserData) {
+  (void)Pos;
+  (void)Cid;
+  SDamageIndicatorCapture *pCapture = pUserData;
+  pCapture->m_Amount += Amount;
+  pCapture->m_Angle = Angle;
+}
+
 static int test_tunings(void) {
   char *apSettings[] = {
       "tune gravity 0.123",
@@ -227,9 +240,18 @@ static int test_unique_race_physics(void) {
 
   pCharacter->m_Health = 10;
   pCharacter->m_Armor = 10;
+  SDamageIndicatorCapture DamageIndicators = {0};
+  World.user_data = &DamageIndicators;
+  World.damage_indicator = count_damage_indicators;
   CHECK(cc_take_damage(pCharacter, vec2_init(0.0f, 0.0f), 6));
   CHECK(pCharacter->m_Health == 9);
   CHECK(pCharacter->m_Armor == 8);
+  CHECK(pCharacter->m_DamageTick == World.m_GameTick);
+  CHECK(DamageIndicators.m_Amount == 3);
+  CHECK(DamageIndicators.m_Angle == 0.0f);
+  CHECK(cc_take_damage(pCharacter, vec2_init(0.0f, 0.0f), 2));
+  CHECK(DamageIndicators.m_Amount == 4);
+  CHECK(DamageIndicators.m_Angle == 0.25f);
 
   pCharacter->m_RespawnDelay = 0;
   pCharacter->m_Health = 1;

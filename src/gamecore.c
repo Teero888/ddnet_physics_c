@@ -710,6 +710,7 @@ void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   pCore->m_StartTick = -1;
   pCore->m_FinishTick = -1;
   pCore->m_RaceTime = -1.0f;
+  pCore->m_DamageTick = -GAME_TICK_SPEED;
 
   if (pWorld->m_UniqueRace) {
     pCore->m_Health = 10;
@@ -1846,6 +1847,8 @@ bool cc_take_damage(SCharacterCore *pCore, mvec2 Force, int Damage) {
     return true;
 
   Damage = imax(1, Damage / 2);
+  const int OldHealth = pCore->m_Health;
+  const int OldArmor = pCore->m_Armor;
   if (pCore->m_Armor) {
     if (Damage > 1) {
       --pCore->m_Health;
@@ -1860,6 +1863,18 @@ bool cc_take_damage(SCharacterCore *pCore, mvec2 Force, int Damage) {
     }
   }
   pCore->m_Health -= Damage;
+  const int DamageTaken = OldHealth - pCore->m_Health + OldArmor - pCore->m_Armor;
+  if (DamageTaken > 0) {
+    float IndicatorAngle = 0.0f;
+    pCore->m_DamageTaken++;
+    if (pCore->m_pWorld->m_GameTick < pCore->m_DamageTick + GAME_TICK_SPEED / 2)
+      IndicatorAngle = pCore->m_DamageTaken * 0.25f;
+    else
+      pCore->m_DamageTaken = 0;
+    pCore->m_DamageTick = pCore->m_pWorld->m_GameTick;
+    if (pCore->m_pWorld->damage_indicator)
+      pCore->m_pWorld->damage_indicator(pCore->m_Pos, IndicatorAngle, DamageTaken, pCore->m_Id, pCore->m_pWorld->user_data);
+  }
   if (pCore->m_Health <= 0) {
     cc_die(pCore);
     return false;
