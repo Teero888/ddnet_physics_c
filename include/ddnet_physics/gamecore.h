@@ -312,6 +312,7 @@ typedef struct CharacterCore {
   float m_RaceTime; // finished time in seconds, -1 while unfinished
   float m_TileFraction;
   bool m_aGotFastcapFlag[2];
+  int m_FastcapStartTeam; // -1 before starting, 0 for red, 1 for blue
   int m_DamageTick;
   int m_DamageTaken;
 

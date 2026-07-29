@@ -308,6 +308,7 @@ static int test_unique_race_physics(void) {
   wc_tick(&World);
   CHECK(pCharacter->m_aGotFastcapFlag[0]);
   CHECK(pCharacter->m_aGotFastcapFlag[1]);
+  CHECK(pCharacter->m_FastcapStartTeam == 0);
   CHECK(pCharacter->m_StartTick == pCharacter->m_FinishTick);
   CHECK(fabsf(pCharacter->m_StartTickOffset) < 0.00001f);
   CHECK(fabsf(pCharacter->m_FinishTickOffset - 0.55f) < 0.00001f);
@@ -383,6 +384,29 @@ static int test_unique_race_physics(void) {
   wc_tick(&World);
   CHECK(World.m_apFirstEntityTypes[WORLD_ENTTYPE_PROJECTILE]);
 
+  wc_free(&World);
+  tg_destroy(&Grid);
+  free_collision(&Collision);
+
+  Map = make_unique_race_map();
+  CHECK(Map.game_layer.data && Map.game_layer.flags && Map.front_layer.data && Map.front_layer.flags);
+  Map.game_layer.data[Map.width + 2] = ENTITY_OFFSET + ENTITY_FLAGSTAND_BLUE;
+  Map.game_layer.data[Map.width + 4] = ENTITY_OFFSET + ENTITY_FLAGSTAND_RED;
+  Collision = (SCollision){0};
+  Grid = tg_empty();
+  World = wc_empty();
+  CHECK(init_game_mode(&World, &Collision, &Grid, &Config, &Map, GAME_MODE_FASTCAP));
+  pCharacter = wc_add_character(&World, 1);
+  CHECK(pCharacter);
+  pCharacter->m_pTuning->m_Gravity = 0.0f;
+  pCharacter->m_pTuning->m_AirFriction = 1.0f;
+  pCharacter->m_pTuning->m_VelrampStart = 100000.0f;
+  pCharacter->m_Vel = vec2_init(100.0f, 0.0f);
+  wc_tick(&World);
+  wc_tick(&World);
+  CHECK(pCharacter->m_aGotFastcapFlag[0]);
+  CHECK(pCharacter->m_aGotFastcapFlag[1]);
+  CHECK(pCharacter->m_FastcapStartTeam == 1);
   wc_free(&World);
   tg_destroy(&Grid);
   free_collision(&Collision);

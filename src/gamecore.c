@@ -401,7 +401,7 @@ void prj_tick(SProjectile *pProj) {
                             pProj->m_Base.m_pWorld->m_pCharacters[pProj->m_Owner].m_SpawnGeneration == pProj->m_OwnerSpawnGeneration;
     if (!OwnerAlive) {
       if (pProj->m_Type != WEAPON_GRENADE || pProj->m_Base.m_pWorld->m_pConfig->m_SvDestroyBulletsOnDeath ||
-          pProj->m_Base.m_pWorld->m_pConfig->m_SvKillGrenades) {
+          !pProj->m_Base.m_pWorld->m_pConfig->m_SvKillGrenades) {
         pProj->m_Base.m_MarkedForDestroy = true;
         return;
       }
@@ -710,6 +710,7 @@ void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   pCore->m_StartTick = -1;
   pCore->m_FinishTick = -1;
   pCore->m_RaceTime = -1.0f;
+  pCore->m_FastcapStartTeam = -1;
   pCore->m_DamageTick = -GAME_TICK_SPEED;
 
   if (pWorld->m_UniqueRace) {
@@ -1381,9 +1382,10 @@ static void cc_handle_fastcap(SCharacterCore *pCore, mvec2 PrevPos, mvec2 Pos) {
       if (vdistance(SamplePos, pCore->m_pCollision->m_aFastcapFlagPositions[Team]) >= HALFPHYSICALSIZE + PHYSICALSIZE)
         continue;
 
-      if (!pCore->m_aGotFastcapFlag[OppositeTeam])
+      if (!pCore->m_aGotFastcapFlag[OppositeTeam]) {
+        pCore->m_FastcapStartTeam = Team;
         cc_unique_race_start(pCore, FractionOfTick);
-      else
+      } else
         cc_unique_race_finish(pCore, FractionOfTick);
       pCore->m_aGotFastcapFlag[Team] = true;
     }
@@ -1532,9 +1534,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
     const int GroundRightX = (int)(GroundRight + 0.5f) >> 5;
     const int GroundLeftX = (int)(GroundLeft + 0.5f) >> 5;
     Grounded =
-        (pCore->m_pCollision->m_pTileInfos[GroundRow + GroundRightX] |
-         pCore->m_pCollision->m_pTileInfos[GroundRow + GroundLeftX]) &
-        INFO_ISSOLID;
+        (pCore->m_pCollision->m_pTileInfos[GroundRow + GroundRightX] | pCore->m_pCollision->m_pTileInfos[GroundRow + GroundLeftX]) & INFO_ISSOLID;
   }
 
   pCore->m_Vel = vadd_y(pCore->m_Vel, pCore->m_pTuning->m_Gravity);
@@ -2484,7 +2484,7 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision, STeeGrid *pGrid, SConfig
   pCore->m_Accelerator.m_pGrid = pGrid;
   pCore->m_Accelerator.hash = next_world_hash();
   pCore->m_pConfig = pConfig;
-  pCore->m_UniqueRace = pConfig->m_SvFastcap || pConfig->m_SvKillGrenades || pConfig->m_SvHealthAndAmmo;
+  pCore->m_UniqueRace = pConfig->m_SvFastcap || !pConfig->m_SvKillGrenades || pConfig->m_SvHealthAndAmmo;
 
   init_switchers(pCore, pCollision->m_HighestSwitchNumber);
 
@@ -2509,7 +2509,7 @@ static EGameMode normalize_game_mode(EGameMode GameMode) {
 
 static void enable_unique_race_game_mode(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig) {
   pConfig->m_SvSoloServer = 1;
-  pConfig->m_SvDestroyBulletsOnDeath = pConfig->m_SvKillGrenades;
+  pConfig->m_SvDestroyBulletsOnDeath = !pConfig->m_SvKillGrenades;
   pCore->m_UniqueRace = true;
 
   for (int Zone = 0; Zone < NUM_TUNE_ZONES; ++Zone) {
