@@ -411,7 +411,8 @@ void prj_tick(SProjectile *pProj) {
 
   if (pProj->m_Owner >= 0) {
     const bool OwnerAlive = (pProj->m_Owner < pProj->m_Base.m_pWorld->m_NumCharacters &&
-                            pProj->m_Base.m_pWorld->m_pCharacters[pProj->m_Owner].m_SpawnGeneration == pProj->m_OwnerSpawnGeneration) || !pProj->m_Base.m_pWorld->m_pConfig->m_SvDestroyBulletsOnDeath;
+                             pProj->m_Base.m_pWorld->m_pCharacters[pProj->m_Owner].m_SpawnGeneration == pProj->m_OwnerSpawnGeneration) ||
+                            !pProj->m_Base.m_pWorld->m_pConfig->m_SvDestroyBulletsOnDeath;
     if (!OwnerAlive) {
       if (pProj->m_Type != WEAPON_GRENADE) {
         pProj->m_Base.m_MarkedForDestroy = true;
@@ -915,19 +916,18 @@ static inline float fast_rand(unsigned int *state) {
 // }
 
 void cc_tee_interact_deferred(SCharacterCore *pCore, int Id, int *pCollisions) {
-  SCharacterCore *pCharCore = &pCore->m_pWorld->m_pCharacters[Id];
-  mvec2 Pos = pCharCore->m_Pos;
-  bool Solo = pCharCore->m_Solo;
-  bool CollisionDisabled = pCharCore->m_CollisionDisabled;
-
-  if (pCore->m_Solo || Solo)
+  SCharacterCore *pOther = &pCore->m_pWorld->m_pCharacters[Id];
+  if (pCore->m_Solo || pOther->m_Solo)
     return;
+  if ((pCore->m_CollisionDisabled || pOther->m_CollisionDisabled || !pCore->m_pTuning->m_PlayerCollision || !pOther->m_pTuning->m_PlayerCollision))
+    return;
+
+  mvec2 Pos = pOther->m_Pos;
   float Distance = vdistance(pCore->m_Pos, Pos);
   if (Distance > 0) {
     mvec2 Dir = vnormalize(vvsub(pCore->m_Pos, Pos));
-    bool CanCollide = (!pCore->m_CollisionDisabled && !CollisionDisabled && pCore->m_pTuning->m_PlayerCollision);
 
-    if (CanCollide && Distance < PHYSICALSIZE * 1.25f) {
+    if (Distance < PHYSICALSIZE * 1.25f) {
       float a = (PHYSICALSIZE * 1.45f - Distance);
       float Velocity = 0.5f;
 
@@ -939,7 +939,7 @@ void cc_tee_interact_deferred(SCharacterCore *pCore, int Id, int *pCollisions) {
     }
   } else {
     if (vgetx(pCore->m_PrevPos) == vgetx(pCore->m_Pos) && vgety(pCore->m_PrevPos) == vgety(pCore->m_Pos)) {
-      unsigned int seed = (uint32_t)((uint32_t)pCore->m_Id + (uint32_t)Id * 0x1234567) ^ (uint32_t)pCore->m_pWorld->m_GameTick;
+      unsigned int seed = (uint32_t)((uint32_t)pCore->m_Id + (uint32_t)Id ^ 0x1234567) ^ (uint32_t)pCore->m_pWorld->m_GameTick;
       pCore->m_Vel = vvadd(pCore->m_Vel, vec2_init((fast_rand(&seed) - fast_rand(&seed)) * 0.5f, (fast_rand(&seed) - fast_rand(&seed)) * 0.5f));
     } else {
       pCore->m_Vel = vvadd(pCore->m_Vel, vnormalize_nomask(vvsub(pCore->m_PrevPos, pCore->m_Pos)));
