@@ -110,7 +110,6 @@ typedef struct Collision {
   int m_HighestSwitchNumber;
 
   bool m_MoveRestrictionsFound;
-  bool m_GrenadeDoubleExplosion;
   bool m_aFastcapFlagPresent[2];
   mvec2 m_aFastcapFlagPositions[2];
 } SCollision;

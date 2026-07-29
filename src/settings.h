@@ -8,7 +8,6 @@ typedef struct MapSettingsTarget {
   SConfig *m_pConfig;
   STuningParams *m_pTunings;
   SSwitch *m_pSwitches;
-  bool *m_pGrenadeDoubleExplosion;
   bool *m_pUniqueRace;
   bool m_FastcapGameType;
   int m_NumSwitches;

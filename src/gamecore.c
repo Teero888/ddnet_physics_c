@@ -421,9 +421,7 @@ void prj_tick(SProjectile *pProj) {
   if (Collide || (pTargetChr && (pOwnerChar ? !pOwnerChar->m_GrenadeHitDisabled
                                             : pProj->m_Base.m_pWorld->m_pConfig->m_SvHit || pProj->m_Owner == -1 || pTargetChr == pOwnerChar))) {
     if (pProj->m_Explosive && (!pTargetChr || (pTargetChr && (!pProj->m_Freeze || (pProj->m_Type == WEAPON_SHOTGUN && Collide))))) {
-      const int NumExplosions = pProj->m_Base.m_pCollision->m_GrenadeDoubleExplosion && pProj->m_LifeSpan == -1 ? 2 : 1;
-      for (int Explosion = 0; Explosion < NumExplosions; ++Explosion)
-        wc_create_explosion(pProj->m_Base.m_pWorld, ColPos, pProj->m_Owner);
+      wc_create_explosion(pProj->m_Base.m_pWorld, ColPos, pProj->m_Owner);
     } else if (pProj->m_Freeze) {
       for (int i = 0; i < pProj->m_Base.m_pWorld->m_NumCharacters; ++i) {
         SCharacterCore *pChr = &pProj->m_Base.m_pWorld->m_pCharacters[i];
@@ -2493,7 +2491,6 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision, STeeGrid *pGrid, SConfig
                                                  .m_pConfig = pConfig,
                                                  .m_pTunings = pCore->m_pTunings,
                                                  .m_pSwitches = pCore->m_pSwitches,
-                                                 .m_pGrenadeDoubleExplosion = &pCollision->m_GrenadeDoubleExplosion,
                                                  .m_pUniqueRace = &pCore->m_UniqueRace,
                                                  .m_NumSwitches = pCore->m_NumSwitches,
                                              });

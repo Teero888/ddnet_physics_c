@@ -569,12 +569,10 @@ bool init_collision_with_no_weapons(SCollision *__restrict__ pCollision, map_dat
 
   for (int i = 0; i < NUM_TUNE_ZONES; ++i)
     init_tuning_params(&pCollision->m_aTuningList[i]);
-  pCollision->m_GrenadeDoubleExplosion = false;
   pCollision->m_aFastcapFlagPresent[0] = false;
   pCollision->m_aFastcapFlagPresent[1] = false;
   apply_map_settings(&pCollision->m_MapData, &(SMapSettingsTarget){
                                                  .m_pTunings = pCollision->m_aTuningList,
-                                                 .m_pGrenadeDoubleExplosion = &pCollision->m_GrenadeDoubleExplosion,
                                              });
   // Figure out important things
   // Make lists of spawn points, tele outs and tele checkpoints outs

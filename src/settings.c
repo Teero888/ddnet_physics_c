@@ -246,12 +246,6 @@ static void apply_setting(const SToken *pTokens, int NumTokens, SMapSettingsTarg
     return;
   }
 
-  if (NumTokens == 2 && token_equals(&pTokens[0], "mapbug")) {
-    if (pTarget->m_pGrenadeDoubleExplosion && token_equals(&pTokens[1], "grenade-doubleexplosion@ddnet.tw"))
-      *pTarget->m_pGrenadeDoubleExplosion = true;
-    return;
-  }
-
   if (!pTarget->m_pConfig || NumTokens != 2)
     return;
 

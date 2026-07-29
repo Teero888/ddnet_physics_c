@@ -55,11 +55,9 @@ static int test_tunings(void) {
   };
   STuningParams aTunings[NUM_TUNE_ZONES];
   init_test_tunings(aTunings);
-  bool GrenadeDoubleExplosion = false;
 
   apply_map_settings(&Map, &(SMapSettingsTarget){
                                .m_pTunings = aTunings,
-                               .m_pGrenadeDoubleExplosion = &GrenadeDoubleExplosion,
                            });
 
   CHECK(fabsf(aTunings[0].m_Gravity - 0.12f) < 0.00001f);
@@ -67,7 +65,6 @@ static int test_tunings(void) {
   CHECK(fabsf(aTunings[8].m_HookLength - 444.44f) < 0.00001f);
   CHECK(fabsf(aTunings[0].m_VelrampValue - logf(2.0f) / 1000.0f) < 0.000001f);
   CHECK(aTunings[255].m_Gravity == 0.0f);
-  CHECK(GrenadeDoubleExplosion);
   return 0;
 }
 
