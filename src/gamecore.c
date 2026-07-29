@@ -715,7 +715,7 @@ void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   if (pWorld->m_UniqueRace) {
     pCore->m_Health = 10;
     pCore->m_Armor = pWorld->m_pConfig->m_SvHealthAndAmmo && !pWorld->m_pConfig->m_SvFastcap ? 0 : 10;
-    if (pWorld->m_pConfig->m_SvFastcap) {
+    if (pWorld->m_pConfig->m_SvFastcap && !pWorld->m_pCollision->m_MapData.m_NoWeapons) {
       pCore->m_aWeaponGot[WEAPON_GRENADE] = true;
       pCore->m_aWeaponAmmo[WEAPON_GRENADE] = 10;
       pCore->m_ActiveWeapon = WEAPON_GRENADE;

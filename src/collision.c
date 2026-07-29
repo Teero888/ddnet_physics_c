@@ -650,9 +650,11 @@ bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict_
         Type = POWERUP_NINJA;
         SubType = WEAPON_NINJA;
       }
+      if (pMapData->m_NoWeapons && (Type == POWERUP_WEAPON || Type == POWERUP_NINJA))
+        Type = -1;
       pCollision->m_pPickups[i].m_Type = Type;
       pCollision->m_pPickups[i].m_Subtype = SubType;
-      if (pCollision->m_MapData.switch_layer.type) {
+      if (Type >= 0 && pCollision->m_MapData.switch_layer.type) {
         const int SwitchType = pCollision->m_MapData.switch_layer.type[i];
         if (SwitchType) {
           pCollision->m_pPickups[i].m_Type = SwitchType;
@@ -697,9 +699,11 @@ bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict_
           Type = POWERUP_NINJA;
           SubType = WEAPON_NINJA;
         }
+        if (pMapData->m_NoWeapons && (Type == POWERUP_WEAPON || Type == POWERUP_NINJA))
+          Type = -1;
         pCollision->m_pFrontPickups[i].m_Type = Type;
         pCollision->m_pFrontPickups[i].m_Subtype = SubType;
-        if (pCollision->m_MapData.switch_layer.type) {
+        if (Type >= 0 && pCollision->m_MapData.switch_layer.type) {
           const int SwitchType = pCollision->m_MapData.switch_layer.type[i];
           if (SwitchType) {
             pCollision->m_pFrontPickups[i].m_Type = SwitchType;

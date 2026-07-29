@@ -183,6 +183,66 @@ static map_data_t make_unique_race_map(void) {
   return Map;
 }
 
+static int count_weapon_pickups(const SCollision *pCollision) {
+  int Count = 0;
+  const int MapSize = pCollision->m_MapData.width * pCollision->m_MapData.height;
+  for (int i = 0; i < MapSize; ++i) {
+    const SPickup aPickups[] = {pCollision->m_pPickups[i], pCollision->m_pFrontPickups[i]};
+    for (size_t Pickup = 0; Pickup < sizeof(aPickups) / sizeof(aPickups[0]); ++Pickup) {
+      if (aPickups[Pickup].m_Type == POWERUP_WEAPON || aPickups[Pickup].m_Type == POWERUP_NINJA)
+        Count++;
+    }
+  }
+  return Count;
+}
+
+static map_data_t make_weapon_pickup_map(bool NoWeapons) {
+  map_data_t Map = make_unique_race_map();
+  if (!Map.game_layer.data)
+    return Map;
+  const int Offset = Map.width;
+  Map.game_layer.data[Offset + 3] = ENTITY_OFFSET + ENTITY_WEAPON_SHOTGUN;
+  Map.game_layer.data[Offset + 5] = ENTITY_OFFSET + ENTITY_WEAPON_GRENADE;
+  Map.front_layer.data[Offset + 1] = ENTITY_OFFSET + ENTITY_WEAPON_LASER;
+  Map.front_layer.data[Offset + 6] = ENTITY_OFFSET + ENTITY_POWERUP_NINJA;
+  Map.m_NoWeapons = NoWeapons;
+  return Map;
+}
+
+static int test_no_weapons_pickups(void) {
+  map_data_t Map = make_weapon_pickup_map(false);
+  CHECK(Map.game_layer.data);
+  SCollision Collision = {0};
+  CHECK(init_collision(&Collision, &Map));
+  CHECK(count_weapon_pickups(&Collision) == 4);
+  free_collision(&Collision);
+
+  Map = make_weapon_pickup_map(true);
+  CHECK(Map.game_layer.data);
+  Collision = (SCollision){0};
+  CHECK(init_collision(&Collision, &Map));
+  CHECK(Collision.m_MapData.m_NoWeapons);
+  CHECK(count_weapon_pickups(&Collision) == 0);
+
+  SConfig Config;
+  init_config(&Config);
+  Config.m_SvFastcap = 1;
+  STeeGrid Grid = tg_empty();
+  tg_init(&Grid, Collision.m_MapData.width, Collision.m_MapData.height);
+  SWorldCore World = wc_empty();
+  wc_init(&World, &Collision, &Grid, &Config);
+  SCharacterCore *pCharacter = wc_add_character(&World, 1);
+  CHECK(pCharacter);
+  CHECK(pCharacter->m_ActiveWeapon == WEAPON_GUN);
+  CHECK(!pCharacter->m_aWeaponGot[WEAPON_GRENADE]);
+  CHECK(pCharacter->m_aWeaponAmmo[WEAPON_GRENADE] == 0);
+  wc_free(&World);
+  tg_destroy(&Grid);
+
+  free_collision(&Collision);
+  return 0;
+}
+
 static int test_unique_race_physics(void) {
   map_data_t Map = make_unique_race_map();
   CHECK(Map.game_layer.data && Map.game_layer.flags && Map.front_layer.data && Map.front_layer.flags);
@@ -328,6 +388,8 @@ int main(void) {
   if (test_world_settings() != 0)
     return 1;
   if (test_unique_race_settings() != 0)
+    return 1;
+  if (test_no_weapons_pickups() != 0)
     return 1;
   if (test_unique_race_physics() != 0)
     return 1;
