@@ -12,10 +12,23 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(_MSC_VER)
+#define THREAD_LOCAL __declspec(thread)
+#elif defined(__GNUC__) || defined(__clang__)
+#define THREAD_LOCAL __thread
+#else
+#define THREAD_LOCAL
+#endif
+
 static uint64_t next_world_hash(void) {
-  static __thread uint64_t s_Hash = 0;
+  static THREAD_LOCAL uint64_t s_Hash = 0;
+
   if (s_Hash == 0) {
-    s_Hash = ((uint64_t)rand() << 32) | rand();
+    s_Hash = ((uint64_t)rand() << 45) ^ ((uint64_t)rand() << 30) ^ ((uint64_t)rand() << 15) ^ (uint64_t)rand();
+
+    if (s_Hash == 0) {
+      s_Hash = 1;
+    }
   }
   return ++s_Hash;
 }
