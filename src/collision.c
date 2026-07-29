@@ -566,6 +566,8 @@ bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict_
   for (int i = 0; i < NUM_TUNE_ZONES; ++i)
     init_tuning_params(&pCollision->m_aTuningList[i]);
   pCollision->m_GrenadeDoubleExplosion = false;
+  pCollision->m_aFastcapFlagPresent[0] = false;
+  pCollision->m_aFastcapFlagPresent[1] = false;
   apply_map_settings(&pCollision->m_MapData, &(SMapSettingsTarget){
                                                  .m_pTunings = pCollision->m_aTuningList,
                                                  .m_pGrenadeDoubleExplosion = &pCollision->m_GrenadeDoubleExplosion,
@@ -615,6 +617,11 @@ bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict_
 
     pCollision->m_pPickups[i].m_Type = -1;
     int EntIdx = pMapData->game_layer.data[i] - ENTITY_OFFSET;
+    if (EntIdx == ENTITY_FLAGSTAND_RED || EntIdx == ENTITY_FLAGSTAND_BLUE) {
+      const int Team = EntIdx == ENTITY_FLAGSTAND_RED ? 0 : 1;
+      pCollision->m_aFastcapFlagPresent[Team] = true;
+      pCollision->m_aFastcapFlagPositions[Team] = vec2_init((float)(i % Width) * 32.0f + 16.0f, (float)(i / Width) * 32.0f + 16.0f);
+    }
     if ((EntIdx >= ENTITY_ARMOR_SHOTGUN && EntIdx <= ENTITY_ARMOR_LASER) || (EntIdx >= ENTITY_ARMOR_1 && EntIdx <= ENTITY_WEAPON_LASER)) {
       int Type = -1;
       int SubType = 0;
@@ -657,6 +664,11 @@ bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict_
     pCollision->m_pFrontPickups[i].m_Type = -1;
     if (pMapData->front_layer.data) {
       EntIdx = pMapData->front_layer.data[i] - ENTITY_OFFSET;
+      if (EntIdx == ENTITY_FLAGSTAND_RED || EntIdx == ENTITY_FLAGSTAND_BLUE) {
+        const int Team = EntIdx == ENTITY_FLAGSTAND_RED ? 0 : 1;
+        pCollision->m_aFastcapFlagPresent[Team] = true;
+        pCollision->m_aFastcapFlagPositions[Team] = vec2_init((float)(i % Width) * 32.0f + 16.0f, (float)(i / Width) * 32.0f + 16.0f);
+      }
       if ((EntIdx >= ENTITY_ARMOR_SHOTGUN && EntIdx <= ENTITY_ARMOR_LASER) || (EntIdx >= ENTITY_ARMOR_1 && EntIdx <= ENTITY_WEAPON_LASER)) {
         int Type = -1;
         int SubType = 0;
@@ -694,6 +706,14 @@ bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict_
             pCollision->m_pFrontPickups[i].m_Number = pCollision->m_MapData.switch_layer.number[i];
           }
         }
+      }
+    }
+    if (pMapData->switch_layer.type) {
+      EntIdx = pMapData->switch_layer.type[i] - ENTITY_OFFSET;
+      if (EntIdx == ENTITY_FLAGSTAND_RED || EntIdx == ENTITY_FLAGSTAND_BLUE) {
+        const int Team = EntIdx == ENTITY_FLAGSTAND_RED ? 0 : 1;
+        pCollision->m_aFastcapFlagPresent[Team] = true;
+        pCollision->m_aFastcapFlagPositions[Team] = vec2_init((float)(i % Width) * 32.0f + 16.0f, (float)(i / Width) * 32.0f + 16.0f);
       }
     }
   }

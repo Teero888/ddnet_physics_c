@@ -35,6 +35,9 @@ static const SConfigSetting s_aConfigSettings[] = {
     CONFIG_SETTING(SvHit, "sv_hit", 0, 1),
     CONFIG_SETTING(SvEndlessDrag, "sv_endless_drag", 0, 1),
     CONFIG_SETTING(SvSoloServer, "sv_solo_server", 0, 1),
+    CONFIG_SETTING(SvFastcap, "sv_fastcap", 0, 1),
+    CONFIG_SETTING(SvKillGrenades, "sv_kill_grenades", 0, 1),
+    CONFIG_SETTING(SvHealthAndAmmo, "sv_health_and_ammo", 0, 1),
 };
 #undef CONFIG_SETTING
 
@@ -250,6 +253,17 @@ static void apply_setting(const SToken *pTokens, int NumTokens, SMapSettingsTarg
 
   if (!pTarget->m_pConfig || NumTokens != 2)
     return;
+
+  if (token_equals(&pTokens[0], "sv_gametype")) {
+    if (pTarget->m_pUniqueRace && (token_equals(&pTokens[1], "unique") || token_equals(&pTokens[1], "race") || token_equals(&pTokens[1], "fastcap") ||
+                                   token_equals(&pTokens[1], "shorts"))) {
+      *pTarget->m_pUniqueRace = true;
+      if (token_equals(&pTokens[1], "fastcap"))
+        pTarget->m_FastcapGameType = true;
+    }
+    return;
+  }
+
   for (size_t Index = 0; Index < sizeof(s_aConfigSettings) / sizeof(s_aConfigSettings[0]); ++Index) {
     const SConfigSetting *pSetting = &s_aConfigSettings[Index];
     if (!token_equals(&pTokens[0], pSetting->m_pName))
@@ -263,6 +277,9 @@ static void apply_setting(const SToken *pTokens, int NumTokens, SMapSettingsTarg
     if (Value > pSetting->m_Max)
       Value = pSetting->m_Max;
     *(int *)((char *)pTarget->m_pConfig + pSetting->m_Offset) = Value;
+    if (pTarget->m_pUniqueRace &&
+        (token_equals(&pTokens[0], "sv_fastcap") || token_equals(&pTokens[0], "sv_kill_grenades") || token_equals(&pTokens[0], "sv_health_and_ammo")))
+      *pTarget->m_pUniqueRace = true;
     return;
   }
 }
@@ -291,6 +308,7 @@ void apply_map_settings(const map_data_t *pMap, SMapSettingsTarget *pTarget) {
   if (!pMap || !pTarget)
     return;
 
+  pTarget->m_FastcapGameType = false;
   for (int Index = 0; Index < pMap->num_settings; ++Index) {
     if (pMap->settings[Index])
       apply_setting_line(pMap->settings[Index], pTarget);
@@ -300,6 +318,19 @@ void apply_map_settings(const map_data_t *pMap, SMapSettingsTarget *pTarget) {
     for (int Zone = 0; Zone < NUM_TUNE_ZONES; ++Zone) {
       STuningParams *pTuning = &pTarget->m_pTunings[Zone];
       pTuning->m_VelrampValue = logf(pTuning->m_VelrampCurvature) / pTuning->m_VelrampRange;
+    }
+  }
+
+  if (pTarget->m_pConfig && pTarget->m_pUniqueRace && *pTarget->m_pUniqueRace) {
+    // Unique Race exposes sv_kill_grenades as the legacy spelling of
+    // sv_destroy_bullets_on_death.
+    pTarget->m_pConfig->m_SvSoloServer = 1;
+    pTarget->m_pConfig->m_SvDestroyBulletsOnDeath = pTarget->m_pConfig->m_SvKillGrenades;
+    if (pTarget->m_FastcapGameType)
+      pTarget->m_pConfig->m_SvFastcap = 1;
+    if (pTarget->m_pConfig->m_SvFastcap) {
+      pTarget->m_pConfig->m_SvHealthAndAmmo = 1;
+      pTarget->m_pConfig->m_SvDestroyBulletsOnDeath = 1;
     }
   }
 

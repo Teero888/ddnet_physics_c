@@ -126,10 +126,11 @@ void lsr_init(SLaser *pLaser, SWorldCore *pGameWorld, int Type, int Owner, mvec2
 }
 
 void cc_unfreeze(SCharacterCore *pCore);
-void cc_take_damage(SCharacterCore *pCore, mvec2 Force);
 bool lsr_hit_character(SLaser *pLaser, mvec2 From, mvec2 To) {
   mvec2 At;
-  SCharacterCore *pOwnerChar = &pLaser->m_Base.m_pWorld->m_pCharacters[pLaser->m_Owner];
+  SCharacterCore *pOwnerChar = pLaser->m_Owner >= 0 && pLaser->m_Owner < pLaser->m_Base.m_pWorld->m_NumCharacters
+                                   ? &pLaser->m_Base.m_pWorld->m_pCharacters[pLaser->m_Owner]
+                                   : NULL;
   SCharacterCore *pHit;
   bool pDontHitSelf = pLaser->m_Bounces == 0 && !pLaser->m_WasTele;
   if (pOwnerChar ? (!pOwnerChar->m_LaserHitDisabled && pLaser->m_Type == WEAPON_LASER) ||
@@ -159,6 +160,8 @@ bool lsr_hit_character(SLaser *pLaser, mvec2 From, mvec2 To) {
     __builtin_unreachable();
     break;
   }
+  if (!cc_take_damage(pHit, vec2_init(0, 0), 0))
+    return true;
   pHit->m_Vel = clamp_vel(pHit->m_MoveRestrictions, pHit->m_Vel);
   pHit->m_HitNum += 2;
   return true;
@@ -333,13 +336,15 @@ void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner, m
   pProj->m_Direction = Dir;
   pProj->m_LifeSpan = Span;
   pProj->m_Owner = Owner;
+  if (Owner >= 0 && Owner < pGameWorld->m_NumCharacters)
+    pProj->m_OwnerSpawnGeneration = pGameWorld->m_pCharacters[Owner].m_SpawnGeneration;
   pProj->m_StartTick = pGameWorld->m_GameTick;
   pProj->m_Explosive = Explosive;
   pProj->m_Base.m_Layer = Layer;
   pProj->m_Base.m_Number = Number;
   pProj->m_Freeze = Freeze;
   pProj->m_pTuning = &pGameWorld->m_pTunings[is_tune(pGameWorld->m_pCollision, get_map_index(pGameWorld->m_pCollision, Pos))];
-  if (Owner > 0)
+  if (Owner >= 0 && Owner < pGameWorld->m_NumCharacters)
     pProj->m_IsSolo = pGameWorld->m_pCharacters[Owner].m_Solo;
 }
 
@@ -391,8 +396,19 @@ void prj_tick(SProjectile *pProj) {
   bool Collide = intersect_line(pProj->m_Base.m_pCollision, PrevPos, CurPos, &ColPos, &NewPos);
   SCharacterCore *pOwnerChar = NULL;
 
-  if (pProj->m_Owner >= 0)
-    pOwnerChar = &pProj->m_Base.m_pWorld->m_pCharacters[pProj->m_Owner];
+  if (pProj->m_Owner >= 0) {
+    const bool OwnerAlive = pProj->m_Owner < pProj->m_Base.m_pWorld->m_NumCharacters &&
+                            pProj->m_Base.m_pWorld->m_pCharacters[pProj->m_Owner].m_SpawnGeneration == pProj->m_OwnerSpawnGeneration;
+    if (!OwnerAlive) {
+      if (pProj->m_Type != WEAPON_GRENADE || pProj->m_Base.m_pWorld->m_pConfig->m_SvDestroyBulletsOnDeath ||
+          pProj->m_Base.m_pWorld->m_pConfig->m_SvKillGrenades) {
+        pProj->m_Base.m_MarkedForDestroy = true;
+        return;
+      }
+    } else {
+      pOwnerChar = &pProj->m_Base.m_pWorld->m_pCharacters[pProj->m_Owner];
+    }
+  }
 
   SCharacterCore *pTargetChr = NULL;
 
@@ -417,8 +433,10 @@ void prj_tick(SProjectile *pProj) {
                                                                pProj->m_Base.m_pWorld->m_pSwitches[pProj->m_Base.m_Number].m_Status)))
           cc_freeze(pChr, pProj->m_Base.m_pWorld->m_pConfig->m_SvFreezeDelay);
       }
-    } else if (pTargetChr)
-      pTargetChr->m_Vel = clamp_vel(pTargetChr->m_MoveRestrictions, pTargetChr->m_Vel);
+    } else if (pTargetChr) {
+      if (cc_take_damage(pTargetChr, vec2_init(0, 0), 0))
+        pTargetChr->m_Vel = clamp_vel(pTargetChr->m_MoveRestrictions, pTargetChr->m_Vel);
+    }
 
     if (pOwnerChar &&
         ((pProj->m_Type == WEAPON_GRENADE && pOwnerChar->m_HasTelegunGrenade) || (pProj->m_Type == WEAPON_GUN && pOwnerChar->m_HasTelegunGun))) {
@@ -507,6 +525,50 @@ void cc_calc_indices(SCharacterCore *pCore) {
   pCore->m_BlockIdx = y * pCore->m_pCollision->m_MapData.width + x;
 }
 
+static SPickupCooldownList *cc_pickup_cooldown_list(SCharacterCore *pCore) {
+  SWorldCore *pWorld = pCore->m_pWorld;
+  if (!pWorld->m_pPickupCooldowns) {
+    pWorld->m_pPickupCooldowns = calloc((size_t)pWorld->m_NumCharacters, sizeof(SPickupCooldownList));
+    if (!pWorld->m_pPickupCooldowns)
+      return NULL;
+  }
+  return &pWorld->m_pPickupCooldowns[pCore->m_Id];
+}
+
+static bool cc_pickup_on_cooldown(SCharacterCore *pCore, int Key) {
+  if (!pCore->m_pWorld->m_pPickupCooldowns)
+    return false;
+  SPickupCooldownList *pList = &pCore->m_pWorld->m_pPickupCooldowns[pCore->m_Id];
+
+  for (int Index = 0; Index < pList->m_NumEntries;) {
+    SPickupCooldown *pCooldown = &pList->m_pEntries[Index];
+    if (pCore->m_pWorld->m_GameTick > pCooldown->m_EndTick) {
+      pList->m_pEntries[Index] = pList->m_pEntries[--pList->m_NumEntries];
+      continue;
+    }
+    if (pCooldown->m_Key == Key)
+      return true;
+    ++Index;
+  }
+  return false;
+}
+
+static void cc_set_pickup_cooldown(SCharacterCore *pCore, int Key) {
+  SPickupCooldownList *pList = cc_pickup_cooldown_list(pCore);
+  if (!pList)
+    return;
+
+  if (pList->m_NumEntries == pList->m_Capacity) {
+    const int NewCapacity = pList->m_Capacity ? pList->m_Capacity * 2 : 8;
+    SPickupCooldown *pNewEntries = realloc(pList->m_pEntries, (size_t)NewCapacity * sizeof(SPickupCooldown));
+    if (!pNewEntries)
+      return;
+    pList->m_pEntries = pNewEntries;
+    pList->m_Capacity = NewCapacity;
+  }
+  pList->m_pEntries[pList->m_NumEntries++] = (SPickupCooldown){.m_Key = Key, .m_EndTick = pCore->m_pWorld->m_GameTick + 15 * GAME_TICK_SPEED};
+}
+
 void cc_do_pickup(SCharacterCore *pCore) {
   if (!(pCore->m_pCollision->m_pTileInfos[pCore->m_BlockIdx] & INFO_PICKUPNEXT))
     return;
@@ -521,25 +583,49 @@ void cc_do_pickup(SCharacterCore *pCore) {
     const int Idx = pCore->m_pCollision->m_pWidthLookup[iclamp(iy + dy, 0, Height - 1)];
     for (int dx = -1; dx <= 1; ++dx) {
       for (int i = 0; i < 2; ++i) {
+        const int MapIndex = Idx + iclamp(ix + dx, 0, Width - 1);
         // NOTE: doing a copy here should be faster since it is only 3 bytes
-        const SPickup Pickup = !i ? pCore->m_pCollision->m_pPickups[Idx + iclamp(ix + dx, 0, Width - 1)]
-                                  : pCore->m_pCollision->m_pFrontPickups[Idx + iclamp(ix + dx, 0, Width - 1)];
+        const SPickup Pickup = !i ? pCore->m_pCollision->m_pPickups[MapIndex] : pCore->m_pCollision->m_pFrontPickups[MapIndex];
         if (Pickup.m_Type < 0)
+          continue;
+        if (pCore->m_pWorld->m_UniqueRace &&
+            ((Pickup.m_Type == POWERUP_WEAPON && Pickup.m_Subtype != WEAPON_GRENADE) || Pickup.m_Type == POWERUP_NINJA))
           continue;
         if (vdistance(pCore->m_Pos, vec2_init(((ix + dx) * 32) + 16, ((iy + dy) * 32) + 16)) >= 48)
           continue;
         if (Pickup.m_Number > 0 && !pCore->m_pWorld->m_pSwitches[Pickup.m_Number].m_Status)
           continue;
+        const bool HealthAndAmmo = pCore->m_pWorld->m_pConfig->m_SvHealthAndAmmo;
+        const int CooldownKey = MapIndex * 2 + i;
+        if (HealthAndAmmo && cc_pickup_on_cooldown(pCore, CooldownKey))
+          continue;
+
+        bool Consumed = false;
 
         switch (Pickup.m_Type) {
         case POWERUP_HEALTH:
-          cc_freeze(pCore, pCore->m_pWorld->m_pConfig->m_SvFreezeDelay);
+          if (HealthAndAmmo) {
+            if (pCore->m_Health < 10) {
+              ++pCore->m_Health;
+              Consumed = true;
+            }
+          } else {
+            cc_freeze(pCore, pCore->m_pWorld->m_pConfig->m_SvFreezeDelay);
+          }
           break;
 
         case POWERUP_ARMOR:
+          if (HealthAndAmmo) {
+            if (pCore->m_Armor < 10) {
+              ++pCore->m_Armor;
+              Consumed = true;
+            }
+            break;
+          }
 #pragma clang loop unroll(full)
           for (int j = WEAPON_SHOTGUN; j < NUM_WEAPONS; j++) {
             pCore->m_aWeaponGot[j] = false;
+            pCore->m_aWeaponAmmo[j] = 0;
           }
           pCore->m_Ninja.m_ActivationDir = vec2_init(0, 0);
           pCore->m_Ninja.m_ActivationTick = -500;
@@ -550,12 +636,14 @@ void cc_do_pickup(SCharacterCore *pCore) {
 
         case POWERUP_ARMOR_SHOTGUN:
           pCore->m_aWeaponGot[WEAPON_SHOTGUN] = false;
+          pCore->m_aWeaponAmmo[WEAPON_SHOTGUN] = 0;
           if (pCore->m_ActiveWeapon == WEAPON_SHOTGUN)
             pCore->m_ActiveWeapon = WEAPON_HAMMER;
           break;
 
         case POWERUP_ARMOR_GRENADE:
           pCore->m_aWeaponGot[WEAPON_GRENADE] = false;
+          pCore->m_aWeaponAmmo[WEAPON_GRENADE] = 0;
           if (pCore->m_ActiveWeapon == WEAPON_GRENADE)
             pCore->m_ActiveWeapon = WEAPON_HAMMER;
           break;
@@ -568,12 +656,17 @@ void cc_do_pickup(SCharacterCore *pCore) {
 
         case POWERUP_ARMOR_LASER:
           pCore->m_aWeaponGot[WEAPON_LASER] = false;
+          pCore->m_aWeaponAmmo[WEAPON_LASER] = 0;
           if (pCore->m_ActiveWeapon == WEAPON_LASER)
             pCore->m_ActiveWeapon = WEAPON_HAMMER;
           break;
 
         case POWERUP_WEAPON:
-          pCore->m_aWeaponGot[Pickup.m_Subtype] = true;
+          if (!HealthAndAmmo || !pCore->m_aWeaponGot[Pickup.m_Subtype] || pCore->m_aWeaponAmmo[Pickup.m_Subtype] != 10) {
+            pCore->m_aWeaponGot[Pickup.m_Subtype] = true;
+            pCore->m_aWeaponAmmo[Pickup.m_Subtype] = HealthAndAmmo && Pickup.m_Subtype == WEAPON_GRENADE ? 10 : -1;
+            Consumed = HealthAndAmmo;
+          }
           break;
 
         case POWERUP_NINJA: {
@@ -585,6 +678,8 @@ void cc_do_pickup(SCharacterCore *pCore) {
         default:
           __builtin_unreachable();
         }
+        if (Consumed)
+          cc_set_pickup_cooldown(pCore, CooldownKey);
       }
     }
   }
@@ -606,11 +701,25 @@ void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   pCore->m_pTuning = &pWorld->m_pTunings[0];
   pCore->m_aWeaponGot[0] = true;
   pCore->m_aWeaponGot[1] = true;
+  pCore->m_aWeaponAmmo[WEAPON_HAMMER] = -1;
+  pCore->m_aWeaponAmmo[WEAPON_GUN] = -1;
   pCore->m_ActiveWeapon = WEAPON_GUN;
   pCore->m_Input.m_TargetY = -1;
+  pCore->m_SpawnGeneration = 1;
 
   pCore->m_StartTick = -1;
   pCore->m_FinishTick = -1;
+  pCore->m_RaceTime = -1.0f;
+
+  if (pWorld->m_UniqueRace) {
+    pCore->m_Health = 10;
+    pCore->m_Armor = pWorld->m_pConfig->m_SvHealthAndAmmo && !pWorld->m_pConfig->m_SvFastcap ? 0 : 10;
+    if (pWorld->m_pConfig->m_SvFastcap) {
+      pCore->m_aWeaponGot[WEAPON_GRENADE] = true;
+      pCore->m_aWeaponAmmo[WEAPON_GRENADE] = 10;
+      pCore->m_ActiveWeapon = WEAPON_GRENADE;
+    }
+  }
 
   pCore->m_AttackTick = INT_MIN * 0.5;
 
@@ -679,15 +788,22 @@ void cc_quantize(SCharacterCore *pCore) {
 void wc_release_hooked(SWorldCore *pCore, int Id);
 void cc_die(SCharacterCore *pCore) {
   int Id = pCore->m_Id;
+  const uint32_t SpawnGeneration = pCore->m_SpawnGeneration;
   mvec2 PrevPos = pCore->m_Pos;
+  if (pCore->m_pWorld->m_pPickupCooldowns && Id >= 0 && Id < pCore->m_pWorld->m_NumCharacters) {
+    SPickupCooldownList *pList = &pCore->m_pWorld->m_pPickupCooldowns[Id];
+    free(pList->m_pEntries);
+    *pList = (SPickupCooldownList){0};
+  }
   cc_init(pCore, pCore->m_pWorld);
+  pCore->m_SpawnGeneration = SpawnGeneration + 1;
 
   mvec2 SpawnPos;
   if (wc_next_spawn(pCore->m_pWorld, &SpawnPos, Id)) {
     if (pCore->m_pWorld->particle)
-      pCore->m_pWorld->particle(PrevPos, PARTICLE_TYPE_PLAYER_DEATH, pCore->m_Id, pCore->m_pWorld->user_data);
+      pCore->m_pWorld->particle(PrevPos, PARTICLE_TYPE_PLAYER_DEATH, Id, pCore->m_pWorld->user_data);
     if (pCore->m_pWorld->particle)
-      pCore->m_pWorld->particle(SpawnPos, PARTICLE_TYPE_PLAYER_SPAWN, pCore->m_Id, pCore->m_pWorld->user_data);
+      pCore->m_pWorld->particle(SpawnPos, PARTICLE_TYPE_PLAYER_SPAWN, Id, pCore->m_pWorld->user_data);
 
     pCore->m_Pos = SpawnPos;
     pCore->m_PrevPos = SpawnPos;
@@ -1011,6 +1127,7 @@ void cc_reset_hook(SCharacterCore *pCore) {
 
 void cc_reset_pickups(SCharacterCore *pCore) {
   memset(pCore->m_aWeaponGot + WEAPON_SHOTGUN, 0, 4);
+  memset(pCore->m_aWeaponAmmo + WEAPON_SHOTGUN, 0, 4);
   if (pCore->m_ActiveWeapon > WEAPON_SHOTGUN)
     pCore->m_ActiveWeapon = WEAPON_GUN;
 }
@@ -1024,6 +1141,10 @@ static void cc_handle_teleport(SCharacterCore *pCore, int z) {
 
   pCore->m_Pos = pCore->m_pCollision->m_apTeleOuts[z][pCore->m_Input.m_TeleOut % Num];
   cc_calc_indices(pCore);
+  if (pCore->m_pWorld->m_UniqueRace && pCore->m_StartTick != -1) {
+    --pCore->m_StartTime;
+    pCore->m_StartTickOffset -= pCore->m_TileFraction;
+  }
   if (!pCore->m_pWorld->m_pConfig->m_SvTeleportHoldHook) {
     cc_reset_hook(pCore);
   }
@@ -1039,6 +1160,10 @@ static void cc_handle_evil_teleport(SCharacterCore *pCore, int evilz) {
   pCore->m_Pos = pCore->m_pCollision->m_apTeleOuts[evilz][pCore->m_Input.m_TeleOut % Num];
   cc_calc_indices(pCore);
   pCore->m_Vel = vec2_init(0, 0);
+  if (pCore->m_pWorld->m_UniqueRace && pCore->m_StartTick != -1) {
+    --pCore->m_StartTime;
+    pCore->m_StartTickOffset -= pCore->m_TileFraction;
+  }
 
   if (!pCore->m_pWorld->m_pConfig->m_SvTeleportHoldHook) {
     cc_reset_hook(pCore);
@@ -1055,6 +1180,10 @@ static void cc_handle_check_teleport(SCharacterCore *pCore) {
     if ((Num = pCore->m_pCollision->m_aNumTeleCheckOuts[k])) {
       pCore->m_Pos = pCore->m_pCollision->m_apTeleCheckOuts[k][pCore->m_Input.m_TeleOut % Num];
       cc_calc_indices(pCore);
+      if (pCore->m_pWorld->m_UniqueRace && pCore->m_StartTick != -1) {
+        --pCore->m_StartTime;
+        pCore->m_StartTickOffset -= pCore->m_TileFraction;
+      }
 
       if (!pCore->m_pWorld->m_pConfig->m_SvTeleportHoldHook) {
         cc_reset_hook(pCore);
@@ -1082,6 +1211,10 @@ static void cc_handle_check_evil_teleport(SCharacterCore *pCore) {
       pCore->m_Pos = pCore->m_pCollision->m_apTeleCheckOuts[k][pCore->m_Input.m_TeleOut % Num];
       cc_calc_indices(pCore);
       pCore->m_Vel = vec2_init(0, 0);
+      if (pCore->m_pWorld->m_UniqueRace && pCore->m_StartTick != -1) {
+        --pCore->m_StartTime;
+        pCore->m_StartTickOffset -= pCore->m_TileFraction;
+      }
 
       if (!pCore->m_pWorld->m_pConfig->m_SvTeleportHoldHook) {
         cc_reset_hook(pCore);
@@ -1105,9 +1238,10 @@ static void cc_handle_check_evil_teleport(SCharacterCore *pCore) {
   }
 }
 
-void cc_handle_tiles(SCharacterCore *pCore, int Index) {
+void cc_handle_tiles(SCharacterCore *pCore, int Index, float FractionOfTick) {
   int MapIndex = Index;
   pCore->m_IsInFreeze = false;
+  pCore->m_TileFraction = FractionOfTick;
 
   if (Index < 0) {
     pCore->m_LastRefillJumps = false;
@@ -1204,6 +1338,57 @@ static inline bool broad_indices_check(const SCollision *__restrict__ pCollision
   return (bool)(pCollision->m_pBroadIndicesBitField[(MinY * pCollision->m_MapData.width) + MinX] & (uint64_t)1 << ((DiffY << 3) + DiffX));
 }
 
+static void cc_unique_race_start(SCharacterCore *pCore, float FractionOfTick) {
+  if (pCore->m_StartTick != -1)
+    return;
+  pCore->m_StartTick = pCore->m_pWorld->m_GameTick;
+  pCore->m_StartTime = pCore->m_StartTick;
+  pCore->m_FinishTick = -1;
+  pCore->m_StartTickOffset = FractionOfTick;
+  pCore->m_FinishTickOffset = 0.0f;
+  pCore->m_RaceTime = -1.0f;
+}
+
+static void cc_unique_race_finish(SCharacterCore *pCore, float FractionOfTick) {
+  if (pCore->m_StartTick == -1 || pCore->m_FinishTick != -1)
+    return;
+  pCore->m_FinishTick = pCore->m_pWorld->m_GameTick;
+  pCore->m_FinishTickOffset = FractionOfTick;
+  pCore->m_RaceTime = (FractionOfTick - pCore->m_StartTickOffset + (float)(pCore->m_FinishTick - pCore->m_StartTime)) / GAME_TICK_SPEED;
+  if (pCore->m_pWorld->particle)
+    pCore->m_pWorld->particle(pCore->m_Pos, PARTICLE_TYPE_CONFETTI, pCore->m_Id, pCore->m_pWorld->user_data);
+}
+
+static void cc_handle_fastcap(SCharacterCore *pCore, mvec2 PrevPos, mvec2 Pos) {
+  if (!pCore->m_pWorld->m_pConfig->m_SvFastcap)
+    return;
+
+  const float Distance = vdistance(PrevPos, Pos);
+  if (Distance == 0.0f)
+    return;
+
+  // Unique Race checks the path in one-world-unit increments. Keeping the
+  // same fractions is important because they are part of the finish time.
+  const int End = (int)Distance + 1;
+  for (int Index = 0; Index < End; ++Index) {
+    const float FractionOfTick = (float)Index / Distance;
+    const mvec2 SamplePos = vvfmix(PrevPos, Pos, FractionOfTick);
+    for (int Team = 0; Team < 2; ++Team) {
+      const int OppositeTeam = Team == 0 ? 1 : 0;
+      if (!pCore->m_pCollision->m_aFastcapFlagPresent[Team] || pCore->m_aGotFastcapFlag[Team])
+        continue;
+      if (vdistance(SamplePos, pCore->m_pCollision->m_aFastcapFlagPositions[Team]) >= HALFPHYSICALSIZE + PHYSICALSIZE)
+        continue;
+
+      if (!pCore->m_aGotFastcapFlag[OppositeTeam])
+        cc_unique_race_start(pCore, FractionOfTick);
+      else
+        cc_unique_race_finish(pCore, FractionOfTick);
+      pCore->m_aGotFastcapFlag[Team] = true;
+    }
+  }
+}
+
 void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
   if (pCore->m_EndlessHook)
     pCore->m_HookTick = 0;
@@ -1240,7 +1425,41 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
   const mvec2 PrevPos = pCore->m_PrevPos;
   const mvec2 Pos = pCore->m_Pos;
   const int Width = pCore->m_pCollision->m_MapData.width;
+  cc_handle_fastcap(pCore, PrevPos, Pos);
   if (broad_indices_check(pCore->m_pCollision, PrevPos, Pos)) {
+    if (pCore->m_pWorld->m_UniqueRace) {
+      const float Distance = vdistance(PrevPos, Pos);
+      int LastIndex = 0;
+      bool HandledTile = false;
+      const uint32_t SpawnGeneration = pCore->m_SpawnGeneration;
+      if (Distance == 0.0f) {
+        const int Index = pCore->m_BlockIdx;
+        if (pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT) {
+          cc_handle_tiles(pCore, Index, 0.0f);
+          HandledTile = true;
+        }
+      } else {
+        const int End = (int)ceilf(Distance);
+        for (int Sample = 0; Sample < End; ++Sample) {
+          const float FractionOfTick = (float)Sample / Distance;
+          const mvec2 SamplePos = vvfmix(PrevPos, Pos, FractionOfTick);
+          const int x = iclamp((int)vgetx(SamplePos) / 32, 0, pCore->m_pCollision->m_MapData.width - 1);
+          const int y = iclamp((int)vgety(SamplePos) / 32, 0, pCore->m_pCollision->m_MapData.height - 1);
+          const int Index = y * Width + x;
+          if (!(pCore->m_pCollision->m_pTileInfos[Index] & INFO_TILENEXT) || LastIndex == Index)
+            continue;
+          cc_handle_tiles(pCore, Index, FractionOfTick);
+          HandledTile = true;
+          LastIndex = Index;
+          if (pCore->m_SpawnGeneration != SpawnGeneration)
+            return;
+        }
+      }
+      if (!HandledTile)
+        cc_handle_tiles(pCore, pCore->m_BlockIdx, 1.0f);
+      goto TilesHandled;
+    }
+
     int sx = (int)vgetx(PrevPos) >> 5;
     int sy = (int)vgety(PrevPos) >> 5;
     int ex = (int)vgetx(Pos) >> 5;
@@ -1264,7 +1483,7 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
     float tDeltaX = (dx != 0) ? fabs(32.0f / dx) : FLT_MAX;
     float tDeltaY = (dy != 0) ? fabs(32.0f / dy) : FLT_MAX;
 
-    cc_handle_tiles(pCore, y * Width + x);
+    cc_handle_tiles(pCore, y * Width + x, 1.0f);
     while (x != ex || y != ey) {
       if (x != ex && (y == ey || tMaxX < tMaxY)) {
         tMaxX += tDeltaX;
@@ -1273,9 +1492,10 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
         tMaxY += tDeltaY;
         y += StepY;
       }
-      cc_handle_tiles(pCore, y * Width + x);
+      cc_handle_tiles(pCore, y * Width + x, 1.0f);
     }
   }
+TilesHandled:
   // teleport gun
   if (pCore->m_TeleGunTeleport) {
     pCore->m_Pos = pCore->m_TeleGunPos;
@@ -1619,10 +1839,32 @@ void cc_remove_ninja(SCharacterCore *pCore) {
   pCore->m_aWeaponGot[WEAPON_NINJA] = false;
 }
 
-void cc_take_damage(SCharacterCore *pCore, mvec2 Force) {
-  pCore->m_Vel = clamp_vel(pCore->m_MoveRestrictions, vvadd(pCore->m_Vel, Force));
-  // printf("Took (%.2f, %.2f) damage to me (%.2f, %.2f). vel is now (%.2f, %.2f)\n", vgetx(Force),
-  // vgety(Force), vgetx(pCore->m_Pos), vgety(pCore->m_Pos), vgetx(pCore->m_Vel), vgety(pCore->m_Vel));
+bool cc_take_damage(SCharacterCore *pCore, mvec2 Force, int Damage) {
+  const mvec2 NewVelocity = vvadd(pCore->m_Vel, Force);
+  pCore->m_Vel = pCore->m_pWorld->m_UniqueRace ? NewVelocity : clamp_vel(pCore->m_MoveRestrictions, NewVelocity);
+  if (!pCore->m_pWorld->m_pConfig->m_SvHealthAndAmmo)
+    return true;
+
+  Damage = imax(1, Damage / 2);
+  if (pCore->m_Armor) {
+    if (Damage > 1) {
+      --pCore->m_Health;
+      --Damage;
+    }
+    if (Damage > pCore->m_Armor) {
+      Damage -= pCore->m_Armor;
+      pCore->m_Armor = 0;
+    } else {
+      pCore->m_Armor -= Damage;
+      Damage = 0;
+    }
+  }
+  pCore->m_Health -= Damage;
+  if (pCore->m_Health <= 0) {
+    cc_die(pCore);
+    return false;
+  }
+  return true;
 }
 
 void cc_handle_ninja(SCharacterCore *pCore) {
@@ -1694,7 +1936,7 @@ void cc_handle_ninja(SCharacterCore *pCore) {
           if (pCore->m_NumObjectsHit < 10)
             pCore->m_aHitObjects[pCore->m_NumObjectsHit++] = pChr->m_Id;
 
-          cc_take_damage(pChr, vec2_init(0, -10.f));
+          cc_take_damage(pChr, vec2_init(0, -10.f), 9);
         }
       }
     }
@@ -1709,7 +1951,7 @@ void cc_handle_jetpack(SCharacterCore *pCore) {
 
   const mvec2 Direction = vnormalize(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
   float Strength = pCore->m_pTuning->m_JetpackStrength;
-  cc_take_damage(pCore, vfmul(Direction, -(Strength / 100.f / 6.11f)));
+  cc_take_damage(pCore, vfmul(Direction, -(Strength / 100.f / 6.11f)), 0);
 }
 
 void cc_do_weapon_switch(SCharacterCore *pCore) {
@@ -1740,6 +1982,8 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   }
 
   if (!WillFire)
+    return;
+  if (pCore->m_pWorld->m_pConfig->m_SvHealthAndAmmo && pCore->m_aWeaponAmmo[pCore->m_ActiveWeapon] == 0)
     return;
 
   const mvec2 Direction = vnormalize_nomask(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
@@ -1791,7 +2035,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 
         mvec2 Force = vfmul(vvadd(vec2_init(0.f, -1.0f), Temp), Strength);
 
-        cc_take_damage(pTarget, Force);
+        cc_take_damage(pTarget, Force, 3);
         cc_unfreeze(pTarget);
 
         Hits++;
@@ -1836,7 +2080,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 
               mvec2 Force = vfmul(vvadd(vec2_init(0.f, -1.0f), Temp), Strength);
 
-              cc_take_damage(pTarget, Force);
+              cc_take_damage(pTarget, Force, 3);
               cc_unfreeze(pTarget);
 
               Hits++;
@@ -1902,6 +2146,9 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   default:
     __builtin_unreachable();
   }
+
+  if (pCore->m_pWorld->m_pConfig->m_SvHealthAndAmmo && pCore->m_aWeaponAmmo[pCore->m_ActiveWeapon] > 0)
+    --pCore->m_aWeaponAmmo[pCore->m_ActiveWeapon];
 
   // reloadtimer can be changed earlier by hammer so check again
   if (!pCore->m_ReloadTimer) {
@@ -2222,6 +2469,7 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision, STeeGrid *pGrid, SConfig
   pCore->m_Accelerator.m_pGrid = pGrid;
   pCore->m_Accelerator.hash = next_world_hash();
   pCore->m_pConfig = pConfig;
+  pCore->m_UniqueRace = pConfig->m_SvFastcap || pConfig->m_SvKillGrenades || pConfig->m_SvHealthAndAmmo;
 
   init_switchers(pCore, pCollision->m_HighestSwitchNumber);
 
@@ -2231,10 +2479,20 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision, STeeGrid *pGrid, SConfig
                                                  .m_pTunings = pCore->m_pTunings,
                                                  .m_pSwitches = pCore->m_pSwitches,
                                                  .m_pGrenadeDoubleExplosion = &pCollision->m_GrenadeDoubleExplosion,
+                                                 .m_pUniqueRace = &pCore->m_UniqueRace,
                                                  .m_NumSwitches = pCore->m_NumSwitches,
                                              });
 
   wc_create_all_entities(pCore);
+}
+
+static void wc_free_pickup_cooldowns(SWorldCore *pCore) {
+  if (!pCore->m_pPickupCooldowns)
+    return;
+  for (int Index = 0; Index < pCore->m_NumCharacters; ++Index)
+    free(pCore->m_pPickupCooldowns[Index].m_pEntries);
+  free(pCore->m_pPickupCooldowns);
+  pCore->m_pPickupCooldowns = NULL;
 }
 
 void wc_free(SWorldCore *pCore) {
@@ -2246,6 +2504,7 @@ void wc_free(SWorldCore *pCore) {
       free(pFree);
     }
   }
+  wc_free_pickup_cooldowns(pCore);
   free(pCore->m_pSwitches);
   free(pCore->m_Accelerator.m_pTeeList);
   free(pCore->m_pCharacters);
@@ -2393,6 +2652,14 @@ SCharacterCore *wc_add_character(SWorldCore *pWorld, int Num) {
 
   pWorld->m_pCharacters = pNewArray;
   pWorld->m_Accelerator.m_pTeeList = pNewTeeLinkArray;
+  if (pWorld->m_pPickupCooldowns) {
+    SPickupCooldownList *pNewCooldowns = realloc(pWorld->m_pPickupCooldowns, (size_t)NewSize * sizeof(SPickupCooldownList));
+    if (pNewCooldowns) {
+      pWorld->m_pPickupCooldowns = pNewCooldowns;
+      memset(&pWorld->m_pPickupCooldowns[OldSize], 0, (size_t)Num * sizeof(SPickupCooldownList));
+    } else
+      wc_free_pickup_cooldowns(pWorld);
+  }
 
   wc_clear_grid(pWorld);
 
@@ -2456,6 +2723,12 @@ void wc_remove_character(SWorldCore *pWorld, int CharacterId) {
   }
   if (pLink->m_Child >= 0) {
     pWorld->m_Accelerator.m_pTeeList[pLink->m_Child].m_Parent = pLink->m_Parent;
+  }
+  if (pWorld->m_pPickupCooldowns) {
+    free(pWorld->m_pPickupCooldowns[CharacterId].m_pEntries);
+    if (CharacterId < pWorld->m_NumCharacters - 1)
+      memmove(&pWorld->m_pPickupCooldowns[CharacterId], &pWorld->m_pPickupCooldowns[CharacterId + 1],
+              sizeof(SPickupCooldownList) * (size_t)(pWorld->m_NumCharacters - CharacterId - 1));
   }
 
   // Update references in other characters and entities
@@ -2543,6 +2816,8 @@ void wc_remove_character(SWorldCore *pWorld, int CharacterId) {
     pWorld->m_pCharacters = NULL;
     free(pWorld->m_Accelerator.m_pTeeList);
     pWorld->m_Accelerator.m_pTeeList = NULL;
+    free(pWorld->m_pPickupCooldowns);
+    pWorld->m_pPickupCooldowns = NULL;
   } else {
     // realloc down
     SCharacterCore *pNewArray = realloc(pWorld->m_pCharacters, (size_t)pWorld->m_NumCharacters * sizeof(SCharacterCore));
@@ -2551,6 +2826,11 @@ void wc_remove_character(SWorldCore *pWorld, int CharacterId) {
     STeeLink *pNewLinks = realloc(pWorld->m_Accelerator.m_pTeeList, (size_t)pWorld->m_NumCharacters * sizeof(STeeLink));
     if (pNewLinks)
       pWorld->m_Accelerator.m_pTeeList = pNewLinks;
+    if (pWorld->m_pPickupCooldowns) {
+      SPickupCooldownList *pNewCooldowns = realloc(pWorld->m_pPickupCooldowns, (size_t)pWorld->m_NumCharacters * sizeof(SPickupCooldownList));
+      if (pNewCooldowns)
+        pWorld->m_pPickupCooldowns = pNewCooldowns;
+    }
   }
 
   // Refresh Grid
@@ -2568,15 +2848,18 @@ void wc_create_explosion(SWorldCore *pWorld, mvec2 Pos, int Owner) {
   if (pWorld->particle)
     pWorld->particle(Pos, PARTICLE_TYPE_EXPLOSION, -1, pWorld->user_data);
 
-  bool Hit = Owner < 0 || !pWorld->m_pCharacters[Owner].m_GrenadeHitDisabled;
+  const bool OwnerValid = Owner >= 0 && Owner < pWorld->m_NumCharacters;
+  bool Hit = !OwnerValid || !pWorld->m_pCharacters[Owner].m_GrenadeHitDisabled;
   float Strength;
-  if (Owner != -1)
+  if (OwnerValid)
     Strength = pWorld->m_pCharacters[Owner].m_pTuning->m_ExplosionStrength;
   else
     Strength = pWorld->m_pTunings[0].m_ExplosionStrength;
 
   for (int i = 0; i < pWorld->m_NumCharacters; i++) {
     SCharacterCore *pChr = &pWorld->m_pCharacters[i];
+    if (pChr->m_RespawnDelay)
+      continue;
     mvec2 Diff = vvsub(pChr->m_Pos, Pos);
     float l = vlength(Diff);
     if (l >= EXPLOSION_RADIUS + PHYSICALSIZE)
@@ -2594,7 +2877,7 @@ void wc_create_explosion(SWorldCore *pWorld, mvec2 Pos, int Owner) {
     if (Hit || Owner == pChr->m_Id) {
       if (pChr->m_Solo && Owner != pChr->m_Id)
         continue;
-      cc_take_damage(pChr, vfmul(ForceDir, Dmg * 2));
+      cc_take_damage(pChr, vfmul(ForceDir, Dmg * 2), (int)Dmg);
     }
   }
 }
@@ -2606,6 +2889,8 @@ SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos
 
   for (int i = 0; i < pWorld->m_NumCharacters; ++i) {
     SCharacterCore *pEntity = &pWorld->m_pCharacters[i];
+    if (pEntity->m_RespawnDelay)
+      continue;
     if (pEntity == pNotThis)
       continue;
 
@@ -2658,10 +2943,12 @@ void wc_remove_entity(SWorldCore *pWorld, SEntity *pEnt) {
 }
 
 void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom) {
+  wc_free_pickup_cooldowns(pTo);
   pTo->m_GameTick = pFrom->m_GameTick;
   pTo->m_pCollision = pFrom->m_pCollision;
   pTo->m_pConfig = pFrom->m_pConfig;
   pTo->m_pTunings = pFrom->m_pTunings;
+  pTo->m_UniqueRace = pFrom->m_UniqueRace;
   pTo->m_Accelerator.m_pGrid = pFrom->m_Accelerator.m_pGrid;
   // TODO: fix, this is very bad:
   pTo->m_Accelerator.hash = next_world_hash();
@@ -2715,6 +3002,23 @@ void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom)
     pTo->m_pCharacters[i] = pFrom->m_pCharacters[i];
     pTo->m_pCharacters[i].m_pCollision = pTo->m_pCollision;
     pTo->m_pCharacters[i].m_pWorld = pTo;
+  }
+  if (pFrom->m_pPickupCooldowns && pTo->m_NumCharacters > 0) {
+    pTo->m_pPickupCooldowns = calloc((size_t)pTo->m_NumCharacters, sizeof(SPickupCooldownList));
+    if (pTo->m_pPickupCooldowns) {
+      for (int Character = 0; Character < pTo->m_NumCharacters; ++Character) {
+        const SPickupCooldownList *pFromList = &pFrom->m_pPickupCooldowns[Character];
+        SPickupCooldownList *pToList = &pTo->m_pPickupCooldowns[Character];
+        if (pFromList->m_NumEntries == 0)
+          continue;
+        pToList->m_pEntries = malloc((size_t)pFromList->m_NumEntries * sizeof(SPickupCooldown));
+        if (!pToList->m_pEntries)
+          continue;
+        memcpy(pToList->m_pEntries, pFromList->m_pEntries, (size_t)pFromList->m_NumEntries * sizeof(SPickupCooldown));
+        pToList->m_NumEntries = pFromList->m_NumEntries;
+        pToList->m_Capacity = pFromList->m_NumEntries;
+      }
+    }
   }
 
   // copy switches

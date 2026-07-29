@@ -111,6 +111,8 @@ typedef struct Collision {
 
   bool m_MoveRestrictionsFound;
   bool m_GrenadeDoubleExplosion;
+  bool m_aFastcapFlagPresent[2];
+  mvec2 m_aFastcapFlagPositions[2];
 } SCollision;
 
 // Takes ownership of pMap

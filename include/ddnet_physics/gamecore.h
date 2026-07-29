@@ -180,6 +180,7 @@ typedef struct Projectile {
   STuningParams *m_pTuning;
   int m_LifeSpan;
   int m_Owner;
+  uint32_t m_OwnerSpawnGeneration;
   int m_Type;
   int m_StartTick;
   int m_Bouncing;
@@ -298,6 +299,11 @@ typedef struct CharacterCore {
 
   int m_StartTick;
   int m_FinishTick;
+  float m_StartTickOffset;
+  float m_FinishTickOffset;
+  float m_RaceTime; // finished time in seconds, -1 while unfinished
+  float m_TileFraction;
+  bool m_aGotFastcapFlag[2];
 
   uint8_t m_RespawnDelay;
 
@@ -308,6 +314,10 @@ typedef struct CharacterCore {
   bool m_IsInFreeze; // for demo rendering, freezebars
   float m_VelMag;    // for external use to avoid multiple sqrts
   float m_VelRamp;   // for external use to avoid multiple expfs
+  int8_t m_aWeaponAmmo[NUM_WEAPONS];
+  int8_t m_Health;
+  int8_t m_Armor;
+  uint32_t m_SpawnGeneration;
 
 } SCharacterCore;
 // }}}
@@ -341,6 +351,17 @@ typedef struct {
   int m_Type;
   int m_LastUpdateTick;
 } SSwitch;
+
+typedef struct {
+  int m_Key;
+  int m_EndTick;
+} SPickupCooldown;
+
+typedef struct {
+  SPickupCooldown *m_pEntries;
+  int m_NumEntries;
+  int m_Capacity;
+} SPickupCooldownList;
 
 typedef enum {
   PARTICLE_TYPE_PLAYER_SPAWN,
@@ -377,6 +398,8 @@ typedef struct WorldCore {
   SSwitch *m_pSwitches;
 
   int m_GameTick;
+  bool m_UniqueRace; // detected from Unique Race map settings, may also be enabled by the caller
+  SPickupCooldownList *m_pPickupCooldowns;
 
   // external use
 
@@ -409,6 +432,7 @@ DDNET_PHYSICS_API SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mve
 DDNET_PHYSICS_API void wc_insert_entity(SWorldCore *pWorld, SEntity *pEnt);
 DDNET_PHYSICS_API bool cc_freeze(SCharacterCore *pCore, int Seconds);
 DDNET_PHYSICS_API void cc_unfreeze(SCharacterCore *pCore);
+DDNET_PHYSICS_API bool cc_take_damage(SCharacterCore *pCore, mvec2 Force, int Damage);
 DDNET_PHYSICS_API void cc_calc_indices(SCharacterCore *pCore);
 DDNET_PHYSICS_API void cc_die(SCharacterCore *pCore);
 

@@ -3,6 +3,7 @@
 #include <ddnet_physics/gamecore.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define CHECK(Condition)                                                                                                                             \
@@ -99,10 +100,214 @@ static int test_world_settings(void) {
   return 0;
 }
 
+static int test_unique_race_settings(void) {
+  char *apSettings[] = {
+      "sv_gametype unique",
+      "sv_kill_grenades 0",
+      "sv_health_and_ammo 1",
+  };
+  map_data_t Map = {
+      .num_settings = (int)(sizeof(apSettings) / sizeof(apSettings[0])),
+      .settings = apSettings,
+  };
+  SConfig Config;
+  init_config(&Config);
+  SCollision Collision = {
+      .m_MapData = Map,
+  };
+  init_test_tunings(Collision.m_aTuningList);
+  STeeGrid Grid = tg_empty();
+  SWorldCore World = wc_empty();
+
+  wc_init(&World, &Collision, &Grid, &Config);
+  CHECK(World.m_UniqueRace);
+  CHECK(Config.m_SvKillGrenades == 0);
+  CHECK(Config.m_SvHealthAndAmmo == 1);
+  CHECK(Config.m_SvDestroyBulletsOnDeath == 0);
+  CHECK(Config.m_SvSoloServer == 1);
+  wc_free(&World);
+
+  char *apFastcapSettings[] = {
+      "sv_gametype fastcap",
+      "sv_fastcap 0",
+      "sv_health_and_ammo 0",
+      "sv_kill_grenades 0",
+  };
+  Map.num_settings = (int)(sizeof(apFastcapSettings) / sizeof(apFastcapSettings[0]));
+  Map.settings = apFastcapSettings;
+  Collision.m_MapData = Map;
+  init_test_tunings(Collision.m_aTuningList);
+  init_config(&Config);
+  World = wc_empty();
+  wc_init(&World, &Collision, &Grid, &Config);
+  CHECK(World.m_UniqueRace);
+  CHECK(Config.m_SvFastcap == 1);
+  CHECK(Config.m_SvHealthAndAmmo == 1);
+  CHECK(Config.m_SvDestroyBulletsOnDeath == 1);
+  wc_free(&World);
+  return 0;
+}
+
+static map_data_t make_unique_race_map(void) {
+  enum { WIDTH = 8, HEIGHT = 3 };
+  map_data_t Map = {
+      .width = WIDTH,
+      .height = HEIGHT,
+  };
+  Map.game_layer.data = calloc(WIDTH * HEIGHT, sizeof(unsigned char));
+  Map.game_layer.flags = calloc(WIDTH * HEIGHT, sizeof(unsigned char));
+  Map.front_layer.data = calloc(WIDTH * HEIGHT, sizeof(unsigned char));
+  Map.front_layer.flags = calloc(WIDTH * HEIGHT, sizeof(unsigned char));
+  if (!Map.game_layer.data || !Map.game_layer.flags || !Map.front_layer.data || !Map.front_layer.flags)
+    return Map;
+
+  Map.game_layer.data[WIDTH + 1] = ENTITY_OFFSET + ENTITY_SPAWN;
+  Map.game_layer.data[WIDTH + 2] = ENTITY_OFFSET + ENTITY_FLAGSTAND_RED;
+  Map.game_layer.data[WIDTH + 4] = ENTITY_OFFSET + ENTITY_FLAGSTAND_BLUE;
+  Map.game_layer.data[WIDTH + 6] = ENTITY_OFFSET + ENTITY_HEALTH_1;
+  Map.front_layer.data[WIDTH + 2] = TILE_START;
+  Map.front_layer.data[WIDTH + 4] = TILE_FINISH;
+  return Map;
+}
+
+static int test_unique_race_physics(void) {
+  map_data_t Map = make_unique_race_map();
+  CHECK(Map.game_layer.data && Map.game_layer.flags && Map.front_layer.data && Map.front_layer.flags);
+
+  SCollision Collision = {0};
+  CHECK(init_collision(&Collision, &Map));
+  CHECK(Collision.m_aFastcapFlagPresent[0]);
+  CHECK(Collision.m_aFastcapFlagPresent[1]);
+
+  SConfig Config;
+  init_config(&Config);
+  Config.m_SvFastcap = 1;
+  STeeGrid Grid = tg_empty();
+  tg_init(&Grid, Collision.m_MapData.width, Collision.m_MapData.height);
+  SWorldCore World = wc_empty();
+  wc_init(&World, &Collision, &Grid, &Config);
+  SCharacterCore *pCharacter = wc_add_character(&World, 1);
+  CHECK(pCharacter);
+  CHECK(World.m_UniqueRace);
+  CHECK(pCharacter->m_Health == 10);
+  CHECK(pCharacter->m_Armor == 10);
+  CHECK(pCharacter->m_ActiveWeapon == WEAPON_GRENADE);
+  CHECK(pCharacter->m_aWeaponAmmo[WEAPON_GRENADE] == 10);
+
+  pCharacter->m_pTuning->m_Gravity = 0.0f;
+  pCharacter->m_pTuning->m_AirFriction = 1.0f;
+  pCharacter->m_pTuning->m_VelrampStart = 100000.0f;
+  pCharacter->m_Vel = vec2_init(100.0f, 0.0f);
+  wc_tick(&World);
+  wc_tick(&World);
+  CHECK(pCharacter->m_aGotFastcapFlag[0]);
+  CHECK(pCharacter->m_aGotFastcapFlag[1]);
+  CHECK(pCharacter->m_StartTick == pCharacter->m_FinishTick);
+  CHECK(fabsf(pCharacter->m_StartTickOffset) < 0.00001f);
+  CHECK(fabsf(pCharacter->m_FinishTickOffset - 0.55f) < 0.00001f);
+  CHECK(fabsf(pCharacter->m_RaceTime - 0.011f) < 0.00001f);
+
+  pCharacter->m_Pos = vvadd(Collision.m_aFastcapFlagPositions[0], vec2_init(4.0f * 32.0f, 0.0f));
+  pCharacter->m_PrevPos = pCharacter->m_Pos;
+  pCharacter->m_Vel = vec2_init(0.0f, 0.0f);
+  pCharacter->m_Health = 8;
+  cc_calc_indices(pCharacter);
+  wc_tick(&World);
+  CHECK(pCharacter->m_Health == 9);
+  wc_tick(&World);
+  CHECK(pCharacter->m_Health == 9);
+  CHECK(World.m_pPickupCooldowns && World.m_pPickupCooldowns[0].m_NumEntries == 1);
+
+  SWorldCore Copy = wc_empty();
+  wc_init(&Copy, &Collision, &Grid, &Config);
+  wc_copy_world(&Copy, &World);
+  CHECK(Copy.m_pPickupCooldowns && Copy.m_pPickupCooldowns[0].m_NumEntries == 1);
+  CHECK(Copy.m_pPickupCooldowns[0].m_pEntries != World.m_pPickupCooldowns[0].m_pEntries);
+  wc_free(&Copy);
+
+  pCharacter->m_Health = 10;
+  pCharacter->m_Armor = 10;
+  CHECK(cc_take_damage(pCharacter, vec2_init(0.0f, 0.0f), 6));
+  CHECK(pCharacter->m_Health == 9);
+  CHECK(pCharacter->m_Armor == 8);
+
+  pCharacter->m_RespawnDelay = 0;
+  pCharacter->m_Health = 1;
+  pCharacter->m_Armor = 0;
+  const uint32_t OldGeneration = pCharacter->m_SpawnGeneration;
+  CHECK(!cc_take_damage(pCharacter, vec2_init(0.0f, 0.0f), 2));
+  CHECK(pCharacter->m_SpawnGeneration == OldGeneration + 1);
+  CHECK(pCharacter->m_Health == 10);
+
+  pCharacter->m_RespawnDelay = 0;
+  SPlayerInput Input = {
+      .m_TargetX = 1,
+      .m_TargetY = 0,
+      .m_Fire = 1,
+      .m_WantedWeapon = WEAPON_GRENADE,
+  };
+  cc_on_input(pCharacter, &Input);
+  CHECK(World.m_apFirstEntityTypes[WORLD_ENTTYPE_PROJECTILE]);
+  CHECK(pCharacter->m_aWeaponAmmo[WEAPON_GRENADE] == 9);
+  cc_die(pCharacter);
+  wc_tick(&World);
+  CHECK(!World.m_apFirstEntityTypes[WORLD_ENTTYPE_PROJECTILE]);
+
+  Config.m_SvFastcap = 0;
+  Config.m_SvHealthAndAmmo = 1;
+  Config.m_SvKillGrenades = 0;
+  Config.m_SvDestroyBulletsOnDeath = 0;
+  pCharacter->m_RespawnDelay = 0;
+  pCharacter->m_aWeaponGot[WEAPON_GRENADE] = true;
+  pCharacter->m_aWeaponAmmo[WEAPON_GRENADE] = 10;
+  pCharacter->m_ActiveWeapon = WEAPON_GRENADE;
+  pCharacter->m_PrevFire = 0;
+  cc_on_input(pCharacter, &Input);
+  CHECK(World.m_apFirstEntityTypes[WORLD_ENTTYPE_PROJECTILE]);
+  cc_die(pCharacter);
+  wc_tick(&World);
+  CHECK(World.m_apFirstEntityTypes[WORLD_ENTTYPE_PROJECTILE]);
+
+  wc_free(&World);
+  tg_destroy(&Grid);
+  free_collision(&Collision);
+
+  Map = make_unique_race_map();
+  CHECK(Map.game_layer.data && Map.game_layer.flags && Map.front_layer.data && Map.front_layer.flags);
+  Collision = (SCollision){0};
+  CHECK(init_collision(&Collision, &Map));
+  init_config(&Config);
+  Config.m_SvHealthAndAmmo = 1;
+  Grid = tg_empty();
+  tg_init(&Grid, Collision.m_MapData.width, Collision.m_MapData.height);
+  World = wc_empty();
+  wc_init(&World, &Collision, &Grid, &Config);
+  pCharacter = wc_add_character(&World, 1);
+  CHECK(pCharacter);
+  pCharacter->m_pTuning->m_Gravity = 0.0f;
+  pCharacter->m_pTuning->m_AirFriction = 1.0f;
+  pCharacter->m_pTuning->m_VelrampStart = 100000.0f;
+  pCharacter->m_Vel = vec2_init(100.0f, 0.0f);
+  wc_tick(&World);
+  wc_tick(&World);
+  CHECK(pCharacter->m_StartTick == pCharacter->m_FinishTick);
+  CHECK(fabsf(pCharacter->m_StartTickOffset - 0.16f) < 0.00001f);
+  CHECK(fabsf(pCharacter->m_FinishTickOffset - 0.80f) < 0.00001f);
+  CHECK(fabsf(pCharacter->m_RaceTime - 0.0128f) < 0.00001f);
+  wc_free(&World);
+  tg_destroy(&Grid);
+  free_collision(&Collision);
+  return 0;
+}
+
 int main(void) {
   if (test_tunings() != 0)
     return 1;
   if (test_world_settings() != 0)
+    return 1;
+  if (test_unique_race_settings() != 0)
+    return 1;
+  if (test_unique_race_physics() != 0)
     return 1;
   return 0;
 }

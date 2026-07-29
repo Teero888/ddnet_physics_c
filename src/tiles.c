@@ -12,15 +12,21 @@ static void cc_handle_tile_empty(SCharacterCore *pCore) {
 }
 
 static void cc_handle_tile_start(SCharacterCore *pCore) {
-  if (pCore->m_StartTick == -1 || !pCore->m_pWorld->m_pConfig->m_SvSoloServer) {
+  if (pCore->m_StartTick == -1 || (!pCore->m_pWorld->m_UniqueRace && !pCore->m_pWorld->m_pConfig->m_SvSoloServer)) {
     pCore->m_StartTick = pCore->m_pWorld->m_GameTick;
+    pCore->m_StartTime = pCore->m_StartTick;
     pCore->m_FinishTick = -1;
+    pCore->m_StartTickOffset = pCore->m_TileFraction;
+    pCore->m_FinishTickOffset = 0.0f;
+    pCore->m_RaceTime = -1.0f;
   }
 }
 
 static void cc_handle_tile_finish(SCharacterCore *pCore) {
   if (pCore->m_StartTick != -1 && pCore->m_FinishTick == -1) {
     pCore->m_FinishTick = pCore->m_pWorld->m_GameTick;
+    pCore->m_FinishTickOffset = pCore->m_TileFraction;
+    pCore->m_RaceTime = (pCore->m_FinishTickOffset - pCore->m_StartTickOffset + (float)(pCore->m_FinishTick - pCore->m_StartTime)) / GAME_TICK_SPEED;
     if (pCore->m_pWorld->particle)
       pCore->m_pWorld->particle(pCore->m_Pos, PARTICLE_TYPE_CONFETTI, pCore->m_Id, pCore->m_pWorld->user_data);
   }
