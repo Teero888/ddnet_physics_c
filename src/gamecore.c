@@ -410,11 +410,10 @@ void prj_tick(SProjectile *pProj) {
   SCharacterCore *pOwnerChar = NULL;
 
   if (pProj->m_Owner >= 0) {
-    const bool OwnerAlive = pProj->m_Owner < pProj->m_Base.m_pWorld->m_NumCharacters &&
-                            pProj->m_Base.m_pWorld->m_pCharacters[pProj->m_Owner].m_SpawnGeneration == pProj->m_OwnerSpawnGeneration;
+    const bool OwnerAlive = (pProj->m_Owner < pProj->m_Base.m_pWorld->m_NumCharacters &&
+                            pProj->m_Base.m_pWorld->m_pCharacters[pProj->m_Owner].m_SpawnGeneration == pProj->m_OwnerSpawnGeneration) || !pProj->m_Base.m_pWorld->m_pConfig->m_SvDestroyBulletsOnDeath;
     if (!OwnerAlive) {
-      if (pProj->m_Type != WEAPON_GRENADE || pProj->m_Base.m_pWorld->m_pConfig->m_SvDestroyBulletsOnDeath ||
-          !pProj->m_Base.m_pWorld->m_pConfig->m_SvKillGrenades) {
+      if (pProj->m_Type != WEAPON_GRENADE) {
         pProj->m_Base.m_MarkedForDestroy = true;
         return;
       }
