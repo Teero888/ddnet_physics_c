@@ -117,6 +117,7 @@ typedef struct Collision {
 
 // Takes ownership of pMap
 DDNET_PHYSICS_API bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict__ pMap);
+DDNET_PHYSICS_API bool init_collision_with_no_weapons(SCollision *__restrict__ pCollision, map_data_t *__restrict__ pMap, bool NoWeapons);
 DDNET_PHYSICS_API void free_collision(SCollision *pCollision);
 DDNET_PHYSICS_API int get_pure_map_index(SCollision *pCollision, mvec2 Pos);
 DDNET_PHYSICS_API unsigned char move_restrictions(unsigned char Direction, unsigned char Tile, unsigned char Flags);

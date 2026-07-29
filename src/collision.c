@@ -514,6 +514,10 @@ fail:
 
 // SCollision now OWNS the pMap data, DO NOT FREE IT
 bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict__ pMap) {
+  return init_collision_with_no_weapons(pCollision, pMap, false);
+}
+
+bool init_collision_with_no_weapons(SCollision *__restrict__ pCollision, map_data_t *__restrict__ pMap, bool NoWeapons) {
   pCollision->m_MapData = *pMap;
   expand_and_shift_map(&pCollision->m_MapData, MAP_EXPAND);
   if (!pCollision->m_MapData.game_layer.data)
@@ -650,7 +654,7 @@ bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict_
         Type = POWERUP_NINJA;
         SubType = WEAPON_NINJA;
       }
-      if (pMapData->m_NoWeapons && (Type == POWERUP_WEAPON || Type == POWERUP_NINJA))
+      if (NoWeapons && (Type == POWERUP_WEAPON || Type == POWERUP_NINJA))
         Type = -1;
       pCollision->m_pPickups[i].m_Type = Type;
       pCollision->m_pPickups[i].m_Subtype = SubType;
@@ -699,7 +703,7 @@ bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict_
           Type = POWERUP_NINJA;
           SubType = WEAPON_NINJA;
         }
-        if (pMapData->m_NoWeapons && (Type == POWERUP_WEAPON || Type == POWERUP_NINJA))
+        if (NoWeapons && (Type == POWERUP_WEAPON || Type == POWERUP_NINJA))
           Type = -1;
         pCollision->m_pFrontPickups[i].m_Type = Type;
         pCollision->m_pFrontPickups[i].m_Subtype = SubType;

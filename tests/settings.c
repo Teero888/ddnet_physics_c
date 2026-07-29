@@ -118,6 +118,7 @@ static int test_unique_race_settings(void) {
       "sv_gametype unique",
       "sv_kill_grenades 0",
       "sv_health_and_ammo 1",
+      "sv_no_weapons 1",
   };
   map_data_t Map = {
       .num_settings = (int)(sizeof(apSettings) / sizeof(apSettings[0])),
@@ -136,6 +137,7 @@ static int test_unique_race_settings(void) {
   CHECK(World.m_UniqueRace);
   CHECK(Config.m_SvKillGrenades == 0);
   CHECK(Config.m_SvHealthAndAmmo == 1);
+  CHECK(Config.m_SvNoWeapons == 1);
   CHECK(Config.m_SvDestroyBulletsOnDeath == 0);
   CHECK(Config.m_SvSoloServer == 1);
   wc_free(&World);
@@ -196,7 +198,7 @@ static int count_weapon_pickups(const SCollision *pCollision) {
   return Count;
 }
 
-static map_data_t make_weapon_pickup_map(bool NoWeapons) {
+static map_data_t make_weapon_pickup_map(void) {
   map_data_t Map = make_unique_race_map();
   if (!Map.game_layer.data)
     return Map;
@@ -205,28 +207,27 @@ static map_data_t make_weapon_pickup_map(bool NoWeapons) {
   Map.game_layer.data[Offset + 5] = ENTITY_OFFSET + ENTITY_WEAPON_GRENADE;
   Map.front_layer.data[Offset + 1] = ENTITY_OFFSET + ENTITY_WEAPON_LASER;
   Map.front_layer.data[Offset + 6] = ENTITY_OFFSET + ENTITY_POWERUP_NINJA;
-  Map.m_NoWeapons = NoWeapons;
   return Map;
 }
 
 static int test_no_weapons_pickups(void) {
-  map_data_t Map = make_weapon_pickup_map(false);
+  map_data_t Map = make_weapon_pickup_map();
   CHECK(Map.game_layer.data);
   SCollision Collision = {0};
   CHECK(init_collision(&Collision, &Map));
   CHECK(count_weapon_pickups(&Collision) == 4);
   free_collision(&Collision);
 
-  Map = make_weapon_pickup_map(true);
+  Map = make_weapon_pickup_map();
   CHECK(Map.game_layer.data);
   Collision = (SCollision){0};
-  CHECK(init_collision(&Collision, &Map));
-  CHECK(Collision.m_MapData.m_NoWeapons);
+  CHECK(init_collision_with_no_weapons(&Collision, &Map, true));
   CHECK(count_weapon_pickups(&Collision) == 0);
 
   SConfig Config;
   init_config(&Config);
   Config.m_SvFastcap = 1;
+  Config.m_SvNoWeapons = 1;
   STeeGrid Grid = tg_empty();
   tg_init(&Grid, Collision.m_MapData.width, Collision.m_MapData.height);
   SWorldCore World = wc_empty();
@@ -240,6 +241,38 @@ static int test_no_weapons_pickups(void) {
   tg_destroy(&Grid);
 
   free_collision(&Collision);
+  return 0;
+}
+
+static int test_game_modes(void) {
+  for (EGameMode GameMode = GAME_MODE_DDRACE; GameMode < NUM_GAME_MODES; GameMode++) {
+    map_data_t Map = make_weapon_pickup_map();
+    CHECK(Map.game_layer.data);
+
+    SCollision Collision = {0};
+    SConfig Config;
+    STeeGrid Grid = tg_empty();
+    SWorldCore World = wc_empty();
+    CHECK(init_game_mode(&World, &Collision, &Grid, &Config, &Map, GameMode));
+
+    const bool UniqueRace = GameMode != GAME_MODE_DDRACE;
+    const bool Fastcap = GameMode == GAME_MODE_FASTCAP || GameMode == GAME_MODE_FASTCAP_NO_WPNS;
+    const bool NoWeapons = GameMode == GAME_MODE_FASTCAP_NO_WPNS;
+    CHECK(World.m_UniqueRace == UniqueRace);
+    CHECK((Config.m_SvFastcap != 0) == Fastcap);
+    CHECK((Config.m_SvNoWeapons != 0) == NoWeapons);
+    CHECK(count_weapon_pickups(&Collision) == (NoWeapons ? 0 : 4));
+
+    SCharacterCore *pCharacter = wc_add_character(&World, 1);
+    CHECK(pCharacter);
+    const bool GrenadeSpawn = GameMode == GAME_MODE_FASTCAP;
+    CHECK(pCharacter->m_aWeaponGot[WEAPON_GRENADE] == GrenadeSpawn);
+    CHECK(pCharacter->m_ActiveWeapon == (GrenadeSpawn ? WEAPON_GRENADE : WEAPON_GUN));
+
+    wc_free(&World);
+    tg_destroy(&Grid);
+    free_collision(&Collision);
+  }
   return 0;
 }
 
@@ -357,13 +390,9 @@ static int test_unique_race_physics(void) {
   Map = make_unique_race_map();
   CHECK(Map.game_layer.data && Map.game_layer.flags && Map.front_layer.data && Map.front_layer.flags);
   Collision = (SCollision){0};
-  CHECK(init_collision(&Collision, &Map));
-  init_config(&Config);
-  Config.m_SvHealthAndAmmo = 1;
   Grid = tg_empty();
-  tg_init(&Grid, Collision.m_MapData.width, Collision.m_MapData.height);
   World = wc_empty();
-  wc_init(&World, &Collision, &Grid, &Config);
+  CHECK(init_game_mode(&World, &Collision, &Grid, &Config, &Map, GAME_MODE_RACE));
   pCharacter = wc_add_character(&World, 1);
   CHECK(pCharacter);
   pCharacter->m_pTuning->m_Gravity = 0.0f;
@@ -390,6 +419,8 @@ int main(void) {
   if (test_unique_race_settings() != 0)
     return 1;
   if (test_no_weapons_pickups() != 0)
+    return 1;
+  if (test_game_modes() != 0)
     return 1;
   if (test_unique_race_physics() != 0)
     return 1;

@@ -715,7 +715,7 @@ void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   if (pWorld->m_UniqueRace) {
     pCore->m_Health = 10;
     pCore->m_Armor = pWorld->m_pConfig->m_SvHealthAndAmmo && !pWorld->m_pConfig->m_SvFastcap ? 0 : 10;
-    if (pWorld->m_pConfig->m_SvFastcap && !pWorld->m_pCollision->m_MapData.m_NoWeapons) {
+    if (pWorld->m_pConfig->m_SvFastcap && !pWorld->m_pConfig->m_SvNoWeapons) {
       pCore->m_aWeaponGot[WEAPON_GRENADE] = true;
       pCore->m_aWeaponAmmo[WEAPON_GRENADE] = 10;
       pCore->m_ActiveWeapon = WEAPON_GRENADE;
@@ -2499,6 +2499,51 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision, STeeGrid *pGrid, SConfig
                                              });
 
   wc_create_all_entities(pCore);
+}
+
+static EGameMode normalize_game_mode(EGameMode GameMode) {
+  if (GameMode < GAME_MODE_DDRACE || GameMode >= NUM_GAME_MODES)
+    return GAME_MODE_DDRACE;
+  return GameMode;
+}
+
+static void enable_unique_race_game_mode(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig) {
+  pConfig->m_SvSoloServer = 1;
+  pConfig->m_SvDestroyBulletsOnDeath = pConfig->m_SvKillGrenades;
+  pCore->m_UniqueRace = true;
+
+  for (int Zone = 0; Zone < NUM_TUNE_ZONES; ++Zone) {
+    pCollision->m_aTuningList[Zone].m_PlayerCollision = 0.0f;
+    pCollision->m_aTuningList[Zone].m_PlayerHooking = 0.0f;
+  }
+}
+
+bool init_game_mode(SWorldCore *pCore, SCollision *pCollision, STeeGrid *pGrid, SConfig *pConfig, map_data_t *pMap, EGameMode GameMode) {
+  GameMode = normalize_game_mode(GameMode);
+  const bool NoWeapons = GameMode == GAME_MODE_FASTCAP_NO_WPNS;
+  init_config(pConfig);
+  pConfig->m_SvNoWeapons = NoWeapons;
+  if (!init_collision_with_no_weapons(pCollision, pMap, NoWeapons))
+    return false;
+
+  *pGrid = tg_empty();
+  tg_init(pGrid, pCollision->m_MapData.width, pCollision->m_MapData.height);
+  wc_init(pCore, pCollision, pGrid, pConfig);
+  pConfig->m_SvNoWeapons = NoWeapons;
+
+  if (GameMode == GAME_MODE_RACE) {
+    pConfig->m_SvFastcap = 0;
+    enable_unique_race_game_mode(pCore, pCollision, pConfig);
+  } else if (GameMode == GAME_MODE_FASTCAP || GameMode == GAME_MODE_FASTCAP_NO_WPNS) {
+    enable_unique_race_game_mode(pCore, pCollision, pConfig);
+    pConfig->m_SvFastcap = 1;
+    pConfig->m_SvHealthAndAmmo = 1;
+    pConfig->m_SvDestroyBulletsOnDeath = 1;
+  } else {
+    pConfig->m_SvFastcap = 0;
+    pCore->m_UniqueRace = false;
+  }
+  return true;
 }
 
 static void wc_free_pickup_cooldowns(SWorldCore *pCore) {

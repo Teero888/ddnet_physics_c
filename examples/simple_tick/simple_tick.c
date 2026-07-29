@@ -8,7 +8,7 @@ int main()
   SConfig config = {};
   SWorldCore world = wc_empty();
   SCollision collision = {};
-  STeeGrid tee_grid = {};
+  STeeGrid tee_grid = tg_empty();
 
   map_data_t map = load_map("maps/tinycave.map");
   if(!map._map_file_data)
@@ -17,15 +17,11 @@ int main()
     return 1;
   }
 
-  if(!init_collision(&collision, &map))
+  if(!init_game_mode(&world, &collision, &tee_grid, &config, &map, GAME_MODE_DDRACE))
   {
-    puts("failed to init collision");
+    puts("failed to init game mode");
     return 1;
   }
-
-  init_config(&config);
-  tg_init(&tee_grid, collision.m_MapData.width, collision.m_MapData.height);
-  wc_init(&world, &collision, &tee_grid, &config);
 
   if(!wc_add_character(&world, 1))
   {

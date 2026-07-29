@@ -38,6 +38,7 @@ static const SConfigSetting s_aConfigSettings[] = {
     CONFIG_SETTING(SvFastcap, "sv_fastcap", 0, 1),
     CONFIG_SETTING(SvKillGrenades, "sv_kill_grenades", 0, 1),
     CONFIG_SETTING(SvHealthAndAmmo, "sv_health_and_ammo", 0, 1),
+    CONFIG_SETTING(SvNoWeapons, "sv_no_weapons", 0, 1),
 };
 #undef CONFIG_SETTING
 

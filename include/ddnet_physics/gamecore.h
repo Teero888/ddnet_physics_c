@@ -29,6 +29,14 @@ typedef struct Config {
 #undef MACRO_CONFIG_INT
 } SConfig;
 
+typedef enum {
+  GAME_MODE_DDRACE = 0,
+  GAME_MODE_RACE,
+  GAME_MODE_FASTCAP,
+  GAME_MODE_FASTCAP_NO_WPNS,
+  NUM_GAME_MODES,
+} EGameMode;
+
 enum { WEAPON_HAMMER = 0, WEAPON_GUN, WEAPON_SHOTGUN, WEAPON_GRENADE, WEAPON_LASER, WEAPON_NINJA, NUM_WEAPONS };
 
 typedef struct {
@@ -418,6 +426,8 @@ DDNET_PHYSICS_API void tg_init(STeeGrid *pGrid, int width, int height);
 DDNET_PHYSICS_API void tg_destroy(STeeGrid *pGrid);
 
 DDNET_PHYSICS_API void init_config(SConfig *pConfig);
+DDNET_PHYSICS_API bool init_game_mode(SWorldCore *pCore, SCollision *pCollision, STeeGrid *pGrid, SConfig *pConfig, map_data_t *pMap,
+                                      EGameMode GameMode);
 DDNET_PHYSICS_API void wc_init(SWorldCore *pCore, SCollision *pCollision, STeeGrid *pGrid, SConfig *pConfig);
 DDNET_PHYSICS_API void wc_copy_world(SWorldCore *__restrict__ pTo, SWorldCore *__restrict__ pFrom);
 DDNET_PHYSICS_API void wc_tick(SWorldCore *pCore);

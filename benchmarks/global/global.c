@@ -47,21 +47,17 @@ int main(int argc, char *argv[]) {
   unsigned int global_seed = 0; // (unsigned)time(NULL);
 
   map_data_t Map = load_map("maps/Aip-Gores.map");
-  SCollision Collision;
-  if (!init_collision(&Collision, &Map)) {
-    printf("Error: Failed to load collision map.\n");
+  SCollision Collision = {0};
+  SConfig Config;
+  SWorldCore StartWorld = wc_empty();
+  STeeGrid Grid = tg_empty();
+  if (!init_game_mode(&StartWorld, &Collision, &Grid, &Config, &Map, GAME_MODE_DDRACE)) {
+    printf("Error: Failed to initialize game mode.\n");
     return 1;
   }
   // Map is now owned by the collision and not needed here anymore
   (void)Map;
 
-  SConfig Config;
-  init_config(&Config);
-
-  SWorldCore StartWorld;
-  STeeGrid Grid;
-  tg_init(&Grid, Collision.m_MapData.width, Collision.m_MapData.height);
-  wc_init(&StartWorld, &Collision, &Grid, &Config);
   wc_add_character(&StartWorld, NUM_CHARACTERS);
   for (int t = 0; t < 50; ++t)
     wc_tick(&StartWorld);
