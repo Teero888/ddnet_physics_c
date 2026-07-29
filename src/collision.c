@@ -1,5 +1,6 @@
 #include "collision_tables.h"
 #include "limits.h"
+#include "settings.h"
 #include "src/tiles.h"
 #include <assert.h>
 #include <ddnet_map_loader.h>
@@ -182,6 +183,14 @@ static void init_tuning_params(STuningParams *pTunings) {
 #define MACRO_TUNING_PARAM(Name, Value) pTunings->m_##Name = Value;
 #include <ddnet_physics/tuning.h>
 #undef MACRO_TUNING_PARAM
+
+  // DDNet resets these weapon tunings to DDRace values before applying map
+  // settings.
+  pTunings->m_GunCurvature = 0.0f;
+  pTunings->m_GunSpeed = 1400.0f;
+  pTunings->m_ShotgunCurvature = 0.0f;
+  pTunings->m_ShotgunSpeed = 500.0f;
+  pTunings->m_ShotgunSpeeddiff = 0.0f;
 }
 
 /* Helper: expand an unsigned-char layer with clamp-repeat edges.
@@ -556,6 +565,11 @@ bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict_
 
   for (int i = 0; i < NUM_TUNE_ZONES; ++i)
     init_tuning_params(&pCollision->m_aTuningList[i]);
+  pCollision->m_GrenadeDoubleExplosion = false;
+  apply_map_settings(&pCollision->m_MapData, &(SMapSettingsTarget){
+                                                 .m_pTunings = pCollision->m_aTuningList,
+                                                 .m_pGrenadeDoubleExplosion = &pCollision->m_GrenadeDoubleExplosion,
+                                             });
   // Figure out important things
   // Make lists of spawn points, tele outs and tele checkpoints outs
   // figure out highest switch number

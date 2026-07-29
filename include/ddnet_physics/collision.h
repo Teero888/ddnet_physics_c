@@ -110,8 +110,10 @@ typedef struct Collision {
   int m_HighestSwitchNumber;
 
   bool m_MoveRestrictionsFound;
+  bool m_GrenadeDoubleExplosion;
 } SCollision;
 
+// Takes ownership of pMap
 DDNET_PHYSICS_API bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict__ pMap);
 DDNET_PHYSICS_API void free_collision(SCollision *pCollision);
 DDNET_PHYSICS_API int get_pure_map_index(SCollision *pCollision, mvec2 Pos);

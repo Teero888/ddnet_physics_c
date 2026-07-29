@@ -6,6 +6,8 @@ set(CMAKE_C_EXTENSIONS OFF)
 
 project(ddnet_physics LANGUAGES C)
 
+include(CTest)
+
 option(ENABLE_AGGRESSIVE_OPTIM "Enable aggressive optimizations with LTO and native tuning" OFF)
 option(BENCHMARKS "Whether to compile benchmarks" OFF)
 option(EXAMPLES "Whether to compile examples" OFF)
@@ -27,6 +29,8 @@ add_library(ddnet_physics ${DDNET_PHYSICS_LIB_TYPE}
     src/collision.c
     src/collision_tables.h
     src/gamecore.c
+    src/settings.c
+    src/settings.h
     src/tiles.c
     src/tiles.h
 )
@@ -129,6 +133,12 @@ if(BENCHMARKS)
 endif()
 if(EXAMPLES)
     add_subdirectory(examples)
+endif()
+if(BUILD_TESTING)
+    add_executable(ddnet_physics_settings_test tests/settings.c)
+    target_include_directories(ddnet_physics_settings_test PRIVATE src)
+    target_link_libraries(ddnet_physics_settings_test PRIVATE ddnet_physics)
+    add_test(NAME ddnet_physics_settings COMMAND ddnet_physics_settings_test)
 endif()
 
 # install
