@@ -54,6 +54,7 @@ enum {
   INFO_CANHITKILL = 1 << 4,
   INFO_CANHITSOLID = 1 << 5,
   INFO_CANHITSTOPPER = 1 << 6,
+  INFO_ISSPEEDUP = 1 << 7,
 };
 
 typedef struct TuningParams {

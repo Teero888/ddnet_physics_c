@@ -281,6 +281,7 @@ typedef struct CharacterCore {
   bool m_DeepFrozen;
   bool m_LiveFrozen;
   bool m_FrozenLastTick;
+  int m_TuningBlockIdx;
   STuningParams *m_pTuning;
   unsigned char m_MoveRestrictions;
   // we might have more than 255 player ids

@@ -571,6 +571,8 @@ bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict_
     const int FTile = pCollision->m_MapData.front_layer.data ? pCollision->m_MapData.front_layer.data[i] : 0;
     if (Tile == TILE_SOLID || Tile == TILE_NOHOOK)
       pCollision->m_pTileInfos[i] |= INFO_ISSOLID;
+    if (pMapData->speedup_layer.force && pMapData->speedup_layer.force[i] > 0)
+      pCollision->m_pTileInfos[i] |= INFO_ISSPEEDUP;
 
     if ((Tile >= 192 && Tile <= 194) || (FTile >= 192 && FTile <= 194))
       ++pCollision->m_NumSpawnPoints;
@@ -760,27 +762,37 @@ bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict_
       const int Idx = pCollision->m_pWidthLookup[y] + x;
       const int maxX = imin((Width - 1) - x, 7);
       const int maxY = imin((Height - 1) - y, 7);
+      unsigned char aColumnFlags[8] = {0};
+      uint64_t BroadField = 0;
+      uint64_t SolidField = 0;
+      uint64_t TeleField = 0;
 
       // Set bitfield for all sub-rectangles
       for (int dy = 0; dy <= maxY; ++dy) {
+        unsigned char RectFlags = 0;
+        const int Row = pCollision->m_pWidthLookup[y + dy] + x;
         for (int dx = 0; dx <= maxX; ++dx) {
           const uint64_t BitIdx = (uint64_t)1 << (dy * 8 + dx);
-          for (int iy = y; iy <= y + dy; ++iy) {
-            const unsigned char *pRowBroad = pCollision->m_pTileBroadCheck + pCollision->m_pWidthLookup[iy];
-            const unsigned char *pRowInfos = pCollision->m_pTileInfos + pCollision->m_pWidthLookup[iy];
-            const unsigned char *pRowTele =
-                pCollision->m_MapData.tele_layer.type ? pCollision->m_MapData.tele_layer.type + pCollision->m_pWidthLookup[iy] : NULL;
-            for (int ix = x; ix <= x + dx; ++ix) {
-              if (pRowBroad[ix])
-                pCollision->m_pBroadIndicesBitField[Idx] |= BitIdx;
-              if (pRowInfos[ix] & INFO_ISSOLID)
-                pCollision->m_pBroadSolidBitField[Idx] |= BitIdx;
-              if (pRowTele && (pRowTele[ix] == TILE_TELEINHOOK || pRowTele[ix] == TILE_TELEINWEAPON))
-                pCollision->m_pBroadTeleInBitField[Idx] |= BitIdx;
-            }
+          unsigned char CellFlags = pCollision->m_pTileBroadCheck[Row + dx] ? 1 : 0;
+          CellFlags |= (pCollision->m_pTileInfos[Row + dx] & INFO_ISSOLID) ? 2 : 0;
+          if (pCollision->m_MapData.tele_layer.type) {
+            const unsigned char Tele = pCollision->m_MapData.tele_layer.type[Row + dx];
+            CellFlags |= (Tele == TILE_TELEINHOOK || Tele == TILE_TELEINWEAPON) ? 4 : 0;
           }
+          aColumnFlags[dx] |= CellFlags;
+          RectFlags |= aColumnFlags[dx];
+          if (RectFlags & 1)
+            BroadField |= BitIdx;
+          if (RectFlags & 2)
+            SolidField |= BitIdx;
+          if (RectFlags & 4)
+            TeleField |= BitIdx;
         }
       }
+      pCollision->m_pBroadIndicesBitField[Idx] = BroadField;
+      pCollision->m_pBroadSolidBitField[Idx] = SolidField;
+      if (pCollision->m_pBroadTeleInBitField)
+        pCollision->m_pBroadTeleInBitField[Idx] = TeleField;
 
 // This works, validation not necessary currently
 #if 0

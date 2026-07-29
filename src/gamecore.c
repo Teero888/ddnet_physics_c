@@ -599,6 +599,7 @@ void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   pCore->m_Jumps = 2;
   pCore->m_pWorld = pWorld;
   pCore->m_pCollision = pWorld->m_pCollision;
+  pCore->m_TuningBlockIdx = -1;
   pCore->m_pTuning = &pWorld->m_pTunings[0];
   pCore->m_aWeaponGot[0] = true;
   pCore->m_aWeaponGot[1] = true;
@@ -881,7 +882,10 @@ void cc_ddracetick(SCharacterCore *pCore) {
       cc_unfreeze(pCore);
   }
 
-  pCore->m_pTuning = &pCore->m_pWorld->m_pTunings[is_tune(pCore->m_pCollision, pCore->m_BlockIdx)];
+  if (pCore->m_TuningBlockIdx != pCore->m_BlockIdx) {
+    pCore->m_TuningBlockIdx = pCore->m_BlockIdx;
+    pCore->m_pTuning = &pCore->m_pWorld->m_pTunings[is_tune(pCore->m_pCollision, pCore->m_BlockIdx)];
+  }
 }
 
 void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
@@ -906,7 +910,7 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
   if (Index < 0)
     return;
 
-  if (is_speedup(pCore->m_pCollision, Index)) {
+  if (pCore->m_pCollision->m_pTileInfos[Index] & INFO_ISSPEEDUP) {
     mvec2 Direction, TempVel = pCore->m_Vel;
     int Force, Type, MaxSpeed = 0;
     get_speedup(pCore->m_pCollision, Index, &Direction, &Force, &MaxSpeed, &Type);
@@ -1227,7 +1231,8 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
     pCore->m_Jumped = 1;
   }
 
-  cc_handle_skippable_tiles(pCore, pCore->m_BlockIdx);
+  if (pCore->m_pCollision->m_pTileInfos[pCore->m_BlockIdx] & (INFO_CANHITKILL | INFO_ISSPEEDUP))
+    cc_handle_skippable_tiles(pCore, pCore->m_BlockIdx);
 
   const mvec2 PrevPos = pCore->m_PrevPos;
   const mvec2 Pos = pCore->m_Pos;
@@ -1292,10 +1297,21 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
   // getting move restrictions is always done after moving the character so don't do it here
 
-  const bool Grounded =
-      (pCore->m_pCollision->m_pTileInfos[pCore->m_BlockIdx] & INFO_CANGROUND) &&
-      (check_point(pCore->m_pCollision, vec2_init(vgetx(pCore->m_Pos) + HALFPHYSICALSIZE, vgety(pCore->m_Pos) + HALFPHYSICALSIZE + 5)) ||
-       check_point(pCore->m_pCollision, vec2_init(vgetx(pCore->m_Pos) - HALFPHYSICALSIZE, vgety(pCore->m_Pos) + HALFPHYSICALSIZE + 5)));
+  bool Grounded = false;
+  if (pCore->m_pCollision->m_pTileInfos[pCore->m_BlockIdx] & INFO_CANGROUND) {
+    const float PosX = vgetx(pCore->m_Pos);
+    const float GroundPosY = vgety(pCore->m_Pos) + HALFPHYSICALSIZE + 5;
+    const float GroundRight = PosX + HALFPHYSICALSIZE;
+    const float GroundLeft = PosX - HALFPHYSICALSIZE;
+    const int GroundY = (int)(GroundPosY + 0.5f) >> 5;
+    const int GroundRow = pCore->m_pCollision->m_pWidthLookup[GroundY];
+    const int GroundRightX = (int)(GroundRight + 0.5f) >> 5;
+    const int GroundLeftX = (int)(GroundLeft + 0.5f) >> 5;
+    Grounded =
+        (pCore->m_pCollision->m_pTileInfos[GroundRow + GroundRightX] |
+         pCore->m_pCollision->m_pTileInfos[GroundRow + GroundLeftX]) &
+        INFO_ISSOLID;
+  }
 
   pCore->m_Vel = vadd_y(pCore->m_Vel, pCore->m_pTuning->m_Gravity);
   pCore->m_Grounded = Grounded;
