@@ -2494,7 +2494,7 @@ void wc_init(SWorldCore *pCore, SCollision *pCollision, STeeGrid *pGrid, SConfig
   pCore->m_Accelerator.m_pGrid = pGrid;
   pCore->m_Accelerator.hash = next_world_hash();
   pCore->m_pConfig = pConfig;
-  pCore->m_UniqueRace = pConfig->m_SvFastcap || !pConfig->m_SvKillGrenades || pConfig->m_SvHealthAndAmmo;
+  pCore->m_UniqueRace = pConfig->m_SvFastcap || pConfig->m_SvKillGrenades || pConfig->m_SvHealthAndAmmo;
 
   init_switchers(pCore, pCollision->m_HighestSwitchNumber);
 
@@ -2518,7 +2518,7 @@ static EGameMode normalize_game_mode(EGameMode GameMode) {
 
 static void enable_unique_race_game_mode(SWorldCore *pCore, SCollision *pCollision, SConfig *pConfig) {
   pConfig->m_SvSoloServer = 1;
-  pConfig->m_SvDestroyBulletsOnDeath = !pConfig->m_SvKillGrenades;
+  pConfig->m_SvDestroyBulletsOnDeath = pConfig->m_SvKillGrenades;
   pCore->m_UniqueRace = true;
 
   for (int Zone = 0; Zone < NUM_TUNE_ZONES; ++Zone) {

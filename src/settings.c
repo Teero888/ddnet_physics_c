@@ -320,7 +320,7 @@ void apply_map_settings(const map_data_t *pMap, SMapSettingsTarget *pTarget) {
     // Unique Race exposes sv_kill_grenades as the legacy spelling of
     // sv_destroy_bullets_on_death.
     pTarget->m_pConfig->m_SvSoloServer = 1;
-    pTarget->m_pConfig->m_SvDestroyBulletsOnDeath = !pTarget->m_pConfig->m_SvKillGrenades;
+    pTarget->m_pConfig->m_SvDestroyBulletsOnDeath = pTarget->m_pConfig->m_SvKillGrenades;
     if (pTarget->m_FastcapGameType)
       pTarget->m_pConfig->m_SvFastcap = 1;
     if (pTarget->m_pConfig->m_SvFastcap) {
