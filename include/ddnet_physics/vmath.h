@@ -84,7 +84,7 @@ static inline float vdot(mvec2 a, mvec2 b) {
 static inline float vsqlength(mvec2 a) { return vdot(a, a); }
 
 // Length
-static inline float vlength(mvec2 a) { return sqrt(vsqlength(a)); }
+static inline float vlength(mvec2 a) { return sqrtf(vsqlength(a)); }
 
 // Compare vectors
 static inline bool vvcmp(mvec2 a, mvec2 b) {
@@ -99,7 +99,7 @@ static inline float vsqdistance(mvec2 a, mvec2 b) {
 }
 
 // Distance
-static inline float vdistance(mvec2 a, mvec2 b) { return sqrt(vsqdistance(a, b)); }
+static inline float vdistance(mvec2 a, mvec2 b) { return sqrtf(vsqdistance(a, b)); }
 
 static inline mvec2 vnormalize(mvec2 a) {
   const float divisor = vlength(a);
