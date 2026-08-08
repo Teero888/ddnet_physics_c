@@ -2751,7 +2751,9 @@ SCharacterCore *wc_add_character(SWorldCore *pWorld, int Num) {
     pChar->m_Pos = SpawnPos;
     pChar->m_PrevPos = SpawnPos;
     cc_calc_indices(pChar);
-
+    
+    if (pWorld->m_pConfig->m_SvSoloServer)
+      pChar->m_Solo = true;
     if (pWorld->particle)
       pWorld->particle(SpawnPos, PARTICLE_TYPE_PLAYER_SPAWN, pChar->m_Id, pWorld->user_data);
 

@@ -328,11 +328,4 @@ void apply_map_settings(const map_data_t *pMap, SMapSettingsTarget *pTarget) {
       pTarget->m_pConfig->m_SvDestroyBulletsOnDeath = 1;
     }
   }
-
-  if (pTarget->m_pConfig && pTarget->m_pTunings && pTarget->m_pConfig->m_SvSoloServer) {
-    for (int Zone = 0; Zone < NUM_TUNE_ZONES; ++Zone) {
-      pTarget->m_pTunings[Zone].m_PlayerCollision = 0.0f;
-      pTarget->m_pTunings[Zone].m_PlayerHooking = 0.0f;
-    }
-  }
 }
