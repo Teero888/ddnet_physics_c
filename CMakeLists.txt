@@ -93,6 +93,8 @@ target_compile_options(ddnet_physics PRIVATE ${BASE_C_FLAGS})
 add_c_flag_if_linker_supported(DEBUG_C_LINK_FLAGS -fsanitize=address,undefined)
 
 add_c_flag_if_compiler_supported(RELEASE_C_FLAGS -O3)
+add_c_flag_if_compiler_supported(RELEASE_C_FLAGS -mavx2)
+add_c_flag_if_compiler_supported(RELEASE_C_FLAGS -mfma)
 add_c_flag_if_compiler_supported(RELEASE_C_FLAGS -funroll-loops)
 add_c_flag_if_compiler_supported(RELEASE_C_FLAGS -mfpmath=sse)
 add_c_flag_if_compiler_supported(RELEASE_C_FLAGS -fomit-frame-pointer)

@@ -1498,7 +1498,12 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
 
     cc_handle_tiles(pCore, y * Width + x, 1.0f);
     while (x != ex || y != ey) {
-      if (x != ex && (y == ey || tMaxX < tMaxY)) {
+      if (x != ex && y != ey && tMaxX == tMaxY) {
+        tMaxX += tDeltaX;
+        tMaxY += tDeltaY;
+        x += StepX;
+        y += StepY;
+      } else if (x != ex && (y == ey || tMaxX < tMaxY)) {
         tMaxX += tDeltaX;
         x += StepX;
       } else {
@@ -2751,7 +2756,7 @@ SCharacterCore *wc_add_character(SWorldCore *pWorld, int Num) {
     pChar->m_Pos = SpawnPos;
     pChar->m_PrevPos = SpawnPos;
     cc_calc_indices(pChar);
-    
+
     if (pWorld->m_pConfig->m_SvSoloServer)
       pChar->m_Solo = true;
     if (pWorld->particle)
