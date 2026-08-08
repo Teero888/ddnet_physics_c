@@ -238,7 +238,9 @@ typedef struct CharacterCore {
 
   unsigned char m_LastWeapon; // only used for ninja, is only triggered when ninja is activated
   unsigned char m_ActiveWeapon;
-  bool m_aWeaponGot[NUM_WEAPONS];
+  // Keep this at eight bytes so the hot weapon-selection path can load all
+  // ownership flags at a fixed address. NUM_WEAPONS remains the logical size.
+  bool m_aWeaponGot[8];
 
   // ninja
   struct {

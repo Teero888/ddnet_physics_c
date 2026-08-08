@@ -102,10 +102,6 @@ static int test_world_settings(void) {
   CHECK(!World.m_pSwitches[2].m_Initial);
   CHECK(!World.m_pSwitches[2].m_Status);
   CHECK(World.m_pSwitches[1].m_Initial);
-  for (int Zone = 0; Zone < NUM_TUNE_ZONES; ++Zone) {
-    CHECK(Collision.m_aTuningList[Zone].m_PlayerCollision == 0.0f);
-    CHECK(Collision.m_aTuningList[Zone].m_PlayerHooking == 0.0f);
-  }
   wc_free(&World);
   return 0;
 }

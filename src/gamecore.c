@@ -858,9 +858,10 @@ void cc_move(SCharacterCore *pCore) {
   mvec2 MaxNewPos = vvadd(NewPos, pCore->m_Vel);
 
   // OOB of the map
-  if (vgetx(MaxNewPos) < HALFPHYSICALSIZE + 2 || vgety(MaxNewPos) < HALFPHYSICALSIZE + 2 ||
-      vgetx(MaxNewPos) >= (float)pCore->m_pCollision->m_MapData.width * 32.f - (HALFPHYSICALSIZE + 2) ||
-      vgety(MaxNewPos) >= (float)pCore->m_pCollision->m_MapData.height * 32.f - (HALFPHYSICALSIZE + 2)) {
+  const mvec2 MapMax = vec2_init((float)pCore->m_pCollision->m_MapData.width * 32.f - (HALFPHYSICALSIZE + 2),
+                                 (float)pCore->m_pCollision->m_MapData.height * 32.f - (HALFPHYSICALSIZE + 2));
+  const mvec2 OutOfBounds = _mm_or_ps(_mm_cmplt_ps(MaxNewPos, _mm_set1_ps(HALFPHYSICALSIZE + 2)), _mm_cmpge_ps(MaxNewPos, MapMax));
+  if (_mm_movemask_ps(OutOfBounds) & 3) {
     cc_die(pCore);
     return;
   }
@@ -1983,10 +1984,13 @@ void cc_handle_jetpack(SCharacterCore *pCore) {
 }
 
 void cc_do_weapon_switch(SCharacterCore *pCore) {
-  uint8_t WantedWeapon = imin(pCore->m_Input.m_WantedWeapon, NUM_WEAPONS - 1);
-  if (pCore->m_ReloadTimer != 0 || !pCore->m_aWeaponGot[WantedWeapon] || pCore->m_aWeaponGot[WEAPON_NINJA])
-    return;
-  pCore->m_ActiveWeapon = WantedWeapon;
+  const uint8_t WantedWeapon = imin(pCore->m_Input.m_WantedWeapon, NUM_WEAPONS - 1);
+  uint64_t WeaponGot;
+  memcpy(&WeaponGot, pCore->m_aWeaponGot, sizeof(WeaponGot));
+  const uint8_t HasWantedWeapon = (WeaponGot >> (WantedWeapon * CHAR_BIT)) & 1;
+  const uint8_t CanSwitch = (pCore->m_ReloadTimer == 0) & HasWantedWeapon & !pCore->m_aWeaponGot[WEAPON_NINJA];
+  const uint8_t SwitchMask = (uint8_t)-CanSwitch;
+  pCore->m_ActiveWeapon ^= (pCore->m_ActiveWeapon ^ WantedWeapon) & SwitchMask;
 }
 
 void wc_remove_entity(SWorldCore *pWorld, SEntity *pEnt);

@@ -70,7 +70,6 @@ int main(int argc, char *argv[]) {
   if (use_multi_threaded)
     printf("Using %d threads with OpenMP.\n", omp_get_max_threads());
 
-  SPlayerInput Input = {};
   for (int run = 0; run < NUM_RUNS; run++) {
     double StartTime, ElapsedTime;
     unsigned int run_seed = global_seed ^ (run * 0x9E3779B9u); // vary seeds per run
@@ -81,6 +80,7 @@ int main(int argc, char *argv[]) {
       for (int i = 0; i < ITERATIONS; ++i) {
         unsigned int local_seed = run_seed ^ i; // per-thread unique seed
         SWorldCore World = (SWorldCore){};
+        SPlayerInput Input = {};
         wc_copy_world(&World, &StartWorld);
         for (int t = 0; t < TICKS_PER_ITERATION; ++t) {
           for (int c = 0; c < NUM_CHARACTERS; c++) {
@@ -97,6 +97,7 @@ int main(int argc, char *argv[]) {
       for (int i = 0; i < ITERATIONS; ++i) {
         unsigned int local_seed = run_seed ^ i;
         SWorldCore World = (SWorldCore){};
+        SPlayerInput Input = {};
         wc_copy_world(&World, &StartWorld);
         for (int t = 0; t < TICKS_PER_ITERATION; ++t) {
           for (int c = 0; c < NUM_CHARACTERS; c++) {
