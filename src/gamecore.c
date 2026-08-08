@@ -222,8 +222,9 @@ void lsr_bounce(SLaser *pLaser) {
   CLIP(-dy, y0 - ymin); // top
   CLIP(dy, ymax - y0);  // bottom
 
-  // we only care about moving the end point inside, so use t1
-  To = vec2_init(x0 + dx * t1, y0 + dy * t1);
+  // we only care about moving the end point inside, so use t1.
+  if (t1 != 1.0f)
+    To = vec2_init(x0 + dx * t1, y0 + dy * t1);
 
   // printf("After: From:%.f,%.f, To:%.f,%.f\n", vgetx(From), vgety(From), vgetx(To), vgety(To));
   Res =
@@ -1582,7 +1583,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
       mvec2 TargetDirection = vnormalize_nomask(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
 
       pCore->m_HookState = HOOK_FLYING;
-      pCore->m_HookPos = vvadd(pCore->m_Pos, vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
+      pCore->m_HookPos = vvadd(pCore->m_Pos, vfmul(vfmul(TargetDirection, PHYSICALSIZE), 1.5f));
       pCore->m_HookDir = TargetDirection;
       pCore->m_HookedPlayer = -1;
       pCore->m_HookTick = (float)GAME_TICK_SPEED * (1.25f - pCore->m_pTuning->m_HookDuration);
@@ -1651,9 +1652,8 @@ void cc_pre_tick(SCharacterCore *pCore) {
       CLIP(-dy, y0 - ymin); // top
       CLIP(dy, ymax - y0);  // bottom
 
-      // printf("Before: From:%.f,%.f, To:%.f,%.f\n", x0, y0, vgetx(NewPos), vgety(NewPos));
-      NewPos = vec2_init(x0 + dx * t1, y0 + dy * t1);
-      // printf("After: From:%.f,%.f, To:%.f,%.f\n", x0, y0, vgetx(NewPos), vgety(NewPos)); }
+      if (t1 != 1.0f)
+        NewPos = vec2_init(x0 + dx * t1, y0 + dy * t1);
     }
 
     bool GoingToHitGround = false;
@@ -1800,8 +1800,8 @@ void cc_pre_tick(SCharacterCore *pCore) {
         pCore->m_HookedPlayer = -1;
         mvec2 TargetDirection = vnormalize(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
         pCore->m_NewHook = true;
-        pCore->m_HookPos =
-            vvadd(pCore->m_pCollision->m_apTeleOuts[teleNr][pCore->m_Input.m_TeleOut % NumOuts], vfmul(TargetDirection, PHYSICALSIZE * 1.5f));
+        pCore->m_HookPos = vvadd(pCore->m_pCollision->m_apTeleOuts[teleNr][pCore->m_Input.m_TeleOut % NumOuts],
+                                 vfmul(vfmul(TargetDirection, PHYSICALSIZE), 1.5f));
         pCore->m_HookDir = TargetDirection;
         pCore->m_HookTeleBase = pCore->m_HookPos;
       } else {
