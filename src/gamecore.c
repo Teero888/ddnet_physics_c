@@ -867,8 +867,7 @@ void cc_move(SCharacterCore *pCore) {
 
   pCore->m_Vel = vvclamp(pCore->m_Vel, vec2_init(-4 * 32, -4 * 32), vec2_init(4 * 32, 4 * 32));
 
-  move_box(pCore->m_pCollision, NewPos, pCore->m_Vel, &NewPos, &pCore->m_Vel,
-           vec2_init(pCore->m_pTuning->m_GroundElasticityX, pCore->m_pTuning->m_GroundElasticityY), &Grounded);
+  move_box(pCore->m_pCollision, NewPos, pCore->m_Vel, &NewPos, &pCore->m_Vel, &Grounded);
 
   if (Grounded) {
     pCore->m_Jumped &= ~2;
@@ -1922,11 +1921,10 @@ void cc_handle_ninja(SCharacterCore *pCore) {
     // Set velocity
     pCore->m_Vel = vfmul(pCore->m_Ninja.m_ActivationDir, NINJA_VELOCITY);
     mvec2 OldPos = pCore->m_Pos;
-    mvec2 GroundElasticity = vec2_init(pCore->m_pTuning->m_GroundElasticityX, pCore->m_pTuning->m_GroundElasticityY);
 
     {
       bool _;
-      move_box(pCore->m_pCollision, pCore->m_Pos, pCore->m_Vel, &pCore->m_Pos, &pCore->m_Vel, GroundElasticity, &_);
+      move_box(pCore->m_pCollision, pCore->m_Pos, pCore->m_Vel, &pCore->m_Pos, &pCore->m_Vel, &_);
       cc_calc_indices(pCore);
     }
 

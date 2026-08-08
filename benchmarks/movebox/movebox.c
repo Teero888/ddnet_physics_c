@@ -66,7 +66,7 @@ int main(int argc, char *argv[]) {
           mvec2 Vel = vec2_init(fast_rand_float(&local_seed, -32.0f, 32.0f), fast_rand_float(&local_seed, -32.0f, 32.0f));
           bool Grounded = false;
           mvec2 NewPos, NewVel;
-          move_box(&Collision, Pos, Vel, &NewPos, &NewVel, vec2_init(0, 0), &Grounded);
+          move_box(&Collision, Pos, Vel, &NewPos, &NewVel, &Grounded);
         }
       }
       ElapsedTime = omp_get_wtime() - StartTime;
@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
           mvec2 Vel = vec2_init(fast_rand_float(&local_seed, -32.0f, 32.0f), fast_rand_float(&local_seed, -32.0f, 32.0f));
           bool Grounded = false;
           mvec2 NewPos, NewVel;
-          move_box(&Collision, Pos, Vel, &NewPos, &NewVel, vec2_init(0, 0), &Grounded);
+          move_box(&Collision, Pos, Vel, &NewPos, &NewVel, &Grounded);
         }
       }
       ElapsedTime = omp_get_wtime() - StartTime;

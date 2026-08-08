@@ -1475,8 +1475,7 @@ bool test_box_character(const SCollision *__restrict__ pCollision, int x, int y)
   // return a | b | c | d;
 }
 
-void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, mvec2 *__restrict__ pOutPos, mvec2 *__restrict__ pOutVel,
-              mvec2 Elasticity, bool *__restrict__ pGrounded) {
+void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, mvec2 *__restrict__ pOutPos, mvec2 *__restrict__ pOutVel, bool *__restrict__ pGrounded) {
   float Distance = vsqlength(Vel);
   if (Distance <= 0.00001f * 0.00001f)
     return;
@@ -1494,11 +1493,32 @@ void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, m
   // bitshift by the index in the 8x8 block (max 63)
   const uint64_t Mask = (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
   const uint64_t IsSolid = pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] & Mask;
+  const unsigned short Max = s_aMaxTable[(int)Distance];
   if (!IsSolid) {
-    *pOutPos = vvadd(Pos, Vel);
+    const float NewPosX = vgetx(NewPos) + 0.5f;
+    const float NewPosY = vgety(NewPos) + 0.5f;
+    const float INewPosX = (float)((int)NewPosX);
+    const float INewPosY = (float)((int)NewPosY);
+    union {
+      float f;
+      uint32_t i;
+    } bits;
+    bits.f = NewPosX;
+    const float EpsilonX = s_aMagicTable[(bits.i >> 23) & 0xFF] * (Max >> 1);
+    bits.f = NewPosY;
+    const float EpsilonY = s_aMagicTable[(bits.i >> 23) & 0xFF] * (Max >> 1);
+    if (NewPosX - INewPosX > EpsilonX && NewPosY - INewPosY > EpsilonY &&
+        (INewPosX + 1.f) - NewPosX > EpsilonX && (INewPosY + 1.f) - NewPosY > EpsilonY) {
+      *pOutPos = NewPos;
+      return;
+    }
+    const mvec2 Frac = vfmul(Vel, s_aFractionTable[Max]);
+    for (int i = 0; i <= Max; i++)
+      Pos = vvadd(Pos, Frac);
+    *pOutPos = Pos;
     return;
   }
-  const unsigned short Max = s_aMaxTable[(int)Distance];
+  
   uivec2 IPos = (uivec2){(int)(vgetx(Pos) + 0.5f), (int)(vgety(Pos) + 0.5f)};
   uivec2 INewPos;
   for (int i = 0; i <= Max; i++) {
@@ -1520,8 +1540,7 @@ void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, m
       }
       if (!Hit) {
         NewPos = Pos;
-        Vel = vfmul(Vel, -1.0f);
-        Vel = vvmul(Vel, Elasticity);
+        Vel = vec2_init(0, 0);
       }
     }
     IPos = INewPos;

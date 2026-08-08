@@ -1,2 +1,3 @@
 # moving pickups
 # you may not move faster than 4 tiles per tick per axis.
+# Elasticity tune, shit gameplay and shit implementation

@@ -51,5 +51,7 @@ MACRO_TUNING_PARAM(GrenadeFireDelay, 500)
 MACRO_TUNING_PARAM(LaserFireDelay, 800)
 MACRO_TUNING_PARAM(NinjaFireDelay, 800)
 MACRO_TUNING_PARAM(HammerHitFireDelay, 320)
-MACRO_TUNING_PARAM(GroundElasticityX, 0)
-MACRO_TUNING_PARAM(GroundElasticityY, 0)
+
+// These are garbage we don't want them
+// MACRO_TUNING_PARAM(GroundElasticityX, 0)
+// MACRO_TUNING_PARAM(GroundElasticityY, 0)

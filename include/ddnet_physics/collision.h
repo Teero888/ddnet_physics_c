@@ -2,17 +2,16 @@
 #define LIB_COLLISION_H
 
 #ifndef DDNET_PHYSICS_API
-  #if defined(_WIN32)
-    #if defined(FRAMETEE_EXPORTS)
-      #define DDNET_PHYSICS_API __declspec(dllexport)
-    #else
-      #define DDNET_PHYSICS_API __declspec(dllimport)
-    #endif
-  #else
-    #define DDNET_PHYSICS_API
-  #endif
+#if defined(_WIN32)
+#if defined(FRAMETEE_EXPORTS)
+#define DDNET_PHYSICS_API __declspec(dllexport)
+#else
+#define DDNET_PHYSICS_API __declspec(dllimport)
 #endif
-
+#else
+#define DDNET_PHYSICS_API
+#endif
+#endif
 
 #if defined(_MSC_VER) && !defined(__clang__)
 #ifndef __restrict__
@@ -140,20 +139,20 @@ DDNET_PHYSICS_API unsigned char get_move_restrictions(SCollision *pCollision, vo
 DDNET_PHYSICS_API int get_map_index(SCollision *pCollision, mvec2 Pos);
 DDNET_PHYSICS_API bool check_point(SCollision *pCollision, mvec2 Pos);
 DDNET_PHYSICS_API bool is_hook_blocker(SCollision *pCollision, int Index, mvec2 Pos0, mvec2 Pos1);
-DDNET_PHYSICS_API unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
-                                       unsigned char *__restrict__ pTeleNr);
-DDNET_PHYSICS_API unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
-                                         unsigned char *__restrict__ pTeleNr);
+DDNET_PHYSICS_API unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
+                                                         mvec2 *__restrict__ pOutCollision, unsigned char *__restrict__ pTeleNr);
+DDNET_PHYSICS_API unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
+                                                           mvec2 *__restrict__ pOutCollision, unsigned char *__restrict__ pTeleNr);
 
 DDNET_PHYSICS_API bool test_box(SCollision *pCollision, mvec2 Pos, mvec2 Size);
 DDNET_PHYSICS_API unsigned char is_tune(SCollision *pCollision, int Index);
 DDNET_PHYSICS_API bool is_speedup(SCollision *pCollision, int Index);
-DDNET_PHYSICS_API void get_speedup(SCollision *__restrict__ pCollision, int Index, mvec2 *__restrict__ pDir, int *__restrict__ pForce, int *__restrict__ pMaxSpeed,
-                 int *__restrict__ pType);
+DDNET_PHYSICS_API void get_speedup(SCollision *__restrict__ pCollision, int Index, mvec2 *__restrict__ pDir, int *__restrict__ pForce,
+                                   int *__restrict__ pMaxSpeed, int *__restrict__ pType);
 DDNET_PHYSICS_API bool intersect_line(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
-                    mvec2 *__restrict__ pOutBeforeCollision);
-DDNET_PHYSICS_API void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, mvec2 *__restrict__ pOutPos, mvec2 *__restrict__ pOutVel,
-              mvec2 Elasticity, bool *__restrict__ pGrounded);
+                                      mvec2 *__restrict__ pOutBeforeCollision);
+DDNET_PHYSICS_API void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, mvec2 *__restrict__ pOutPos,
+                                mvec2 *__restrict__ pOutVel, bool *__restrict__ pGrounded);
 DDNET_PHYSICS_API bool get_nearest_air_pos_player(SCollision *pCollision, mvec2 PlayerPos, mvec2 *pOutPos);
 DDNET_PHYSICS_API bool get_nearest_air_pos(SCollision *pCollision, mvec2 Pos, mvec2 PrevPos, mvec2 *pOutPos);
 DDNET_PHYSICS_API int get_index(SCollision *pCollision, mvec2 PrevPos, mvec2 Pos);
