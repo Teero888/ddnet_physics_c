@@ -83,16 +83,35 @@ run_command() {
   fi
 }
 
+PROFDATA_BIN=$(command -v llvm-profdata || true)
+if [ -z "$PROFDATA_BIN" ]; then
+  echo "ERROR: llvm-profdata not found in PATH; it is required to merge the PGO profiles." >&2
+  exit 1
+fi
+
+PGO_DIR="$(pwd)/pgo"
+PGO_MERGED="$PGO_DIR/merged.profdata"
+
 # Stage 1: PGO Generate
+# The instrumented binary writes one .profraw per image into $PGO_DIR.
+rm -rf "$PGO_DIR"
+mkdir -p "$PGO_DIR"
 run_command cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=On -DCMAKE_BUILD_TYPE=Release -DENABLE_AGGRESSIVE_OPTIM=On -DBENCHMARKS=On -DPGO_STAGE=GENERATE
 run_command make -j$(nproc) global
 ./benchmarks/global/global > /dev/null
 
-# Stage 2: PGO Use
-run_command cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=On -DCMAKE_BUILD_TYPE=Release -DENABLE_AGGRESSIVE_OPTIM=On -DBENCHMARKS=On -DPGO_STAGE=USE
+# Stage 2: merge the raw profiles into the form -fprofile-use expects
+if ! compgen -G "$PGO_DIR/*.profraw" > /dev/null; then
+  echo "ERROR: the instrumented run produced no .profraw files in $PGO_DIR." >&2
+  exit 1
+fi
+run_command "$PROFDATA_BIN" merge -output="$PGO_MERGED" "$PGO_DIR"/*.profraw
+
+# Stage 3: PGO Use
+run_command cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=On -DCMAKE_BUILD_TYPE=Release -DENABLE_AGGRESSIVE_OPTIM=On -DBENCHMARKS=On -DPGO_STAGE=USE -DPGO_PROFILE_DATA="$PGO_MERGED"
 run_command make -j$(nproc) global
 
-# Stage 3: Benchmark
+# Stage 4: Benchmark
 echo ""
 echo "--- Benchmark Results ---"
 echo "Pinning benchmark to specific CPU cores for maximum consistency."

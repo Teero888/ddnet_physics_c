@@ -119,8 +119,45 @@ if(ENABLE_AGGRESSIVE_OPTIM)
         -march=native
         -mtune=native
     )
-    target_link_options(ddnet_physics PRIVATE -flto)
+    target_link_options(ddnet_physics PUBLIC -flto)
 	message("Aggressive optimization enabled")
+endif()
+
+set(PGO_STAGE "NONE" CACHE STRING "PGO stage: NONE, GENERATE or USE")
+set_property(CACHE PGO_STAGE PROPERTY STRINGS NONE GENERATE USE)
+set(PGO_PROFILE_DIR "${CMAKE_BINARY_DIR}/pgo" CACHE PATH
+    "Directory raw profiles are written to during the GENERATE stage")
+set(PGO_PROFILE_DATA "${CMAKE_BINARY_DIR}/pgo/merged.profdata" CACHE FILEPATH
+    "Merged profile consumed by the USE stage")
+
+if(NOT PGO_STAGE STREQUAL "NONE")
+    set(PGO_WARN_FLAGS)
+    if(PGO_STAGE STREQUAL "GENERATE")
+        set(PGO_C_FLAGS -fprofile-generate=${PGO_PROFILE_DIR})
+    elseif(PGO_STAGE STREQUAL "USE")
+        if(NOT EXISTS "${PGO_PROFILE_DATA}")
+            message(FATAL_ERROR
+                "PGO_STAGE=USE but no merged profile at ${PGO_PROFILE_DATA}. "
+                "Run the GENERATE stage and merge the raw profiles first.")
+        endif()
+        if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+            set(PGO_C_FLAGS -fprofile-use=${PGO_PROFILE_DATA})
+            set(PGO_WARN_FLAGS -Wno-profile-instr-out-of-date
+                               -Wno-profile-instr-unprofiled)
+        else()
+            set(PGO_C_FLAGS -fprofile-use=${PGO_PROFILE_DIR} -fprofile-correction)
+            set(PGO_WARN_FLAGS -Wno-missing-profile)
+        endif()
+    else()
+        message(FATAL_ERROR "PGO_STAGE must be NONE, GENERATE or USE (got '${PGO_STAGE}')")
+    endif()
+
+    target_compile_options(ddnet_physics PRIVATE ${PGO_C_FLAGS} ${PGO_WARN_FLAGS})
+    # GENERATE needs the profile runtime linked in; USE needs the profile
+    # visible to LTO codegen. PUBLIC for the same reason as -flto above. The
+    # -Wno-* flags are compile-only.
+    target_link_options(ddnet_physics PUBLIC ${PGO_C_FLAGS})
+    message(STATUS "ddnet_physics PGO stage: ${PGO_STAGE}")
 endif()
 
 # Add subdirectory for ddnet_map_loader
