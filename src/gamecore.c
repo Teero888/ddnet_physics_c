@@ -103,6 +103,30 @@ static inline float saturate_add(float Min, float Max, float Current, float Modi
   }
 }
 
+// Applies the sign convention DDNet's speedup angle branches imply, so that a
+// dot product of two such vectors equals its cos(angle difference) * length.
+// x > 0.0000001f mirrors y; x < 0 is left alone; small non-negative x negates
+// both (that branch reaches atanf(y/x) with a huge ratio, which lands half a
+// turn away). See the call site in cc_handle_skippable_tiles.
+static inline mvec2 speedup_signed(mvec2 v) {
+  const float x = vgetx(v), y = vgety(v);
+  if (x > 0.0000001f)
+    return vec2_init(x, -y);
+  if (x < 0.0f)
+    return v;
+  return vec2_init(-x, -y);
+}
+
+// True when either endpoint of the segment lies outside the map clip box, i.e.
+// when the Liang-Barsky CLIP block below could actually reduce t1. Two packed
+// compares instead of four divisions on the overwhelmingly common in-bounds path.
+static inline bool segment_leaves_map(const SCollision *__restrict__ pCollision, mvec2 A, mvec2 B) {
+  const mvec2 Lo = _mm_setzero_ps();
+  const mvec2 Hi = pCollision->m_MapClipMax;
+  const mvec2 Outside = _mm_or_ps(_mm_or_ps(_mm_cmplt_ps(A, Lo), _mm_cmpgt_ps(A, Hi)), _mm_or_ps(_mm_cmplt_ps(B, Lo), _mm_cmpgt_ps(B, Hi)));
+  return (_mm_movemask_ps(Outside) & 3) != 0;
+}
+
 mvec2 calc_pos(mvec2 Pos, mvec2 Velocity, float Curvature, float Speed, float Time) {
   float n[2] = {vgetx(Pos), vgety(Pos)}, v[2] = {vgetx(Velocity), vgety(Velocity)};
   Time *= Speed;
@@ -203,28 +227,32 @@ void lsr_bounce(SLaser *pLaser) {
   mvec2 To = vvadd(pLaser->m_Base.m_Pos, vfmul(pLaser->m_Dir, pLaser->m_Energy));
 
   // printf("Before: From:%.f,%.f, To:%.f,%.f\n", vgetx(From), vgety(From), vgetx(To), vgety(To));
-  float x0 = vgetx(From), y0 = vgety(From);
-  float x1 = vgetx(To), y1 = vgety(To);
+  // Same skip as the hook segment in cc_pre_tick: with both endpoints inside the
+  // clip box the four CLIP evaluations cannot change t1, so they are pure cost.
+  if (segment_leaves_map(pLaser->m_Base.m_pCollision, From, To)) {
+    float x0 = vgetx(From), y0 = vgety(From);
+    float x1 = vgetx(To), y1 = vgety(To);
 
-  float dx = x1 - x0;
-  float dy = y1 - y0;
+    float dx = x1 - x0;
+    float dy = y1 - y0;
 
-  float W = (float)pLaser->m_Base.m_pCollision->m_MapData.width * 32.0f;
-  float H = (float)pLaser->m_Base.m_pCollision->m_MapData.height * 32.0f;
+    float W = (float)pLaser->m_Base.m_pCollision->m_MapData.width * 32.0f;
+    float H = (float)pLaser->m_Base.m_pCollision->m_MapData.height * 32.0f;
 
-  float xmin = 0.0f, ymin = 0.0f;
-  float xmax = W - 1.f, ymax = H - 1.f;
+    float xmin = 0.0f, ymin = 0.0f;
+    float xmax = W - 1.f, ymax = H - 1.f;
 
-  float t0 = 0.0f, t1 = 1.0f;
+    float t0 = 0.0f, t1 = 1.0f;
 
-  CLIP(-dx, x0 - xmin); // left
-  CLIP(dx, xmax - x0);  // right
-  CLIP(-dy, y0 - ymin); // top
-  CLIP(dy, ymax - y0);  // bottom
+    CLIP(-dx, x0 - xmin); // left
+    CLIP(dx, xmax - x0);  // right
+    CLIP(-dy, y0 - ymin); // top
+    CLIP(dy, ymax - y0);  // bottom
 
-  // we only care about moving the end point inside, so use t1.
-  if (t1 != 1.0f)
-    To = vec2_init(x0 + dx * t1, y0 + dy * t1);
+    // we only care about moving the end point inside, so use t1.
+    if (t1 != 1.0f)
+      To = vec2_init(x0 + dx * t1, y0 + dy * t1);
+  }
 
   // printf("After: From:%.f,%.f, To:%.f,%.f\n", vgetx(From), vgety(From), vgetx(To), vgety(To));
   Res =
@@ -1054,45 +1082,28 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
     get_speedup(pCore->m_pCollision, Index, &Direction, &Force, &MaxSpeed, &Type);
 
     if (Type == TILE_SPEED_BOOST_OLD) {
-      float TeeAngle, SpeederAngle, DiffAngle, SpeedLeft, TeeSpeed;
+      float SpeedLeft;
       if (Force == 255 && MaxSpeed) {
         pCore->m_Vel = vfmul(Direction, ((float)MaxSpeed / 5.f));
       } else {
         if (MaxSpeed > 0 && MaxSpeed < 5)
           MaxSpeed = 5;
         if (MaxSpeed > 0) {
-          float dirX = vgetx(Direction);
-          float dirY = vgety(Direction);
-          float tempVelX = vgetx(TempVel);
-          float tempVelY = vgety(TempVel);
-
-          if (dirX > 0.0000001f)
-            SpeederAngle = -atanf(dirY / dirX);
-          else if (dirX < 0.0000001f)
-            SpeederAngle = atanf(dirY / dirX) + 2.0f * asinf(1.0f);
-          else if (dirY > 0.0000001f)
-            SpeederAngle = asinf(1.0f);
-          else
-            SpeederAngle = asinf(-1.0f);
-
-          if (SpeederAngle < 0)
-            SpeederAngle = 4.0f * asinf(1.0f) + SpeederAngle;
-
-          if (tempVelX > 0.0000001f)
-            TeeAngle = -atanf(tempVelY / tempVelX);
-          else if (tempVelX < 0.0000001f)
-            TeeAngle = atanf(tempVelY / tempVelX) + 2.0f * asinf(1.0f);
-          else if (tempVelY > 0.0000001f)
-            TeeAngle = asinf(1.0f);
-          else
-            TeeAngle = asinf(-1.0f);
-
-          if (TeeAngle < 0)
-            TeeAngle = 4.0f * asinf(1.0f) + TeeAngle;
-
-          TeeSpeed = sqrtf(powf(tempVelX, 2) + powf(tempVelY, 2));
-          DiffAngle = SpeederAngle - TeeAngle;
-          SpeedLeft = MaxSpeed / 5.0f - cosf(DiffAngle) * TeeSpeed;
+          // DDNet derives an angle for Direction and for TempVel via atanf, wraps
+          // them with asinf(+-1) (which is just +-pi/2 computed by libm on every
+          // hit), subtracts, and multiplies cos(difference) by |TempVel|. Writing
+          // out cos(A-B) = cosA cosB + sinA sinB, every sine and cosine is a plain
+          // component ratio of the source vector, the |TempVel| divisor cancels
+          // against the multiply, and the whole thing is a dot product of the two
+          // vectors after the sign fixups the angle branches imply. Direction is a
+          // unit vector, so no normalisation is needed either.
+          //
+          // This keeps DDNet's asymmetry: x > 0 mirrors y, x < 0 does not, and
+          // small non-negative x negates both - so the mixed-sign case that makes
+          // the original disagree with a plain dot product still behaves the same.
+          // It also removes the NaN the original produced for TempVel == (0,0),
+          // where atanf(0/0) fed abs((int)NaN).
+          SpeedLeft = MaxSpeed / 5.0f - vdot(speedup_signed(Direction), speedup_signed(TempVel));
           if (abs((int)SpeedLeft) > Force && SpeedLeft > 0.0000001f)
             TempVel = vvadd(TempVel, vfmul(Direction, Force));
           else if (abs((int)SpeedLeft) > Force)
@@ -1107,8 +1118,9 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
     } else if (Type == TILE_SPEED_BOOST) {
       static const float MaxSpeedScale = 5.0f;
       if (MaxSpeed == 0) {
-        float MaxRampSpeed = pCore->m_pTuning->m_VelrampRange / (50 * logf(fmaxf((float)pCore->m_pTuning->m_VelrampCurvature, 1.01f)));
-        MaxSpeed = fmaxf(MaxRampSpeed, pCore->m_pTuning->m_VelrampStart / 50) * MaxSpeedScale;
+        // Folded at init: depends only on the velramp tunings, and the logf() was
+        // being paid on every boost tile hit.
+        MaxSpeed = pCore->m_pTuning->m_SpeedupDefaultMaxSpeed;
       }
 
       float CurrentDirectionalSpeed = vdot(Direction, pCore->m_Vel);
@@ -1643,7 +1655,14 @@ void cc_pre_tick(SCharacterCore *pCore) {
     }
     // NOTE: this only really matters at the edge of the map but since we offset maps by 200 block idk if it actually matters. might remove this if it
     // ends up being a hot path. same for this logic in laser bounce
-    {
+    //
+    // It is a hot path once the tee actually moves: four CLIP evaluations, each
+    // with a division, on every hook-flying tick. t1 is only ever reduced when a
+    // segment endpoint leaves the clip box, so when both endpoints are inside the
+    // whole block is a no-op and can be skipped. Bit-exact: the skipped path
+    // provably leaves t1 == 1.0f, which is the case the code already treats as
+    // "leave NewPos alone".
+    if (segment_leaves_map(pCore->m_pCollision, pCore->m_HookPos, NewPos)) {
       float x0 = vgetx(pCore->m_HookPos), y0 = vgety(pCore->m_HookPos);
       float x1 = vgetx(NewPos), y1 = vgety(NewPos);
 

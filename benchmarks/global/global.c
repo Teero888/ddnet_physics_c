@@ -18,6 +18,19 @@ void print_help(const char *prog_name) {
   printf("  --help             Display this help message and exit\n");
 }
 
+// Random inputs walk the tee into freeze and it never gets out: measured, the tee
+// was frozen ~89% of ticks, and cc_ddracetick discards Direction/Jump/Hook while
+// frozen, so most of the generated input was thrown away and the tee barely moved.
+// Respawning on freeze keeps it moving, which is what we actually want to measure.
+// Inputs stay self-generated so the benchmark remains comparable across physics
+// changes that legally shift the trajectory (a recorded run would desync).
+static inline void reset_frozen_characters(SWorldCore *pWorld) {
+  for (int c = 0; c < NUM_CHARACTERS; c++) {
+    if (pWorld->m_pCharacters[c].m_FreezeTime > 0)
+      cc_die(&pWorld->m_pCharacters[c]);
+  }
+}
+
 static inline void generate_random_input(SPlayerInput *pInput, unsigned int *seed) {
   pInput->m_Direction = fast_rand_range(seed, -1, 1);
   pInput->m_Jump = fast_rand_range(seed, 0, 1);
@@ -88,6 +101,7 @@ int main(int argc, char *argv[]) {
             cc_on_input(&World.m_pCharacters[c], &Input);
           }
           wc_tick(&World);
+          reset_frozen_characters(&World);
         }
         wc_free(&World);
       }
@@ -105,6 +119,7 @@ int main(int argc, char *argv[]) {
             cc_on_input(&World.m_pCharacters[c], &Input);
           }
           wc_tick(&World);
+          reset_frozen_characters(&World);
           // printf("pos:%.2f,%.2f;vel:%.2f,%.2f\n", vgetx(World.m_pCharacters[0].m_Pos),
           //        vgety(World.m_pCharacters[0].m_Pos), vgetx(World.m_pCharacters[0].m_Vel),
           //        vgety(World.m_pCharacters[0].m_Vel));

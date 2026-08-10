@@ -179,6 +179,11 @@ __attribute__((unused)) static void init_distance_field(SCollision *pCollision) 
 }
 #undef SQRT2
 
+void tuning_update_derived(STuningParams *pTuning) {
+  const float MaxRampSpeed = pTuning->m_VelrampRange / (50 * logf(fmaxf(pTuning->m_VelrampCurvature, 1.01f)));
+  pTuning->m_SpeedupDefaultMaxSpeed = fmaxf(MaxRampSpeed, pTuning->m_VelrampStart / 50) * 5.0f;
+}
+
 static void init_tuning_params(STuningParams *pTunings) {
 #define MACRO_TUNING_PARAM(Name, Value) pTunings->m_##Name = Value;
 #include <ddnet_physics/tuning.h>
@@ -554,6 +559,7 @@ bool init_collision_with_no_weapons(SCollision *__restrict__ pCollision, map_dat
   pCollision->m_MoveRestrictionsFound = false;
 
   pCollision->m_MapMaxPos = vec2_init((float)Width * 32.f - (HALFPHYSICALSIZE + 2), (float)Height * 32.f - (HALFPHYSICALSIZE + 2));
+  pCollision->m_MapClipMax = vec2_init((float)Width * 32.0f - 1.0f, (float)Height * 32.0f - 1.0f);
 
   pCollision->m_pWidthLookup = _mm_malloc(Height * sizeof(unsigned int), 64);
 
@@ -576,6 +582,9 @@ bool init_collision_with_no_weapons(SCollision *__restrict__ pCollision, map_dat
   apply_map_settings(&pCollision->m_MapData, &(SMapSettingsTarget){
                                                  .m_pTunings = pCollision->m_aTuningList,
                                              });
+  // Map settings can change the velramp tunings, so derive after applying them.
+  for (int i = 0; i < NUM_TUNE_ZONES; ++i)
+    tuning_update_derived(&pCollision->m_aTuningList[i]);
   // Figure out important things
   // Make lists of spawn points, tele outs and tele checkpoints outs
   // figure out highest switch number
@@ -1554,15 +1563,14 @@ void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, m
     return;
   }
   
-  const float Fraction = s_aFractionTable[Max];
-  // Vel is only ever changed inside the hit branches, so the step vector is
-  // loop-invariant between hits. Recomputing it only there keeps the exact same
-  // multiply results while removing one mulps from every iteration.
-  mvec2 Step = vfmul(Vel, Fraction);
   uivec2 IPos = round_pos_i(Pos);
   uivec2 INewPos;
   for (int i = 0; i <= Max; i++) {
-    NewPos = vvadd(Pos, Step);
+    // Do NOT hoist the multiply out of this loop. -mfma + -ffast-math let clang
+    // contract this into a single vfmadd213ps (one rounding); splitting it into
+    // a hoisted mulps plus an addps gives two roundings and silently changes
+    // move_box's output. Verified in the generated assembly, not just on paper.
+    NewPos = vvadd(Pos, vfmul(Vel, s_aFractionTable[Max]));
     INewPos = round_pos_i(NewPos);
     if (test_box_character(pCollision, INewPos.x, INewPos.y)) {
       bool Hit = false;
@@ -1582,7 +1590,6 @@ void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, m
         NewPos = Pos;
         Vel = vec2_init(0, 0);
       }
-      Step = vfmul(Vel, Fraction);
     }
     IPos = INewPos;
     Pos = NewPos;
