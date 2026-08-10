@@ -808,13 +808,6 @@ void cc_quantize(SCharacterCore *pCore) {
   __m128 pos_rounded = _mm_cvtepi32_ps(pos_int);
   pCore->m_Pos = pos_rounded;
 
-  // Quantize m_HookPos
-  __m128 hook_pos = pCore->m_HookPos;
-  __m128 hook_pos_plus_half = _mm_add_ps(hook_pos, half);
-  __m128i hook_pos_int = _mm_cvttps_epi32(hook_pos_plus_half);
-  __m128 hook_pos_rounded = _mm_cvtepi32_ps(hook_pos_int);
-  pCore->m_HookPos = hook_pos_rounded;
-
   // Quantize m_Vel
   __m128 vel = pCore->m_Vel;
   __m128 vel_scaled = _mm_mul_ps(vel, scale);
@@ -823,13 +816,25 @@ void cc_quantize(SCharacterCore *pCore) {
   __m128 vel_rounded = _mm_cvtepi32_ps(vel_int);
   pCore->m_Vel = _mm_mul_ps(vel_rounded, inv_scale);
 
+  // While the hook is idle both of these are already snapped: m_HookPos was
+  // assigned the previous tick's already-quantised m_Pos back in cc_pre_tick, and
+  // m_HookDir is only ever written when the hook fires or teleports. Quantisation
+  // is idempotent, so re-snapping them every tick is pure work.
+  if (pCore->m_HookState != HOOK_IDLE && pCore->m_HookState != HOOK_RETRACTED) {
+  // Quantize m_HookPos
+    __m128 hook_pos = pCore->m_HookPos;
+    __m128 hook_pos_plus_half = _mm_add_ps(hook_pos, half);
+    __m128i hook_pos_int = _mm_cvttps_epi32(hook_pos_plus_half);
+    __m128 hook_pos_rounded = _mm_cvtepi32_ps(hook_pos_int);
+    pCore->m_HookPos = hook_pos_rounded;
   // Quantize m_HookDir
-  __m128 hook_dir = pCore->m_HookDir;
-  __m128 hook_dir_scaled = _mm_mul_ps(hook_dir, scale);
-  __m128 adjusted_hook_dir = _mm_blendv_ps(_mm_sub_ps(hook_dir_scaled, half), _mm_add_ps(hook_dir_scaled, half), _mm_cmpge_ps(hook_dir_scaled, zero));
-  __m128i hook_dir_int = _mm_cvttps_epi32(adjusted_hook_dir);
-  __m128 hook_dir_rounded = _mm_cvtepi32_ps(hook_dir_int);
-  pCore->m_HookDir = _mm_mul_ps(hook_dir_rounded, inv_scale);
+    __m128 hook_dir = pCore->m_HookDir;
+    __m128 hook_dir_scaled = _mm_mul_ps(hook_dir, scale);
+    __m128 adjusted_hook_dir = _mm_blendv_ps(_mm_sub_ps(hook_dir_scaled, half), _mm_add_ps(hook_dir_scaled, half), _mm_cmpge_ps(hook_dir_scaled, zero));
+    __m128i hook_dir_int = _mm_cvttps_epi32(adjusted_hook_dir);
+    __m128 hook_dir_rounded = _mm_cvtepi32_ps(hook_dir_int);
+    pCore->m_HookDir = _mm_mul_ps(hook_dir_rounded, inv_scale);
+  }
 
   cc_calc_indices(pCore);
 }
@@ -874,13 +879,20 @@ static inline float fast_expf(float x) {
 }
 
 void cc_move(SCharacterCore *pCore) {
-  pCore->m_VelMag = vlength(pCore->m_Vel);
-  const float VelMag = pCore->m_VelMag * 50;
+  // The velramp test used to depend on the square root, putting ~15 cycles of
+  // sqrtss latency at the head of every tick's dependency chain for a branch that
+  // is almost never taken (it needs |Vel| * 50 >= VelrampStart, i.e. |Vel| >= 11).
+  // Testing in squared space resolves the branch straight out of the dot product;
+  // m_VelMag is only ever read by callers, so its square root now retires in
+  // parallel instead of gating everything behind it.
+  const float SqVel = vsqlength(pCore->m_Vel);
+  const float VelrampStart = pCore->m_pTuning->m_VelrampStart;
+  pCore->m_VelMag = sqrtf(SqVel);
   float OldVel = vgetx(pCore->m_Vel);
 
   float RampValue = 1.f;
-  if (VelMag >= pCore->m_pTuning->m_VelrampStart) {
-    float t = VelMag - pCore->m_pTuning->m_VelrampStart;
+  if (SqVel * (50.0f * 50.0f) >= VelrampStart * VelrampStart) {
+    float t = pCore->m_VelMag * 50 - VelrampStart;
     RampValue = fast_expf(-t * pCore->m_pTuning->m_VelrampValue);
   }
   pCore->m_VelRamp = RampValue;
@@ -923,14 +935,16 @@ void cc_move(SCharacterCore *pCore) {
     pCore->m_Vel = vsetx(pCore->m_Vel, velX * (1.f / RampValue));
 
   pCore->m_Pos = NewPos;
-  cc_calc_indices(pCore);
-
-  pCore->m_MoveRestrictions = get_move_restrictions(pCore->m_pCollision, pCore, pCore->m_Pos, pCore->m_BlockIdx);
+  // Indices and move restrictions are deferred to cc_world_tick_deferred, after
+  // cc_quantize. cc_calc_indices used to run twice per tick - once here on the
+  // raw position and again on the quantised one - and quantising moves the
+  // position by under half a unit, so the block index is the same either way.
 }
 
 void cc_world_tick_deferred(SCharacterCore *pCore) {
   cc_move(pCore);
-  cc_quantize(pCore);
+  cc_quantize(pCore); // also refreshes m_BlockIdx / m_BlockInfo
+  pCore->m_MoveRestrictions = get_move_restrictions(pCore->m_pCollision, pCore, pCore->m_Pos, pCore->m_BlockIdx);
 }
 
 static inline float fast_rand(unsigned int *state) {
@@ -1089,20 +1103,6 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
         if (MaxSpeed > 0 && MaxSpeed < 5)
           MaxSpeed = 5;
         if (MaxSpeed > 0) {
-          // DDNet derives an angle for Direction and for TempVel via atanf, wraps
-          // them with asinf(+-1) (which is just +-pi/2 computed by libm on every
-          // hit), subtracts, and multiplies cos(difference) by |TempVel|. Writing
-          // out cos(A-B) = cosA cosB + sinA sinB, every sine and cosine is a plain
-          // component ratio of the source vector, the |TempVel| divisor cancels
-          // against the multiply, and the whole thing is a dot product of the two
-          // vectors after the sign fixups the angle branches imply. Direction is a
-          // unit vector, so no normalisation is needed either.
-          //
-          // This keeps DDNet's asymmetry: x > 0 mirrors y, x < 0 does not, and
-          // small non-negative x negates both - so the mixed-sign case that makes
-          // the original disagree with a plain dot product still behaves the same.
-          // It also removes the NaN the original produced for TempVel == (0,0),
-          // where atanf(0/0) fed abs((int)NaN).
           SpeedLeft = MaxSpeed / 5.0f - vdot(speedup_signed(Direction), speedup_signed(TempVel));
           if (abs((int)SpeedLeft) > Force && SpeedLeft > 0.0000001f)
             TempVel = vvadd(TempVel, vfmul(Direction, Force));
