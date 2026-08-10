@@ -101,11 +101,15 @@ run_command make -j$(nproc) global
 ./benchmarks/global/global > /dev/null
 
 # Stage 2: merge the raw profiles into the form -fprofile-use expects
-if ! compgen -G "$PGO_DIR/*.profraw" > /dev/null; then
-  echo "ERROR: the instrumented run produced no .profraw files in $PGO_DIR." >&2
+mapfile -t PROFRAW_FILES < <(find "$(pwd)" -name '*.profraw' -type f)
+if [ ${#PROFRAW_FILES[@]} -eq 0 ]; then
+  echo "ERROR: the instrumented run produced no .profraw files under $(pwd)." >&2
   exit 1
 fi
-run_command "$PROFDATA_BIN" merge -output="$PGO_MERGED" "$PGO_DIR"/*.profraw
+run_command "$PROFDATA_BIN" merge -output="$PGO_MERGED" "${PROFRAW_FILES[@]}"
+# benchmarks/global/CMakeLists.txt consumes pgo_profiles/default.profdata
+mkdir -p "$(pwd)/pgo_profiles"
+cp "$PGO_MERGED" "$(pwd)/pgo_profiles/default.profdata"
 
 # Stage 3: PGO Use
 run_command cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=On -DCMAKE_BUILD_TYPE=Release -DENABLE_AGGRESSIVE_OPTIM=On -DBENCHMARKS=On -DPGO_STAGE=USE -DPGO_PROFILE_DATA="$PGO_MERGED"

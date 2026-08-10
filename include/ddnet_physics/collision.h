@@ -111,6 +111,11 @@ typedef struct Collision {
   bool m_MoveRestrictionsFound;
   bool m_aFastcapFlagPresent[2];
   mvec2 m_aFastcapFlagPositions[2];
+  // (width * 32 - (HALFPHYSICALSIZE + 2), height * 32 - (HALFPHYSICALSIZE + 2)),
+  // the upper bound cc_move tests every tick. Derived from the map dimensions,
+  // so it is folded once at init instead of being rebuilt from two int loads,
+  // two converts and two multiplies on every character move.
+  mvec2 m_MapMaxPos;
 } SCollision;
 
 // Takes ownership of pMap

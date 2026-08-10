@@ -143,3 +143,4 @@ Range (min … max):    39,353,205 … 55,047,694 ticks/s    50 runs
 
 Benchmark complete.
 }}}
+

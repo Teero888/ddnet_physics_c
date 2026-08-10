@@ -530,11 +530,15 @@ void prj_tick(SProjectile *pProj) {
 }
 
 void cc_calc_indices(SCharacterCore *pCore) {
-  const int x = ((int)vgetx(pCore->m_Pos) >> 5);
-  const int y = ((int)vgety(pCore->m_Pos) >> 5);
-  pCore->m_BlockPos.x = x;
-  pCore->m_BlockPos.y = y;
-  pCore->m_BlockIdx = y * pCore->m_pCollision->m_MapData.width + x;
+  // Both (int)component >> 5 conversions in one convert/shift pair, and
+  // m_BlockPos (two adjacent 32-bit fields) written with a single 8-byte store.
+  const __m128i Cell = _mm_srai_epi32(_mm_cvttps_epi32(pCore->m_Pos), 5);
+  const int x = _mm_cvtsi128_si32(Cell);
+  const int y = _mm_extract_epi32(Cell, 1);
+  _mm_storel_epi64((__m128i *)&pCore->m_BlockPos, Cell);
+  const int Idx = y * pCore->m_pCollision->m_MapData.width + x;
+  pCore->m_BlockIdx = Idx;
+  pCore->m_BlockInfo = pCore->m_pCollision->m_pTileInfos[Idx];
 }
 
 static SPickupCooldownList *cc_pickup_cooldown_list(SCharacterCore *pCore) {
@@ -582,7 +586,7 @@ static void cc_set_pickup_cooldown(SCharacterCore *pCore, int Key) {
 }
 
 void cc_do_pickup(SCharacterCore *pCore) {
-  if (!(pCore->m_pCollision->m_pTileInfos[pCore->m_BlockIdx] & INFO_PICKUPNEXT))
+  if (!(pCore->m_BlockInfo & INFO_PICKUPNEXT))
     return;
 
   const int Width = pCore->m_pCollision->m_MapData.width;
@@ -765,6 +769,9 @@ void cc_quantize(SCharacterCore *pCore) {
   __m128 half = _mm_set1_ps(0.5f);
   __m128 zero = _mm_setzero_ps();
   __m128 scale = _mm_set1_ps(256.0f);
+  // 256 is a power of two, so 1/256 is exact and multiplying by it gives
+  // bit-identical results to dividing, without the ~14 cycle divps.
+  __m128 inv_scale = _mm_set1_ps(1.0f / 256.0f);
 
   // Quantize m_Pos
   __m128 pos = pCore->m_Pos;
@@ -786,7 +793,7 @@ void cc_quantize(SCharacterCore *pCore) {
   __m128 adjusted_vel = _mm_blendv_ps(_mm_sub_ps(vel_scaled, half), _mm_add_ps(vel_scaled, half), _mm_cmpge_ps(vel_scaled, zero));
   __m128i vel_int = _mm_cvttps_epi32(adjusted_vel);
   __m128 vel_rounded = _mm_cvtepi32_ps(vel_int);
-  pCore->m_Vel = _mm_div_ps(vel_rounded, scale);
+  pCore->m_Vel = _mm_mul_ps(vel_rounded, inv_scale);
 
   // Quantize m_HookDir
   __m128 hook_dir = pCore->m_HookDir;
@@ -794,7 +801,7 @@ void cc_quantize(SCharacterCore *pCore) {
   __m128 adjusted_hook_dir = _mm_blendv_ps(_mm_sub_ps(hook_dir_scaled, half), _mm_add_ps(hook_dir_scaled, half), _mm_cmpge_ps(hook_dir_scaled, zero));
   __m128i hook_dir_int = _mm_cvttps_epi32(adjusted_hook_dir);
   __m128 hook_dir_rounded = _mm_cvtepi32_ps(hook_dir_int);
-  pCore->m_HookDir = _mm_div_ps(hook_dir_rounded, scale);
+  pCore->m_HookDir = _mm_mul_ps(hook_dir_rounded, inv_scale);
 
   cc_calc_indices(pCore);
 }
@@ -858,9 +865,8 @@ void cc_move(SCharacterCore *pCore) {
   mvec2 MaxNewPos = vvadd(NewPos, pCore->m_Vel);
 
   // OOB of the map
-  const mvec2 MapMax = vec2_init((float)pCore->m_pCollision->m_MapData.width * 32.f - (HALFPHYSICALSIZE + 2),
-                                 (float)pCore->m_pCollision->m_MapData.height * 32.f - (HALFPHYSICALSIZE + 2));
-  const mvec2 OutOfBounds = _mm_or_ps(_mm_cmplt_ps(MaxNewPos, _mm_set1_ps(HALFPHYSICALSIZE + 2)), _mm_cmpge_ps(MaxNewPos, MapMax));
+  const mvec2 OutOfBounds =
+      _mm_or_ps(_mm_cmplt_ps(MaxNewPos, _mm_set1_ps(HALFPHYSICALSIZE + 2)), _mm_cmpge_ps(MaxNewPos, pCore->m_pCollision->m_MapMaxPos));
   if (_mm_movemask_ps(OutOfBounds) & 3) {
     cc_die(pCore);
     return;
@@ -1273,20 +1279,23 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index, float FractionOfTick) {
       pCore->m_TeleCheckpoint = TeleCheckpoint;
   }
 
-  // use the dispatch table for O(1) lookup
-  g_apGameTileHandlers[TileIndex](pCore);
+  // use the dispatch table for O(1) lookup. Slot 0 (and every tile without a
+  // handler) holds cc_handle_tile_empty, so guarding on a non-zero tile skips a
+  // hard-to-predict indirect call for air, which is what almost every sampled
+  // tile is.
+  if (TileIndex)
+    g_apGameTileHandlers[TileIndex](pCore);
   // don't do it twice for the same tile
-  if (TileFIndex != TileIndex)
+  if (TileFIndex && TileFIndex != TileIndex)
     g_apGameTileHandlers[TileFIndex](pCore);
 
   // this logic must run after the handlers
-  if (TileIndex == TILE_REFILL_JUMPS || TileFIndex == TILE_REFILL_JUMPS)
-    pCore->m_LastRefillJumps = true;
-  else
-    pCore->m_LastRefillJumps = false;
+  pCore->m_LastRefillJumps = (TileIndex == TILE_REFILL_JUMPS) | (TileFIndex == TILE_REFILL_JUMPS);
 
-  if (TileIndex == TILE_FREEZE || TileFIndex == TILE_FREEZE || TileIndex == TILE_DFREEZE || TileFIndex == TILE_DFREEZE)
-    pCore->m_IsInFreeze = true;
+  // m_IsInFreeze was cleared on entry, so this can assign the OR directly
+  // instead of branching four times to maybe set it.
+  pCore->m_IsInFreeze =
+      (TileIndex == TILE_FREEZE) | (TileFIndex == TILE_FREEZE) | (TileIndex == TILE_DFREEZE) | (TileFIndex == TILE_DFREEZE);
 
   if (vgety(pCore->m_Vel) > 0 && (pCore->m_MoveRestrictions & CANTMOVE_DOWN)) {
     pCore->m_Jumped = 0;
@@ -1300,8 +1309,9 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index, float FractionOfTick) {
     unsigned char Type = get_switch_type(pCore->m_pCollision, MapIndex);
     unsigned char Delay = get_switch_delay(pCore->m_pCollision, MapIndex);
 
-    // use the dispatch table for O(1) lookup
-    g_apSwitchTileHandlers[Type](pCore, Number, Delay);
+    // use the dispatch table for O(1) lookup; slot 0 is cc_handle_switch_empty
+    if (Type)
+      g_apSwitchTileHandlers[Type](pCore, Number, Delay);
 
     // Handle state resets for bonus/penalty
     // The handlers set the flag to true, this function resets them
@@ -1339,16 +1349,15 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index, float FractionOfTick) {
 }
 
 static inline bool broad_indices_check(const SCollision *__restrict__ pCollision, mvec2 Start, mvec2 End) {
-  const mvec2 MinVec = _mm_min_ps(Start, End);
-  const mvec2 MaxVec = _mm_max_ps(Start, End);
-  const int MinX = (int)vgetx(MinVec) >> 5;
-  const int MinY = (int)vgety(MinVec) >> 5;
-  const int MaxX = ((int)vgetx(MaxVec) + 1) >> 5;
-  const int MaxY = ((int)vgety(MaxVec) + 1) >> 5;
-  const int DiffY = (MaxY - MinY);
-  const int DiffX = (MaxX - MinX);
+  // Same four (int)f (+1) >> 5 conversions as before, done in lanes.
+  const __m128i MinI = _mm_srai_epi32(_mm_cvttps_epi32(_mm_min_ps(Start, End)), 5);
+  const __m128i MaxI = _mm_srai_epi32(_mm_add_epi32(_mm_cvttps_epi32(_mm_max_ps(Start, End)), _mm_set1_epi32(1)), 5);
+  const __m128i DiffI = _mm_sub_epi32(MaxI, MinI);
+  const int MinX = _mm_cvtsi128_si32(MinI);
+  const int MinY = _mm_extract_epi32(MinI, 1);
 
-  return (bool)(pCollision->m_pBroadIndicesBitField[(MinY * pCollision->m_MapData.width) + MinX] & (uint64_t)1 << ((DiffY << 3) + DiffX));
+  return (bool)(pCollision->m_pBroadIndicesBitField[(MinY * pCollision->m_MapData.width) + MinX] &
+                (uint64_t)1 << ((_mm_extract_epi32(DiffI, 1) << 3) + _mm_cvtsi128_si32(DiffI)));
 }
 
 static void cc_unique_race_start(SCharacterCore *pCore, float FractionOfTick) {
@@ -1433,7 +1442,7 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
     pCore->m_Jumped = 1;
   }
 
-  if (pCore->m_pCollision->m_pTileInfos[pCore->m_BlockIdx] & (INFO_CANHITKILL | INFO_ISSPEEDUP))
+  if (pCore->m_BlockInfo & (INFO_CANHITKILL | INFO_ISSPEEDUP))
     cc_handle_skippable_tiles(pCore, pCore->m_BlockIdx);
 
   const mvec2 PrevPos = pCore->m_PrevPos;
@@ -1540,15 +1549,17 @@ void cc_pre_tick(SCharacterCore *pCore) {
   // getting move restrictions is always done after moving the character so don't do it here
 
   bool Grounded = false;
-  if (pCore->m_pCollision->m_pTileInfos[pCore->m_BlockIdx] & INFO_CANGROUND) {
-    const float PosX = vgetx(pCore->m_Pos);
-    const float GroundPosY = vgety(pCore->m_Pos) + HALFPHYSICALSIZE + 5;
-    const float GroundRight = PosX + HALFPHYSICALSIZE;
-    const float GroundLeft = PosX - HALFPHYSICALSIZE;
-    const int GroundY = (int)(GroundPosY + 0.5f) >> 5;
+  if (pCore->m_BlockInfo & INFO_CANGROUND) {
+    // [x, x, y, y] + [+14, -14, +19, +19] gives the three probe coordinates in
+    // one register, so the three (int)(f + 0.5f) >> 5 roundings collapse into a
+    // single add/convert/shift instead of three scalar chains.
+    const __m128 Spread = _mm_shuffle_ps(pCore->m_Pos, pCore->m_Pos, _MM_SHUFFLE(1, 1, 0, 0));
+    const __m128 Probes = _mm_add_ps(Spread, _mm_set_ps(HALFPHYSICALSIZE + 5, HALFPHYSICALSIZE + 5, -HALFPHYSICALSIZE, HALFPHYSICALSIZE));
+    const __m128i Cells = _mm_srai_epi32(_mm_cvttps_epi32(_mm_add_ps(Probes, _mm_set1_ps(0.5f))), 5);
+    const int GroundRightX = _mm_cvtsi128_si32(Cells);
+    const int GroundLeftX = _mm_extract_epi32(Cells, 1);
+    const int GroundY = _mm_extract_epi32(Cells, 2);
     const int GroundRow = pCore->m_pCollision->m_pWidthLookup[GroundY];
-    const int GroundRightX = (int)(GroundRight + 0.5f) >> 5;
-    const int GroundLeftX = (int)(GroundLeft + 0.5f) >> 5;
     Grounded =
         (pCore->m_pCollision->m_pTileInfos[GroundRow + GroundRightX] | pCore->m_pCollision->m_pTileInfos[GroundRow + GroundLeftX]) & INFO_ISSOLID;
   }
@@ -2671,22 +2682,28 @@ void wc_tick(SWorldCore *pCore) {
     pEntity = pEntity->m_pNextTypeEntity;
   }
 
-  for (int i = 0; i < pCore->m_NumCharacters; ++i)
-    cc_do_pickup(&pCore->m_pCharacters[i]);
+  // The character array is only reallocated by wc_add_character /
+  // wc_remove_character, neither of which runs during a tick, so the bound and
+  // the base pointer are loaded once instead of once per pass.
+  const int NumCharacters = pCore->m_NumCharacters;
+  SCharacterCore *const pCharacters = pCore->m_pCharacters;
+
+  for (int i = 0; i < NumCharacters; ++i)
+    cc_do_pickup(&pCharacters[i]);
 
   // Tick characters
-  if (pCore->m_NumCharacters > 1)
+  if (NumCharacters > 1)
     wc_accelerator_tick(pCore);
-  for (int i = 0; i < pCore->m_NumCharacters; ++i)
-    cc_pre_tick(&pCore->m_pCharacters[i]);
-  for (int i = 0; i < pCore->m_NumCharacters; ++i)
-    cc_tick(&pCore->m_pCharacters[i]);
+  for (int i = 0; i < NumCharacters; ++i)
+    cc_pre_tick(&pCharacters[i]);
+  for (int i = 0; i < NumCharacters; ++i)
+    cc_tick(&pCharacters[i]);
 
   // Do tick deferred
   // funny thing no other entities than the character actually have a deferred
   // tick function lol
-  for (int i = 0; i < pCore->m_NumCharacters; ++i)
-    cc_world_tick_deferred(&pCore->m_pCharacters[i]);
+  for (int i = 0; i < NumCharacters; ++i)
+    cc_world_tick_deferred(&pCharacters[i]);
 
   // Remove all entities that are marked for destroy
   for (int i = 0; i < NUM_WORLD_ENTTYPES; ++i) {

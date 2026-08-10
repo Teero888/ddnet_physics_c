@@ -229,6 +229,10 @@ typedef struct CharacterCore {
 
   uivec2 m_BlockPos;
   int m_BlockIdx;
+  // Cached copy of m_pCollision->m_pTileInfos[m_BlockIdx], refreshed by
+  // cc_calc_indices. The tile info array is immutable after map load, so this
+  // saves a three-deep pointer chase in every hot INFO_* test.
+  unsigned char m_BlockInfo;
 
   mvec2 m_HookPos;
   mvec2 m_HookDir;
