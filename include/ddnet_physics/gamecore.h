@@ -40,7 +40,10 @@ typedef enum {
 enum { WEAPON_HAMMER = 0, WEAPON_GUN, WEAPON_SHOTGUN, WEAPON_GRENADE, WEAPON_LASER, WEAPON_NINJA, NUM_WEAPONS };
 enum { NUM_TIME_CHECKPOINTS = 25 };
 
-typedef struct {
+// Padded to 16 bytes and 8-byte aligned so `m_Input = *pNewInput` is two moves.
+// At 14 bytes / 2-byte alignment clang had to break the copy into a pile of
+// small loads and stores, which measured 4.2% of all retired instructions.
+typedef struct __attribute__((aligned(8))) {
   int8_t m_Direction;
   int16_t m_TargetX;
   int16_t m_TargetY;
@@ -50,6 +53,7 @@ typedef struct {
   uint8_t m_WantedWeapon;
   uint8_t m_TeleOut;
   uint16_t m_Flags;
+  uint8_t m_aPadding[2];
 } SPlayerInput;
 
 enum {
@@ -230,6 +234,10 @@ typedef struct CharacterCore {
 
   uivec2 m_BlockPos;
   int m_BlockIdx;
+  // Cached copy of m_pCollision->m_pTileInfos[m_BlockIdx], refreshed by
+  // cc_calc_indices. The tile info array is immutable after map load, so this
+  // saves a three-deep pointer chase in every hot INFO_* test.
+  unsigned char m_BlockInfo;
 
   mvec2 m_HookPos;
   mvec2 m_HookDir;

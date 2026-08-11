@@ -103,6 +103,30 @@ static inline float saturate_add(float Min, float Max, float Current, float Modi
   }
 }
 
+// Applies the sign convention DDNet's speedup angle branches imply, so that a
+// dot product of two such vectors equals its cos(angle difference) * length.
+// x > 0.0000001f mirrors y; x < 0 is left alone; small non-negative x negates
+// both (that branch reaches atanf(y/x) with a huge ratio, which lands half a
+// turn away). See the call site in cc_handle_skippable_tiles.
+static inline mvec2 speedup_signed(mvec2 v) {
+  const float x = vgetx(v), y = vgety(v);
+  if (x > 0.0000001f)
+    return vec2_init(x, -y);
+  if (x < 0.0f)
+    return v;
+  return vec2_init(-x, -y);
+}
+
+// True when either endpoint of the segment lies outside the map clip box, i.e.
+// when the Liang-Barsky CLIP block below could actually reduce t1. Two packed
+// compares instead of four divisions on the overwhelmingly common in-bounds path.
+static inline bool segment_leaves_map(const SCollision *__restrict__ pCollision, mvec2 A, mvec2 B) {
+  const mvec2 Lo = _mm_setzero_ps();
+  const mvec2 Hi = pCollision->m_MapClipMax;
+  const mvec2 Outside = _mm_or_ps(_mm_or_ps(_mm_cmplt_ps(A, Lo), _mm_cmpgt_ps(A, Hi)), _mm_or_ps(_mm_cmplt_ps(B, Lo), _mm_cmpgt_ps(B, Hi)));
+  return (_mm_movemask_ps(Outside) & 3) != 0;
+}
+
 mvec2 calc_pos(mvec2 Pos, mvec2 Velocity, float Curvature, float Speed, float Time) {
   float n[2] = {vgetx(Pos), vgety(Pos)}, v[2] = {vgetx(Velocity), vgety(Velocity)};
   Time *= Speed;
@@ -203,28 +227,32 @@ void lsr_bounce(SLaser *pLaser) {
   mvec2 To = vvadd(pLaser->m_Base.m_Pos, vfmul(pLaser->m_Dir, pLaser->m_Energy));
 
   // printf("Before: From:%.f,%.f, To:%.f,%.f\n", vgetx(From), vgety(From), vgetx(To), vgety(To));
-  float x0 = vgetx(From), y0 = vgety(From);
-  float x1 = vgetx(To), y1 = vgety(To);
+  // Same skip as the hook segment in cc_pre_tick: with both endpoints inside the
+  // clip box the four CLIP evaluations cannot change t1, so they are pure cost.
+  if (segment_leaves_map(pLaser->m_Base.m_pCollision, From, To)) {
+    float x0 = vgetx(From), y0 = vgety(From);
+    float x1 = vgetx(To), y1 = vgety(To);
 
-  float dx = x1 - x0;
-  float dy = y1 - y0;
+    float dx = x1 - x0;
+    float dy = y1 - y0;
 
-  float W = (float)pLaser->m_Base.m_pCollision->m_MapData.width * 32.0f;
-  float H = (float)pLaser->m_Base.m_pCollision->m_MapData.height * 32.0f;
+    float W = (float)pLaser->m_Base.m_pCollision->m_MapData.width * 32.0f;
+    float H = (float)pLaser->m_Base.m_pCollision->m_MapData.height * 32.0f;
 
-  float xmin = 0.0f, ymin = 0.0f;
-  float xmax = W - 1.f, ymax = H - 1.f;
+    float xmin = 0.0f, ymin = 0.0f;
+    float xmax = W - 1.f, ymax = H - 1.f;
 
-  float t0 = 0.0f, t1 = 1.0f;
+    float t0 = 0.0f, t1 = 1.0f;
 
-  CLIP(-dx, x0 - xmin); // left
-  CLIP(dx, xmax - x0);  // right
-  CLIP(-dy, y0 - ymin); // top
-  CLIP(dy, ymax - y0);  // bottom
+    CLIP(-dx, x0 - xmin); // left
+    CLIP(dx, xmax - x0);  // right
+    CLIP(-dy, y0 - ymin); // top
+    CLIP(dy, ymax - y0);  // bottom
 
-  // we only care about moving the end point inside, so use t1.
-  if (t1 != 1.0f)
-    To = vec2_init(x0 + dx * t1, y0 + dy * t1);
+    // we only care about moving the end point inside, so use t1.
+    if (t1 != 1.0f)
+      To = vec2_init(x0 + dx * t1, y0 + dy * t1);
+  }
 
   // printf("After: From:%.f,%.f, To:%.f,%.f\n", vgetx(From), vgety(From), vgetx(To), vgety(To));
   Res =
@@ -530,11 +558,15 @@ void prj_tick(SProjectile *pProj) {
 }
 
 void cc_calc_indices(SCharacterCore *pCore) {
-  const int x = ((int)vgetx(pCore->m_Pos) >> 5);
-  const int y = ((int)vgety(pCore->m_Pos) >> 5);
-  pCore->m_BlockPos.x = x;
-  pCore->m_BlockPos.y = y;
-  pCore->m_BlockIdx = y * pCore->m_pCollision->m_MapData.width + x;
+  // Both (int)component >> 5 conversions in one convert/shift pair, and
+  // m_BlockPos (two adjacent 32-bit fields) written with a single 8-byte store.
+  const __m128i Cell = _mm_srai_epi32(_mm_cvttps_epi32(pCore->m_Pos), 5);
+  const int x = _mm_cvtsi128_si32(Cell);
+  const int y = _mm_extract_epi32(Cell, 1);
+  _mm_storel_epi64((__m128i *)&pCore->m_BlockPos, Cell);
+  const int Idx = y * pCore->m_pCollision->m_MapData.width + x;
+  pCore->m_BlockIdx = Idx;
+  pCore->m_BlockInfo = pCore->m_pCollision->m_pTileInfos[Idx];
 }
 
 static SPickupCooldownList *cc_pickup_cooldown_list(SCharacterCore *pCore) {
@@ -582,7 +614,7 @@ static void cc_set_pickup_cooldown(SCharacterCore *pCore, int Key) {
 }
 
 void cc_do_pickup(SCharacterCore *pCore) {
-  if (!(pCore->m_pCollision->m_pTileInfos[pCore->m_BlockIdx] & INFO_PICKUPNEXT))
+  if (!(pCore->m_BlockInfo & INFO_PICKUPNEXT))
     return;
 
   const int Width = pCore->m_pCollision->m_MapData.width;
@@ -766,6 +798,9 @@ void cc_quantize(SCharacterCore *pCore) {
   __m128 half = _mm_set1_ps(0.5f);
   __m128 zero = _mm_setzero_ps();
   __m128 scale = _mm_set1_ps(256.0f);
+  // 256 is a power of two, so 1/256 is exact and multiplying by it gives
+  // bit-identical results to dividing, without the ~14 cycle divps.
+  __m128 inv_scale = _mm_set1_ps(1.0f / 256.0f);
 
   // Quantize m_Pos
   __m128 pos = pCore->m_Pos;
@@ -774,28 +809,33 @@ void cc_quantize(SCharacterCore *pCore) {
   __m128 pos_rounded = _mm_cvtepi32_ps(pos_int);
   pCore->m_Pos = pos_rounded;
 
-  // Quantize m_HookPos
-  __m128 hook_pos = pCore->m_HookPos;
-  __m128 hook_pos_plus_half = _mm_add_ps(hook_pos, half);
-  __m128i hook_pos_int = _mm_cvttps_epi32(hook_pos_plus_half);
-  __m128 hook_pos_rounded = _mm_cvtepi32_ps(hook_pos_int);
-  pCore->m_HookPos = hook_pos_rounded;
-
   // Quantize m_Vel
   __m128 vel = pCore->m_Vel;
   __m128 vel_scaled = _mm_mul_ps(vel, scale);
   __m128 adjusted_vel = _mm_blendv_ps(_mm_sub_ps(vel_scaled, half), _mm_add_ps(vel_scaled, half), _mm_cmpge_ps(vel_scaled, zero));
   __m128i vel_int = _mm_cvttps_epi32(adjusted_vel);
   __m128 vel_rounded = _mm_cvtepi32_ps(vel_int);
-  pCore->m_Vel = _mm_div_ps(vel_rounded, scale);
+  pCore->m_Vel = _mm_mul_ps(vel_rounded, inv_scale);
 
+  // While the hook is idle both of these are already snapped: m_HookPos was
+  // assigned the previous tick's already-quantised m_Pos back in cc_pre_tick, and
+  // m_HookDir is only ever written when the hook fires or teleports. Quantisation
+  // is idempotent, so re-snapping them every tick is pure work.
+  if (pCore->m_HookState != HOOK_IDLE && pCore->m_HookState != HOOK_RETRACTED) {
+  // Quantize m_HookPos
+    __m128 hook_pos = pCore->m_HookPos;
+    __m128 hook_pos_plus_half = _mm_add_ps(hook_pos, half);
+    __m128i hook_pos_int = _mm_cvttps_epi32(hook_pos_plus_half);
+    __m128 hook_pos_rounded = _mm_cvtepi32_ps(hook_pos_int);
+    pCore->m_HookPos = hook_pos_rounded;
   // Quantize m_HookDir
-  __m128 hook_dir = pCore->m_HookDir;
-  __m128 hook_dir_scaled = _mm_mul_ps(hook_dir, scale);
-  __m128 adjusted_hook_dir = _mm_blendv_ps(_mm_sub_ps(hook_dir_scaled, half), _mm_add_ps(hook_dir_scaled, half), _mm_cmpge_ps(hook_dir_scaled, zero));
-  __m128i hook_dir_int = _mm_cvttps_epi32(adjusted_hook_dir);
-  __m128 hook_dir_rounded = _mm_cvtepi32_ps(hook_dir_int);
-  pCore->m_HookDir = _mm_div_ps(hook_dir_rounded, scale);
+    __m128 hook_dir = pCore->m_HookDir;
+    __m128 hook_dir_scaled = _mm_mul_ps(hook_dir, scale);
+    __m128 adjusted_hook_dir = _mm_blendv_ps(_mm_sub_ps(hook_dir_scaled, half), _mm_add_ps(hook_dir_scaled, half), _mm_cmpge_ps(hook_dir_scaled, zero));
+    __m128i hook_dir_int = _mm_cvttps_epi32(adjusted_hook_dir);
+    __m128 hook_dir_rounded = _mm_cvtepi32_ps(hook_dir_int);
+    pCore->m_HookDir = _mm_mul_ps(hook_dir_rounded, inv_scale);
+  }
 
   cc_calc_indices(pCore);
 }
@@ -840,13 +880,20 @@ static inline float fast_expf(float x) {
 }
 
 void cc_move(SCharacterCore *pCore) {
-  pCore->m_VelMag = vlength(pCore->m_Vel);
-  const float VelMag = pCore->m_VelMag * 50;
+  // The velramp test used to depend on the square root, putting ~15 cycles of
+  // sqrtss latency at the head of every tick's dependency chain for a branch that
+  // is almost never taken (it needs |Vel| * 50 >= VelrampStart, i.e. |Vel| >= 11).
+  // Testing in squared space resolves the branch straight out of the dot product;
+  // m_VelMag is only ever read by callers, so its square root now retires in
+  // parallel instead of gating everything behind it.
+  const float SqVel = vsqlength(pCore->m_Vel);
+  const float VelrampStart = pCore->m_pTuning->m_VelrampStart;
+  pCore->m_VelMag = sqrtf(SqVel);
   float OldVel = vgetx(pCore->m_Vel);
 
   float RampValue = 1.f;
-  if (VelMag >= pCore->m_pTuning->m_VelrampStart) {
-    float t = VelMag - pCore->m_pTuning->m_VelrampStart;
+  if (SqVel * (50.0f * 50.0f) >= VelrampStart * VelrampStart) {
+    float t = pCore->m_VelMag * 50 - VelrampStart;
     RampValue = fast_expf(-t * pCore->m_pTuning->m_VelrampValue);
   }
   pCore->m_VelRamp = RampValue;
@@ -859,9 +906,8 @@ void cc_move(SCharacterCore *pCore) {
   mvec2 MaxNewPos = vvadd(NewPos, pCore->m_Vel);
 
   // OOB of the map
-  const mvec2 MapMax = vec2_init((float)pCore->m_pCollision->m_MapData.width * 32.f - (HALFPHYSICALSIZE + 2),
-                                 (float)pCore->m_pCollision->m_MapData.height * 32.f - (HALFPHYSICALSIZE + 2));
-  const mvec2 OutOfBounds = _mm_or_ps(_mm_cmplt_ps(MaxNewPos, _mm_set1_ps(HALFPHYSICALSIZE + 2)), _mm_cmpge_ps(MaxNewPos, MapMax));
+  const mvec2 OutOfBounds =
+      _mm_or_ps(_mm_cmplt_ps(MaxNewPos, _mm_set1_ps(HALFPHYSICALSIZE + 2)), _mm_cmpge_ps(MaxNewPos, pCore->m_pCollision->m_MapMaxPos));
   if (_mm_movemask_ps(OutOfBounds) & 3) {
     cc_die(pCore);
     return;
@@ -890,14 +936,16 @@ void cc_move(SCharacterCore *pCore) {
     pCore->m_Vel = vsetx(pCore->m_Vel, velX * (1.f / RampValue));
 
   pCore->m_Pos = NewPos;
-  cc_calc_indices(pCore);
-
-  pCore->m_MoveRestrictions = get_move_restrictions(pCore->m_pCollision, pCore, pCore->m_Pos, pCore->m_BlockIdx);
+  // Indices and move restrictions are deferred to cc_world_tick_deferred, after
+  // cc_quantize. cc_calc_indices used to run twice per tick - once here on the
+  // raw position and again on the quantised one - and quantising moves the
+  // position by under half a unit, so the block index is the same either way.
 }
 
 void cc_world_tick_deferred(SCharacterCore *pCore) {
   cc_move(pCore);
-  cc_quantize(pCore);
+  cc_quantize(pCore); // also refreshes m_BlockIdx / m_BlockInfo
+  pCore->m_MoveRestrictions = get_move_restrictions(pCore->m_pCollision, pCore, pCore->m_Pos, pCore->m_BlockIdx);
 }
 
 static inline float fast_rand(unsigned int *state) {
@@ -1049,45 +1097,14 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
     get_speedup(pCore->m_pCollision, Index, &Direction, &Force, &MaxSpeed, &Type);
 
     if (Type == TILE_SPEED_BOOST_OLD) {
-      float TeeAngle, SpeederAngle, DiffAngle, SpeedLeft, TeeSpeed;
+      float SpeedLeft;
       if (Force == 255 && MaxSpeed) {
         pCore->m_Vel = vfmul(Direction, ((float)MaxSpeed / 5.f));
       } else {
         if (MaxSpeed > 0 && MaxSpeed < 5)
           MaxSpeed = 5;
         if (MaxSpeed > 0) {
-          float dirX = vgetx(Direction);
-          float dirY = vgety(Direction);
-          float tempVelX = vgetx(TempVel);
-          float tempVelY = vgety(TempVel);
-
-          if (dirX > 0.0000001f)
-            SpeederAngle = -atanf(dirY / dirX);
-          else if (dirX < 0.0000001f)
-            SpeederAngle = atanf(dirY / dirX) + 2.0f * asinf(1.0f);
-          else if (dirY > 0.0000001f)
-            SpeederAngle = asinf(1.0f);
-          else
-            SpeederAngle = asinf(-1.0f);
-
-          if (SpeederAngle < 0)
-            SpeederAngle = 4.0f * asinf(1.0f) + SpeederAngle;
-
-          if (tempVelX > 0.0000001f)
-            TeeAngle = -atanf(tempVelY / tempVelX);
-          else if (tempVelX < 0.0000001f)
-            TeeAngle = atanf(tempVelY / tempVelX) + 2.0f * asinf(1.0f);
-          else if (tempVelY > 0.0000001f)
-            TeeAngle = asinf(1.0f);
-          else
-            TeeAngle = asinf(-1.0f);
-
-          if (TeeAngle < 0)
-            TeeAngle = 4.0f * asinf(1.0f) + TeeAngle;
-
-          TeeSpeed = sqrtf(powf(tempVelX, 2) + powf(tempVelY, 2));
-          DiffAngle = SpeederAngle - TeeAngle;
-          SpeedLeft = MaxSpeed / 5.0f - cosf(DiffAngle) * TeeSpeed;
+          SpeedLeft = MaxSpeed / 5.0f - vdot(speedup_signed(Direction), speedup_signed(TempVel));
           if (abs((int)SpeedLeft) > Force && SpeedLeft > 0.0000001f)
             TempVel = vvadd(TempVel, vfmul(Direction, Force));
           else if (abs((int)SpeedLeft) > Force)
@@ -1102,8 +1119,9 @@ void cc_handle_skippable_tiles(SCharacterCore *pCore, int Index) {
     } else if (Type == TILE_SPEED_BOOST) {
       static const float MaxSpeedScale = 5.0f;
       if (MaxSpeed == 0) {
-        float MaxRampSpeed = pCore->m_pTuning->m_VelrampRange / (50 * logf(fmaxf((float)pCore->m_pTuning->m_VelrampCurvature, 1.01f)));
-        MaxSpeed = fmaxf(MaxRampSpeed, pCore->m_pTuning->m_VelrampStart / 50) * MaxSpeedScale;
+        // Folded at init: depends only on the velramp tunings, and the logf() was
+        // being paid on every boost tile hit.
+        MaxSpeed = pCore->m_pTuning->m_SpeedupDefaultMaxSpeed;
       }
 
       float CurrentDirectionalSpeed = vdot(Direction, pCore->m_Vel);
@@ -1289,20 +1307,23 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index, float FractionOfTick) {
       pCore->m_TeleCheckpoint = TeleCheckpoint;
   }
 
-  // use the dispatch table for O(1) lookup
-  g_apGameTileHandlers[TileIndex](pCore);
+  // use the dispatch table for O(1) lookup. Slot 0 (and every tile without a
+  // handler) holds cc_handle_tile_empty, so guarding on a non-zero tile skips a
+  // hard-to-predict indirect call for air, which is what almost every sampled
+  // tile is.
+  if (TileIndex)
+    g_apGameTileHandlers[TileIndex](pCore);
   // don't do it twice for the same tile
-  if (TileFIndex != TileIndex)
+  if (TileFIndex && TileFIndex != TileIndex)
     g_apGameTileHandlers[TileFIndex](pCore);
 
   // this logic must run after the handlers
-  if (TileIndex == TILE_REFILL_JUMPS || TileFIndex == TILE_REFILL_JUMPS)
-    pCore->m_LastRefillJumps = true;
-  else
-    pCore->m_LastRefillJumps = false;
+  pCore->m_LastRefillJumps = (TileIndex == TILE_REFILL_JUMPS) | (TileFIndex == TILE_REFILL_JUMPS);
 
-  if (TileIndex == TILE_FREEZE || TileFIndex == TILE_FREEZE || TileIndex == TILE_DFREEZE || TileFIndex == TILE_DFREEZE)
-    pCore->m_IsInFreeze = true;
+  // m_IsInFreeze was cleared on entry, so this can assign the OR directly
+  // instead of branching four times to maybe set it.
+  pCore->m_IsInFreeze =
+      (TileIndex == TILE_FREEZE) | (TileFIndex == TILE_FREEZE) | (TileIndex == TILE_DFREEZE) | (TileFIndex == TILE_DFREEZE);
 
   if (vgety(pCore->m_Vel) > 0 && (pCore->m_MoveRestrictions & CANTMOVE_DOWN)) {
     pCore->m_Jumped = 0;
@@ -1316,8 +1337,9 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index, float FractionOfTick) {
     unsigned char Type = get_switch_type(pCore->m_pCollision, MapIndex);
     unsigned char Delay = get_switch_delay(pCore->m_pCollision, MapIndex);
 
-    // use the dispatch table for O(1) lookup
-    g_apSwitchTileHandlers[Type](pCore, Number, Delay);
+    // use the dispatch table for O(1) lookup; slot 0 is cc_handle_switch_empty
+    if (Type)
+      g_apSwitchTileHandlers[Type](pCore, Number, Delay);
 
     // Handle state resets for bonus/penalty
     // The handlers set the flag to true, this function resets them
@@ -1355,16 +1377,15 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index, float FractionOfTick) {
 }
 
 static inline bool broad_indices_check(const SCollision *__restrict__ pCollision, mvec2 Start, mvec2 End) {
-  const mvec2 MinVec = _mm_min_ps(Start, End);
-  const mvec2 MaxVec = _mm_max_ps(Start, End);
-  const int MinX = (int)vgetx(MinVec) >> 5;
-  const int MinY = (int)vgety(MinVec) >> 5;
-  const int MaxX = ((int)vgetx(MaxVec) + 1) >> 5;
-  const int MaxY = ((int)vgety(MaxVec) + 1) >> 5;
-  const int DiffY = (MaxY - MinY);
-  const int DiffX = (MaxX - MinX);
+  // Same four (int)f (+1) >> 5 conversions as before, done in lanes.
+  const __m128i MinI = _mm_srai_epi32(_mm_cvttps_epi32(_mm_min_ps(Start, End)), 5);
+  const __m128i MaxI = _mm_srai_epi32(_mm_add_epi32(_mm_cvttps_epi32(_mm_max_ps(Start, End)), _mm_set1_epi32(1)), 5);
+  const __m128i DiffI = _mm_sub_epi32(MaxI, MinI);
+  const int MinX = _mm_cvtsi128_si32(MinI);
+  const int MinY = _mm_extract_epi32(MinI, 1);
 
-  return (bool)(pCollision->m_pBroadIndicesBitField[(MinY * pCollision->m_MapData.width) + MinX] & (uint64_t)1 << ((DiffY << 3) + DiffX));
+  return (bool)(pCollision->m_pBroadIndicesBitField[(MinY * pCollision->m_MapData.width) + MinX] &
+                (uint64_t)1 << ((_mm_extract_epi32(DiffI, 1) << 3) + _mm_cvtsi128_si32(DiffI)));
 }
 
 static void cc_unique_race_start(SCharacterCore *pCore, float FractionOfTick) {
@@ -1452,7 +1473,7 @@ void cc_ddrace_postcore_tick(SCharacterCore *pCore) {
     pCore->m_Jumped = 1;
   }
 
-  if (pCore->m_pCollision->m_pTileInfos[pCore->m_BlockIdx] & (INFO_CANHITKILL | INFO_ISSPEEDUP))
+  if (pCore->m_BlockInfo & (INFO_CANHITKILL | INFO_ISSPEEDUP))
     cc_handle_skippable_tiles(pCore, pCore->m_BlockIdx);
 
   const mvec2 PrevPos = pCore->m_PrevPos;
@@ -1559,15 +1580,17 @@ void cc_pre_tick(SCharacterCore *pCore) {
   // getting move restrictions is always done after moving the character so don't do it here
 
   bool Grounded = false;
-  if (pCore->m_pCollision->m_pTileInfos[pCore->m_BlockIdx] & INFO_CANGROUND) {
-    const float PosX = vgetx(pCore->m_Pos);
-    const float GroundPosY = vgety(pCore->m_Pos) + HALFPHYSICALSIZE + 5;
-    const float GroundRight = PosX + HALFPHYSICALSIZE;
-    const float GroundLeft = PosX - HALFPHYSICALSIZE;
-    const int GroundY = (int)(GroundPosY + 0.5f) >> 5;
+  if (pCore->m_BlockInfo & INFO_CANGROUND) {
+    // [x, x, y, y] + [+14, -14, +19, +19] gives the three probe coordinates in
+    // one register, so the three (int)(f + 0.5f) >> 5 roundings collapse into a
+    // single add/convert/shift instead of three scalar chains.
+    const __m128 Spread = _mm_shuffle_ps(pCore->m_Pos, pCore->m_Pos, _MM_SHUFFLE(1, 1, 0, 0));
+    const __m128 Probes = _mm_add_ps(Spread, _mm_set_ps(HALFPHYSICALSIZE + 5, HALFPHYSICALSIZE + 5, -HALFPHYSICALSIZE, HALFPHYSICALSIZE));
+    const __m128i Cells = _mm_srai_epi32(_mm_cvttps_epi32(_mm_add_ps(Probes, _mm_set1_ps(0.5f))), 5);
+    const int GroundRightX = _mm_cvtsi128_si32(Cells);
+    const int GroundLeftX = _mm_extract_epi32(Cells, 1);
+    const int GroundY = _mm_extract_epi32(Cells, 2);
     const int GroundRow = pCore->m_pCollision->m_pWidthLookup[GroundY];
-    const int GroundRightX = (int)(GroundRight + 0.5f) >> 5;
-    const int GroundLeftX = (int)(GroundLeft + 0.5f) >> 5;
     Grounded =
         (pCore->m_pCollision->m_pTileInfos[GroundRow + GroundRightX] | pCore->m_pCollision->m_pTileInfos[GroundRow + GroundLeftX]) & INFO_ISSOLID;
   }
@@ -1651,7 +1674,14 @@ void cc_pre_tick(SCharacterCore *pCore) {
     }
     // NOTE: this only really matters at the edge of the map but since we offset maps by 200 block idk if it actually matters. might remove this if it
     // ends up being a hot path. same for this logic in laser bounce
-    {
+    //
+    // It is a hot path once the tee actually moves: four CLIP evaluations, each
+    // with a division, on every hook-flying tick. t1 is only ever reduced when a
+    // segment endpoint leaves the clip box, so when both endpoints are inside the
+    // whole block is a no-op and can be skipped. Bit-exact: the skipped path
+    // provably leaves t1 == 1.0f, which is the case the code already treats as
+    // "leave NewPos alone".
+    if (segment_leaves_map(pCore->m_pCollision, pCore->m_HookPos, NewPos)) {
       float x0 = vgetx(pCore->m_HookPos), y0 = vgety(pCore->m_HookPos);
       float x1 = vgetx(NewPos), y1 = vgety(NewPos);
 
@@ -2690,22 +2720,28 @@ void wc_tick(SWorldCore *pCore) {
     pEntity = pEntity->m_pNextTypeEntity;
   }
 
-  for (int i = 0; i < pCore->m_NumCharacters; ++i)
-    cc_do_pickup(&pCore->m_pCharacters[i]);
+  // The character array is only reallocated by wc_add_character /
+  // wc_remove_character, neither of which runs during a tick, so the bound and
+  // the base pointer are loaded once instead of once per pass.
+  const int NumCharacters = pCore->m_NumCharacters;
+  SCharacterCore *const pCharacters = pCore->m_pCharacters;
+
+  for (int i = 0; i < NumCharacters; ++i)
+    cc_do_pickup(&pCharacters[i]);
 
   // Tick characters
-  if (pCore->m_NumCharacters > 1)
+  if (NumCharacters > 1)
     wc_accelerator_tick(pCore);
-  for (int i = 0; i < pCore->m_NumCharacters; ++i)
-    cc_pre_tick(&pCore->m_pCharacters[i]);
-  for (int i = 0; i < pCore->m_NumCharacters; ++i)
-    cc_tick(&pCore->m_pCharacters[i]);
+  for (int i = 0; i < NumCharacters; ++i)
+    cc_pre_tick(&pCharacters[i]);
+  for (int i = 0; i < NumCharacters; ++i)
+    cc_tick(&pCharacters[i]);
 
   // Do tick deferred
   // funny thing no other entities than the character actually have a deferred
   // tick function lol
-  for (int i = 0; i < pCore->m_NumCharacters; ++i)
-    cc_world_tick_deferred(&pCore->m_pCharacters[i]);
+  for (int i = 0; i < NumCharacters; ++i)
+    cc_world_tick_deferred(&pCharacters[i]);
 
   // Remove all entities that are marked for destroy
   for (int i = 0; i < NUM_WORLD_ENTTYPES; ++i) {

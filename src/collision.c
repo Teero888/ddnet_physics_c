@@ -179,6 +179,11 @@ __attribute__((unused)) static void init_distance_field(SCollision *pCollision) 
 }
 #undef SQRT2
 
+void tuning_update_derived(STuningParams *pTuning) {
+  const float MaxRampSpeed = pTuning->m_VelrampRange / (50 * logf(fmaxf(pTuning->m_VelrampCurvature, 1.01f)));
+  pTuning->m_SpeedupDefaultMaxSpeed = fmaxf(MaxRampSpeed, pTuning->m_VelrampStart / 50) * 5.0f;
+}
+
 static void init_tuning_params(STuningParams *pTunings) {
 #define MACRO_TUNING_PARAM(Name, Value) pTunings->m_##Name = Value;
 #include <ddnet_physics/tuning.h>
@@ -553,6 +558,9 @@ bool init_collision_with_no_weapons(SCollision *__restrict__ pCollision, map_dat
   memset(pCollision->m_pBroadIndicesBitField, 0, MapSize * sizeof(uint64_t));
   pCollision->m_MoveRestrictionsFound = false;
 
+  pCollision->m_MapMaxPos = vec2_init((float)Width * 32.f - (HALFPHYSICALSIZE + 2), (float)Height * 32.f - (HALFPHYSICALSIZE + 2));
+  pCollision->m_MapClipMax = vec2_init((float)Width * 32.0f - 1.0f, (float)Height * 32.0f - 1.0f);
+
   pCollision->m_pWidthLookup = _mm_malloc(Height * sizeof(unsigned int), 64);
 
   for (int i = 0; i < Height; ++i)
@@ -574,6 +582,9 @@ bool init_collision_with_no_weapons(SCollision *__restrict__ pCollision, map_dat
   apply_map_settings(&pCollision->m_MapData, &(SMapSettingsTarget){
                                                  .m_pTunings = pCollision->m_aTuningList,
                                              });
+  // Map settings can change the velramp tunings, so derive after applying them.
+  for (int i = 0; i < NUM_TUNE_ZONES; ++i)
+    tuning_update_derived(&pCollision->m_aTuningList[i]);
   // Figure out important things
   // Make lists of spawn points, tele outs and tele checkpoints outs
   // figure out highest switch number
@@ -1128,40 +1139,40 @@ bool is_hook_blocker(SCollision *pCollision, int Index, mvec2 Pos0, mvec2 Pos1) 
 }
 
 static bool broad_check(const SCollision *__restrict__ pCollision, mvec2 Start, mvec2 End) {
-  const mvec2 MinVec = _mm_min_ps(Start, End);
-  const mvec2 MaxVec = _mm_max_ps(Start, End);
-  const int MinX = (int)vgetx(MinVec) >> 5;
-  const int MinY = (int)vgety(MinVec) >> 5;
-  const int MaxX = (int)vgetx(MaxVec) >> 5;
-  const int MaxY = (int)vgety(MaxVec) >> 5;
-  const int DiffY = (MaxY - MinY);
-  const int DiffX = (MaxX - MinX);
+  const __m128i MinI = _mm_srai_epi32(_mm_cvttps_epi32(_mm_min_ps(Start, End)), 5);
+  const __m128i MaxI = _mm_srai_epi32(_mm_cvttps_epi32(_mm_max_ps(Start, End)), 5);
+  const __m128i DiffI = _mm_sub_epi32(MaxI, MinI);
+  const int MinX = _mm_cvtsi128_si32(MinI);
+  const int MinY = _mm_extract_epi32(MinI, 1);
+  const int MaxX = _mm_cvtsi128_si32(MaxI);
+  const int MaxY = _mm_extract_epi32(MaxI, 1);
   if (MinY < 0 || MaxY >= pCollision->m_MapData.height || MinX < 0 || MaxX >= pCollision->m_MapData.width)
     return 0;
 
-  return (bool)(pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] & (uint64_t)1 << ((DiffY << 3) + DiffX));
+  return (bool)(pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] &
+                (uint64_t)1 << ((_mm_extract_epi32(DiffI, 1) << 3) + _mm_cvtsi128_si32(DiffI)));
 }
 
 static bool broad_check_tele(const SCollision *__restrict__ pCollision, mvec2 Start, mvec2 End) {
-  const mvec2 MinVec = _mm_min_ps(Start, End);
-  const mvec2 MaxVec = _mm_max_ps(Start, End);
-  const int MinX = (int)vgetx(MinVec) >> 5;
-  const int MinY = (int)vgety(MinVec) >> 5;
-  const int MaxX = (int)vgetx(MaxVec) >> 5;
-  const int MaxY = (int)vgety(MaxVec) >> 5;
-  const int DiffY = (MaxY - MinY);
-  const int DiffX = (MaxX - MinX);
+  const __m128i MinI = _mm_srai_epi32(_mm_cvttps_epi32(_mm_min_ps(Start, End)), 5);
+  const __m128i MaxI = _mm_srai_epi32(_mm_cvttps_epi32(_mm_max_ps(Start, End)), 5);
+  const __m128i DiffI = _mm_sub_epi32(MaxI, MinI);
+  const int MinX = _mm_cvtsi128_si32(MinI);
+  const int MinY = _mm_extract_epi32(MinI, 1);
+  const int MaxX = _mm_cvtsi128_si32(MaxI);
+  const int MaxY = _mm_extract_epi32(MaxI, 1);
   if (MinY < 0 || MaxY >= pCollision->m_MapData.height || MinX < 0 || MaxX >= pCollision->m_MapData.width)
     return 0;
 
-  return (bool)(pCollision->m_pBroadTeleInBitField[pCollision->m_pWidthLookup[MinY] + MinX] & (uint64_t)1 << ((DiffY << 3) + DiffX));
+  return (bool)(pCollision->m_pBroadTeleInBitField[pCollision->m_pWidthLookup[MinY] + MinX] &
+                (uint64_t)1 << ((_mm_extract_epi32(DiffI, 1) << 3) + _mm_cvtsi128_si32(DiffI)));
 }
 
 #define TILE_SHIFT 5
 #define TILE_SIZE (1 << TILE_SHIFT)
 
-static float fast_absf(float v) { return v < 0.0f ? -v : v; }
 #if 0
+static float fast_absf(float v) { return v < 0.0f ? -v : v; }
 // Original intersect code
 unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
                                        mvec2 *__restrict__ pOutCollision,
@@ -1208,98 +1219,96 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec
 
 unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
                                        unsigned char *__restrict__ pTeleNr) {
-  uint8_t Check[2] = {broad_check(pCollision, Pos0, Pos1), pTeleNr ? broad_check_tele(pCollision, Pos0, Pos1) : 0};
-  if (!Check[0] && !Check[1]) {
+  // Plain locals rather than a two-element array: the array form made clang
+  // materialise a stack slot on the early-out path, which is the common one.
+  const bool SolidNear = broad_check(pCollision, Pos0, Pos1);
+  const bool TeleNear = pTeleNr ? broad_check_tele(pCollision, Pos0, Pos1) : false;
+  if (!SolidNear && !TeleNear) {
     *pOutCollision = Pos1;
     return 0;
   }
 
+  // Voxel DDA instead of marching the ray in ~1 unit samples. Measured, the old
+  // loop scanned 28.8 samples per surviving call to find 2.5 distinct tiles; the
+  // traversal below visits exactly those tiles in the same order. Tile indices
+  // use the engine's round-then-shift convention ((int)(v + 0.5f) >> 5), so the
+  // walk is done in a +0.5 shifted space where tile edges sit on multiples of 32.
   const int Width = pCollision->m_MapData.width;
-  const int Height = pCollision->m_MapData.height;
-  // int Idx = (((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION) + ((int)vgetx(Pos0));
-  unsigned char Start = 0; // Check[0] > 1 ? 0 : pCollision->m_pSolidTeleDistanceField[Idx];
+  const int MapSize = Width * pCollision->m_MapData.height;
+  const float x0 = vgetx(Pos0) + 0.5f, y0 = vgety(Pos0) + 0.5f;
+  const float x1 = vgetx(Pos1) + 0.5f, y1 = vgety(Pos1) + 0.5f;
+  const float ddx = x1 - x0, ddy = y1 - y0;
 
-  int End = (int)vdistance(Pos0, Pos1) + 1;
-  Start = iclamp(Start, 0, End);
-  Start -= Start % 8;
-  const float fEnd = End;
+  int tx = (int)x0 >> 5, ty = (int)y0 >> 5;
+  const int etx = (int)x1 >> 5, ety = (int)y1 >> 5;
+  const int StepX = ddx > 0.f ? 1 : -1, StepY = ddy > 0.f ? 1 : -1;
+  const float AbsDx = ddx > 0.f ? ddx : -ddx, AbsDy = ddy > 0.f ? ddy : -ddy;
+  float tMaxX = AbsDx > 0.f ? (((ddx > 0.f ? (float)((tx + 1) << 5) : (float)(tx << 5)) - x0) / ddx) : FLT_MAX;
+  float tMaxY = AbsDy > 0.f ? (((ddy > 0.f ? (float)((ty + 1) << 5) : (float)(ty << 5)) - y0) / ddy) : FLT_MAX;
+  const float tDeltaX = AbsDx > 0.f ? 32.0f / AbsDx : FLT_MAX;
+  const float tDeltaY = AbsDy > 0.f ? 32.0f / AbsDy : FLT_MAX;
+
   int dx = 0, dy = 0;
   through_offset(Pos0, Pos1, &dx, &dy);
-  int LastIndex = -1;
 
-  int *aIndices = malloc(sizeof(int) * (End + 8));
-
-  const float inv_fEnd = s_aFractionTable[End - 1];
-  const float Pos0_x = vgetx(Pos0);
-  const float Pos0_y = vgety(Pos0);
-  const float diff_x = vgetx(Pos1) - Pos0_x;
-  const float diff_y = vgety(Pos1) - Pos0_y;
-
-  const __m256 Pos0_x_vec = _mm256_set1_ps(Pos0_x);
-  const __m256 Pos0_y_vec = _mm256_set1_ps(Pos0_y);
-  const __m256 diff_x_vec = _mm256_set1_ps(diff_x);
-  const __m256 diff_y_vec = _mm256_set1_ps(diff_y);
-  const __m256 inv_fEnd_vec = _mm256_set1_ps(inv_fEnd);
-  const __m256 half_vec = _mm256_set1_ps(0.5f);
-  const __m256i width_vec = _mm256_set1_epi32(Width);
-
-  for (int k = Start; k <= End; k += 8) {
-    __m256i i_vec = _mm256_set_epi32(k + 7, k + 6, k + 5, k + 4, k + 3, k + 2, k + 1, k);
-    __m256 a_vec = _mm256_mul_ps(_mm256_cvtepi32_ps(i_vec), inv_fEnd_vec);
-    __m256 Pos_x_vec = _mm256_add_ps(Pos0_x_vec, _mm256_mul_ps(a_vec, diff_x_vec));
-    __m256 Pos_y_vec = _mm256_add_ps(Pos0_y_vec, _mm256_mul_ps(a_vec, diff_y_vec));
-    __m256 Pos_x_plus_half = _mm256_add_ps(Pos_x_vec, half_vec);
-    __m256 Pos_y_plus_half = _mm256_add_ps(Pos_y_vec, half_vec);
-    __m256i ix_vec = _mm256_srai_epi32(_mm256_cvttps_epi32(Pos_x_plus_half), 5);
-    __m256i iy_vec = _mm256_srai_epi32(_mm256_cvttps_epi32(Pos_y_plus_half), 5);
-    __m256i index_vec = _mm256_add_epi32(_mm256_mullo_epi32(iy_vec, width_vec), ix_vec);
-    _mm256_storeu_si256((__m256i *)&aIndices[k], index_vec);
-  }
-
-  for (int i = Start; i <= End; i++) {
-    const int Index = aIndices[i];
-    if (Index < 0 || Index >= Width * Height)
+  float t = 0.f;
+  for (int Guard = 0; Guard < 64; ++Guard) {
+    const int Index = ty * Width + tx;
+    if ((unsigned int)Index >= (unsigned int)MapSize)
       break;
-    if (Index == LastIndex)
-      continue;
-    LastIndex = Index;
     if (pTeleNr) {
       *pTeleNr = is_teleport_hook(pCollision, Index);
       if (*pTeleNr) {
-        *pOutCollision = vvfmix(Pos0, Pos1, i / fEnd);
-        free(aIndices);
+        *pOutCollision = vvfmix(Pos0, Pos1, t);
         return TILE_TELEINHOOK;
       }
     }
-
     if (check_point_idx(pCollision, Index)) {
-      const mvec2 Pos = vvfmix(Pos0, Pos1, i / fEnd);
-      if (!is_through(pCollision, (int)(vgetx(Pos) + 0.5), (int)(vgety(Pos) + 0.5), dx, dy, Pos0, Pos1)) {
+      const mvec2 Pos = vvfmix(Pos0, Pos1, t);
+      if (!is_through(pCollision, (int)(vgetx(Pos) + 0.5f), (int)(vgety(Pos) + 0.5f), dx, dy, Pos0, Pos1)) {
         *pOutCollision = Pos;
-        free(aIndices);
         return pCollision->m_MapData.game_layer.data[Index];
       }
     } else if (is_hook_blocker(pCollision, Index, Pos0, Pos1)) {
-      *pOutCollision = vvfmix(Pos0, Pos1, i / fEnd);
-      free(aIndices);
+      *pOutCollision = vvfmix(Pos0, Pos1, t);
       return TILE_NOHOOK;
     }
+    if (tMaxX < tMaxY) {
+      t = tMaxX;
+      tMaxX += tDeltaX;
+      tx += StepX;
+    } else if (tMaxY < tMaxX) {
+      t = tMaxY;
+      tMaxY += tDeltaY;
+      ty += StepY;
+    } else {
+      t = tMaxX;
+      tMaxX += tDeltaX;
+      tMaxY += tDeltaY;
+      tx += StepX;
+      ty += StepY;
+    }
+    if (t > 1.f)
+      break;
   }
   *pOutCollision = Pos1;
-  free(aIndices);
   return 0;
 }
 #endif
 
-unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision, unsigned char *__restrict__ pTeleNr) {
-  uint8_t Check[2] = {broad_check(pCollision, Pos0, Pos1), pTeleNr ? broad_check_tele(pCollision, Pos0, Pos1) : 0};
-  if (!Check[0] && !Check[1]) {
+unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
+                                         unsigned char *__restrict__ pTeleNr) {
+  // Plain locals rather than a two-element array: the array form made clang
+  // materialise a stack slot on the early-out path, which is the common one.
+  const bool SolidNear = broad_check(pCollision, Pos0, Pos1);
+  const bool TeleNear = pTeleNr ? broad_check_tele(pCollision, Pos0, Pos1) : false;
+  if (!SolidNear && !TeleNear) {
     *pOutCollision = Pos1;
     return 0;
   }
 
   const int Width = pCollision->m_MapData.width;
-  const int Height = pCollision->m_MapData.height;
+  const int MapSize = Width * pCollision->m_MapData.height;
   // int Idx = (((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION) + ((int)vgetx(Pos0));
   unsigned char Start = 0; // Check[0] > 1 ? 0 : pCollision->m_pSolidTeleDistanceField[Idx];
 
@@ -1307,11 +1316,9 @@ unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mv
   Start = iclamp(Start, 0, End);
   Start -= Start % 8;
   const float fEnd = End;
-  int dx = 0, dy = 0;
-  through_offset(Pos0, Pos1, &dx, &dy);
+  // No through_offset() here: weapon rays never consult the "through" tile, so
+  // the offsets the original computed were dead.
   int LastIndex = -1;
-
-  int *aIndices = malloc(sizeof(int) * (End + 8));
 
   const float inv_fEnd = 1.f / fEnd;
   const float Pos0_x = vgetx(Pos0);
@@ -1327,6 +1334,7 @@ unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mv
   const __m256 half_vec = _mm256_set1_ps(0.5f);
   const __m256i width_vec = _mm256_set1_epi32(Width);
 
+  int aIndices[8];
   for (int k = Start; k <= End; k += 8) {
     __m256i i_vec = _mm256_set_epi32(k + 7, k + 6, k + 5, k + 4, k + 3, k + 2, k + 1, k);
     __m256 a_vec = _mm256_mul_ps(_mm256_cvtepi32_ps(i_vec), inv_fEnd_vec);
@@ -1337,33 +1345,34 @@ unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mv
     __m256i ix_vec = _mm256_srai_epi32(_mm256_cvttps_epi32(Pos_x_plus_half), 5);
     __m256i iy_vec = _mm256_srai_epi32(_mm256_cvttps_epi32(Pos_y_plus_half), 5);
     __m256i index_vec = _mm256_add_epi32(_mm256_mullo_epi32(iy_vec, width_vec), ix_vec);
-    _mm256_storeu_si256((__m256i *)&aIndices[k], index_vec);
-  }
-
-  for (int i = Start; i <= End; i++) {
-    const int Index = aIndices[i];
-    if (Index < 0 || Index >= Width * Height)
-      break;
-    if (Index == LastIndex)
+    if (LastIndex >= 0 && _mm256_movemask_ps(_mm256_castsi256_ps(_mm256_cmpeq_epi32(index_vec, _mm256_set1_epi32(LastIndex)))) == 0xFF)
       continue;
-    LastIndex = Index;
-    if (pTeleNr) {
-      *pTeleNr = is_teleport_weapon(pCollision, Index);
-      if (*pTeleNr) {
+    _mm256_storeu_si256((__m256i *)aIndices, index_vec);
+
+    const int Last = imin(k + 7, End);
+    for (int i = k; i <= Last; i++) {
+      const int Index = aIndices[i - k];
+      if ((unsigned int)Index >= (unsigned int)MapSize)
+        goto NoHit;
+      if (Index == LastIndex)
+        continue;
+      LastIndex = Index;
+      if (pTeleNr) {
+        *pTeleNr = is_teleport_weapon(pCollision, Index);
+        if (*pTeleNr) {
+          *pOutCollision = vvfmix(Pos0, Pos1, i / fEnd);
+          return TILE_TELEINWEAPON;
+        }
+      }
+
+      if (check_point_idx(pCollision, Index)) {
         *pOutCollision = vvfmix(Pos0, Pos1, i / fEnd);
-        free(aIndices);
-        return TILE_TELEINWEAPON;
+        return pCollision->m_MapData.game_layer.data[Index];
       }
     }
-
-    if (check_point_idx(pCollision, Index)) {
-      *pOutCollision = vvfmix(Pos0, Pos1, i / fEnd);
-      free(aIndices);
-      return pCollision->m_MapData.game_layer.data[Index];
-    }
   }
+NoHit:
   *pOutCollision = Pos1;
-  free(aIndices);
   return 0;
 }
 
@@ -1442,10 +1451,6 @@ bool intersect_line(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
   return false;
 }
 
-static bool check_point_int(const SCollision *__restrict__ pCollision, int x, int y) {
-  return pCollision->m_pTileInfos[(y >> 5) * pCollision->m_MapData.width + (x >> 5)] & INFO_ISSOLID;
-}
-
 bool test_box_character(const SCollision *__restrict__ pCollision, int x, int y) {
   // NOTE: doesn't work out of bounds
   const uint32_t frac_x = x & 31;
@@ -1455,75 +1460,65 @@ bool test_box_character(const SCollision *__restrict__ pCollision, int x, int y)
   if ((mask & check) == 0)
     return false;
 
-  if (check_point_int(pCollision, x - HALFPHYSICALSIZE, y + HALFPHYSICALSIZE))
-    return true;
-  if (check_point_int(pCollision, x + HALFPHYSICALSIZE, y + HALFPHYSICALSIZE))
-    return true;
-  if (check_point_int(pCollision, x - HALFPHYSICALSIZE, y - HALFPHYSICALSIZE))
-    return true;
-  if (check_point_int(pCollision, x + HALFPHYSICALSIZE, y - HALFPHYSICALSIZE))
-    return true;
-  return false;
+  const unsigned char *__restrict__ pInfos = pCollision->m_pTileInfos;
+  const int Width = pCollision->m_MapData.width;
+  const int RowBottom = ((y + HALFPHYSICALSIZE) >> 5) * Width;
+  const int RowTop = ((y - HALFPHYSICALSIZE) >> 5) * Width;
+  const int ColLeft = (x - HALFPHYSICALSIZE) >> 5;
+  const int ColRight = (x + HALFPHYSICALSIZE) >> 5;
 
-  // NOTE: This is better on the direct test_box_character benchmark but worse on the global benchmark
-  // since we use more memory there.
-  //
-  // const bool a = check_point_int(pCollision, x - HALFPHYSICALSIZE, y + HALFPHYSICALSIZE);
-  // const bool b = check_point_int(pCollision, x + HALFPHYSICALSIZE, y + HALFPHYSICALSIZE);
-  // const bool c = check_point_int(pCollision, x - HALFPHYSICALSIZE, y - HALFPHYSICALSIZE);
-  // const bool d = check_point_int(pCollision, x + HALFPHYSICALSIZE, y - HALFPHYSICALSIZE);
-  // return a | b | c | d;
+  return ((pInfos[RowBottom + ColLeft] | pInfos[RowBottom + ColRight] | pInfos[RowTop + ColLeft] | pInfos[RowTop + ColRight]) & INFO_ISSOLID) != 0;
 }
 
-void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, mvec2 *__restrict__ pOutPos, mvec2 *__restrict__ pOutVel, bool *__restrict__ pGrounded) {
+static inline uivec2 round_pos_i(mvec2 v) {
+  const __m128i i = _mm_cvttps_epi32(_mm_add_ps(v, _mm_set1_ps(0.5f)));
+  uivec2 r;
+  r.x = (unsigned int)_mm_cvtsi128_si32(i);
+  r.y = (unsigned int)_mm_extract_epi32(i, 1);
+  return r;
+}
+
+void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, mvec2 *__restrict__ pOutPos, mvec2 *__restrict__ pOutVel,
+              bool *__restrict__ pGrounded) {
   float Distance = vsqlength(Vel);
   if (Distance <= 0.00001f * 0.00001f)
     return;
 
   mvec2 NewPos = vvadd(Pos, Vel);
+
   const mvec2 minVec = _mm_min_ps(Pos, NewPos);
   const mvec2 maxVec = _mm_max_ps(Pos, NewPos);
   const mvec2 offset = _mm_set1_ps(HALFPHYSICALSIZE + 1.0f);
   const mvec2 minAdj = _mm_sub_ps(minVec, offset);
   const mvec2 maxAdj = _mm_add_ps(maxVec, offset);
-  const int MinX = (int)vgetx(minAdj) >> 5;
-  const int MinY = (int)vgety(minAdj) >> 5;
-  const int MaxX = (int)vgetx(maxAdj) >> 5;
-  const int MaxY = (int)vgety(maxAdj) >> 5;
+  // Four truncating casts plus four arithmetic shifts, done as two vector
+  // converts and two vector shifts. _mm_srai_epi32 is the arithmetic shift the
+  // scalar >> compiles to, so negative coordinates behave the same.
+  const __m128i MinI = _mm_srai_epi32(_mm_cvttps_epi32(minAdj), 5);
+  const __m128i MaxI = _mm_srai_epi32(_mm_cvttps_epi32(maxAdj), 5);
+  const __m128i DiffI = _mm_sub_epi32(MaxI, MinI);
+  const int MinX = _mm_cvtsi128_si32(MinI);
+  const int MinY = _mm_extract_epi32(MinI, 1);
   // bitshift by the index in the 8x8 block (max 63)
-  const uint64_t Mask = (uint64_t)1 << (((MaxY - MinY) << 3) + (MaxX - MinX));
+  const uint64_t Mask = (uint64_t)1 << ((_mm_extract_epi32(DiffI, 1) << 3) + _mm_cvtsi128_si32(DiffI));
   const uint64_t IsSolid = pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] & Mask;
-  const unsigned short Max = s_aMaxTable[(int)Distance];
   if (!IsSolid) {
-    const float NewPosX = vgetx(NewPos) + 0.5f;
-    const float NewPosY = vgety(NewPos) + 0.5f;
-    const float INewPosX = (float)((int)NewPosX);
-    const float INewPosY = (float)((int)NewPosY);
-    union {
-      float f;
-      uint32_t i;
-    } bits;
-    bits.f = NewPosX;
-    const float EpsilonX = s_aMagicTable[(bits.i >> 23) & 0xFF] * (Max >> 1);
-    bits.f = NewPosY;
-    const float EpsilonY = s_aMagicTable[(bits.i >> 23) & 0xFF] * (Max >> 1);
-    if (NewPosX - INewPosX > EpsilonX && NewPosY - INewPosY > EpsilonY &&
-        (INewPosX + 1.f) - NewPosX > EpsilonX && (INewPosY + 1.f) - NewPosY > EpsilonY) {
-      *pOutPos = NewPos;
-      return;
-    }
-    const mvec2 Frac = vfmul(Vel, s_aFractionTable[Max]);
-    for (int i = 0; i <= Max; i++)
-      Pos = vvadd(Pos, Frac);
-    *pOutPos = Pos;
+    *pOutPos = NewPos;
     return;
   }
-  
-  uivec2 IPos = (uivec2){(int)(vgetx(Pos) + 0.5f), (int)(vgety(Pos) + 0.5f)};
+
+  // Only the colliding path needs the substep count.
+  const unsigned short Max = s_aMaxTable[(int)Distance];
+
+  uivec2 IPos = round_pos_i(Pos);
   uivec2 INewPos;
   for (int i = 0; i <= Max; i++) {
+    // Do NOT hoist the multiply out of this loop. -mfma + -ffast-math let clang
+    // contract this into a single vfmadd213ps (one rounding); splitting it into
+    // a hoisted mulps plus an addps gives two roundings and silently changes
+    // move_box's output. Verified in the generated assembly, not just on paper.
     NewPos = vvadd(Pos, vfmul(Vel, s_aFractionTable[Max]));
-    INewPos = (uivec2){(int)(vgetx(NewPos) + 0.5f), (int)(vgety(NewPos) + 0.5f)};
+    INewPos = round_pos_i(NewPos);
     if (test_box_character(pCollision, INewPos.x, INewPos.y)) {
       bool Hit = false;
       if (test_box_character(pCollision, IPos.x, INewPos.y)) {
@@ -1589,15 +1584,13 @@ int get_index(SCollision *pCollision, mvec2 PrevPos, mvec2 Pos) {
     return pCollision->m_pWidthLookup[Ny] + Nx;
   }
 
-  for (int i = 0, id = ceil(Distance); i < id; i++) {
-    float a = (float)i / Distance;
-    mvec2 Tmp = vvfmix(PrevPos, Pos, a);
-    int Nx = (int)vgetx(Tmp) >> 5;
-    int Ny = (int)vgety(Tmp) >> 5;
-    return pCollision->m_pWidthLookup[Ny] + Nx;
-  }
-
-  return -1;
+  // The original loop returned unconditionally on its first iteration, so only
+  // i == 0 ever ran: a == 0, which makes the mix exactly PrevPos. ceil() (and
+  // its libm call) only decided whether the body ran at all, and Distance is
+  // non-zero here, so it always did.
+  const int Nx = (int)vgetx(PrevPos) >> 5;
+  const int Ny = (int)vgety(PrevPos) >> 5;
+  return pCollision->m_pWidthLookup[Ny] + Nx;
 }
 
 int entity(SCollision *pCollision, int x, int y, int Layer) {

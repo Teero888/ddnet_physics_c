@@ -60,7 +60,14 @@ typedef struct TuningParams {
 #define MACRO_TUNING_PARAM(Name, Value) float m_##Name;
 #include <ddnet_physics/tuning.h>
 #undef MACRO_TUNING_PARAM
+  // Derived, not a tunable: the default max speed a TILE_SPEED_BOOST tile with
+  // MaxSpeed == 0 falls back to. It depends only on the velramp tunings, so it is
+  // folded once instead of calling logf() on every boost tile hit.
+  float m_SpeedupDefaultMaxSpeed;
 } STuningParams;
+
+// Recomputes the derived members above. Call after any change to the tunables.
+DDNET_PHYSICS_API void tuning_update_derived(STuningParams *pTuning);
 
 enum {
   POWERUP_HEALTH,
@@ -111,6 +118,14 @@ typedef struct Collision {
   bool m_MoveRestrictionsFound;
   bool m_aFastcapFlagPresent[2];
   mvec2 m_aFastcapFlagPositions[2];
+  // (width * 32 - (HALFPHYSICALSIZE + 2), height * 32 - (HALFPHYSICALSIZE + 2)),
+  // the upper bound cc_move tests every tick. Derived from the map dimensions,
+  // so it is folded once at init instead of being rebuilt from two int loads,
+  // two converts and two multiplies on every character move.
+  mvec2 m_MapMaxPos;
+  // (width * 32 - 1, height * 32 - 1): the clip box the hook and laser segments
+  // are cut against. Folded at init so the common in-bounds test is one load.
+  mvec2 m_MapClipMax;
 } SCollision;
 
 // Takes ownership of pMap
