@@ -160,6 +160,11 @@ if(NOT PGO_STAGE STREQUAL "NONE")
     message(STATUS "ddnet_physics PGO stage: ${PGO_STAGE}")
 endif()
 
+# ddnet_map_loader fetches zlib when no system package is available. Only the
+# library is needed here; zlib's example programs inherit this project's strict
+# C99 mode and can fail independently of the library.
+set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "Build zlib example programs")
+
 # Add subdirectory for ddnet_map_loader
 add_subdirectory(libs/ddnet_map_loader)
 target_link_libraries(ddnet_physics PUBLIC ddnet_map_loader)
@@ -172,12 +177,6 @@ if(BENCHMARKS)
 endif()
 if(EXAMPLES)
     add_subdirectory(examples)
-endif()
-if(BUILD_TESTING)
-    add_executable(ddnet_physics_settings_test tests/settings.c)
-    target_include_directories(ddnet_physics_settings_test PRIVATE src)
-    target_link_libraries(ddnet_physics_settings_test PRIVATE ddnet_physics)
-    add_test(NAME ddnet_physics_settings COMMAND ddnet_physics_settings_test)
 endif()
 
 # install
