@@ -722,6 +722,7 @@ void cc_init(SCharacterCore *pCore, SWorldCore *pWorld) {
   pCore->m_StartTick = -1;
   pCore->m_FinishTick = -1;
   pCore->m_RaceTime = -1.0f;
+  pCore->m_LastTimeCp = -1;
   pCore->m_FastcapStartTeam = -1;
   pCore->m_DamageTick = -GAME_TICK_SPEED;
 
@@ -1266,6 +1267,21 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index, float FractionOfTick) {
   int TileIndex = get_tile_index(pCore->m_pCollision, MapIndex);
   int TileFIndex = pCore->m_pCollision->m_MapData.front_layer.data ? get_front_tile_index(pCore->m_pCollision, MapIndex) : 0;
 
+  const int TimeCpTiles[2] = {TileIndex, TileFIndex};
+  for (int Layer = 0; Layer < 2; ++Layer) {
+    const int Tile = TimeCpTiles[Layer];
+    if (Tile < TILE_TIME_CHECKPOINT_FIRST || Tile > TILE_TIME_CHECKPOINT_LAST || pCore->m_StartTick < 0)
+      continue;
+    const int TimeCp = Tile - TILE_TIME_CHECKPOINT_FIRST;
+    const uint32_t Bit = (uint32_t)1 << TimeCp;
+    if (pCore->m_TimeCpMask & Bit)
+      continue;
+    pCore->m_TimeCpMask |= Bit;
+    pCore->m_LastTimeCp = TimeCp;
+    pCore->m_aTimeCp[TimeCp] =
+        ((float)pCore->m_pWorld->m_GameTick + FractionOfTick - (float)pCore->m_StartTime - pCore->m_StartTickOffset) / GAME_TICK_SPEED;
+  }
+
   // teleport checkpoint
   if (pCore->m_pCollision->m_MapData.tele_layer.type) {
     int TeleCheckpoint = is_tele_checkpoint(pCore->m_pCollision, MapIndex);
@@ -1360,6 +1376,9 @@ static void cc_unique_race_start(SCharacterCore *pCore, float FractionOfTick) {
   pCore->m_StartTickOffset = FractionOfTick;
   pCore->m_FinishTickOffset = 0.0f;
   pCore->m_RaceTime = -1.0f;
+  memset(pCore->m_aTimeCp, 0, sizeof(pCore->m_aTimeCp));
+  pCore->m_TimeCpMask = 0;
+  pCore->m_LastTimeCp = -1;
 }
 
 static void cc_unique_race_finish(SCharacterCore *pCore, float FractionOfTick) {

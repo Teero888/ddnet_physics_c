@@ -38,6 +38,7 @@ typedef enum {
 } EGameMode;
 
 enum { WEAPON_HAMMER = 0, WEAPON_GUN, WEAPON_SHOTGUN, WEAPON_GRENADE, WEAPON_LASER, WEAPON_NINJA, NUM_WEAPONS };
+enum { NUM_TIME_CHECKPOINTS = 25 };
 
 typedef struct {
   int8_t m_Direction;
@@ -312,6 +313,9 @@ typedef struct CharacterCore {
   float m_StartTickOffset;
   float m_FinishTickOffset;
   float m_RaceTime; // finished time in seconds, -1 while unfinished
+  float m_aTimeCp[NUM_TIME_CHECKPOINTS];
+  uint32_t m_TimeCpMask;
+  int m_LastTimeCp;
   float m_TileFraction;
   bool m_aGotFastcapFlag[2];
   int m_FastcapStartTeam; // -1 before starting, 0 for red, 1 for blue
