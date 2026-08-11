@@ -69,7 +69,10 @@ static void cc_handle_tile_npc_disable(SCharacterCore *pCore) { pCore->m_Collisi
 static void cc_handle_tile_npc_enable(SCharacterCore *pCore) { pCore->m_CollisionDisabled = false; }
 static void cc_handle_tile_nph_disable(SCharacterCore *pCore) { pCore->m_HookHitDisabled = true; }
 static void cc_handle_tile_nph_enable(SCharacterCore *pCore) { pCore->m_HookHitDisabled = false; }
-static void cc_handle_tile_solo_disable(SCharacterCore *pCore) {  if(!pCore->m_pWorld->m_pConfig->m_SvSoloServer) pCore->m_Solo = false; }
+static void cc_handle_tile_solo_disable(SCharacterCore *pCore) {
+  if (!pCore->m_pWorld->m_pConfig->m_SvSoloServer)
+    pCore->m_Solo = false;
+}
 static void cc_handle_tile_solo_enable(SCharacterCore *pCore) { pCore->m_Solo = true; }
 static void cc_handle_tile_jumps_disable(SCharacterCore *pCore) { pCore->m_EndlessJump = false; }
 static void cc_handle_tile_jumps_enable(SCharacterCore *pCore) { pCore->m_EndlessJump = true; }

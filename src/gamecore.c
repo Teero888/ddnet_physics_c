@@ -822,16 +822,17 @@ void cc_quantize(SCharacterCore *pCore) {
   // m_HookDir is only ever written when the hook fires or teleports. Quantisation
   // is idempotent, so re-snapping them every tick is pure work.
   if (pCore->m_HookState != HOOK_IDLE && pCore->m_HookState != HOOK_RETRACTED) {
-  // Quantize m_HookPos
+    // Quantize m_HookPos
     __m128 hook_pos = pCore->m_HookPos;
     __m128 hook_pos_plus_half = _mm_add_ps(hook_pos, half);
     __m128i hook_pos_int = _mm_cvttps_epi32(hook_pos_plus_half);
     __m128 hook_pos_rounded = _mm_cvtepi32_ps(hook_pos_int);
     pCore->m_HookPos = hook_pos_rounded;
-  // Quantize m_HookDir
+    // Quantize m_HookDir
     __m128 hook_dir = pCore->m_HookDir;
     __m128 hook_dir_scaled = _mm_mul_ps(hook_dir, scale);
-    __m128 adjusted_hook_dir = _mm_blendv_ps(_mm_sub_ps(hook_dir_scaled, half), _mm_add_ps(hook_dir_scaled, half), _mm_cmpge_ps(hook_dir_scaled, zero));
+    __m128 adjusted_hook_dir =
+        _mm_blendv_ps(_mm_sub_ps(hook_dir_scaled, half), _mm_add_ps(hook_dir_scaled, half), _mm_cmpge_ps(hook_dir_scaled, zero));
     __m128i hook_dir_int = _mm_cvttps_epi32(adjusted_hook_dir);
     __m128 hook_dir_rounded = _mm_cvtepi32_ps(hook_dir_int);
     pCore->m_HookDir = _mm_mul_ps(hook_dir_rounded, inv_scale);
@@ -1322,8 +1323,7 @@ void cc_handle_tiles(SCharacterCore *pCore, int Index, float FractionOfTick) {
 
   // m_IsInFreeze was cleared on entry, so this can assign the OR directly
   // instead of branching four times to maybe set it.
-  pCore->m_IsInFreeze =
-      (TileIndex == TILE_FREEZE) | (TileFIndex == TILE_FREEZE) | (TileIndex == TILE_DFREEZE) | (TileFIndex == TILE_DFREEZE);
+  pCore->m_IsInFreeze = (TileIndex == TILE_FREEZE) | (TileFIndex == TILE_FREEZE) | (TileIndex == TILE_DFREEZE) | (TileFIndex == TILE_DFREEZE);
 
   if (vgety(pCore->m_Vel) > 0 && (pCore->m_MoveRestrictions & CANTMOVE_DOWN)) {
     pCore->m_Jumped = 0;
@@ -1849,8 +1849,8 @@ void cc_pre_tick(SCharacterCore *pCore) {
         pCore->m_HookedPlayer = -1;
         mvec2 TargetDirection = vnormalize(vec2_init(pCore->m_Input.m_TargetX, pCore->m_Input.m_TargetY));
         pCore->m_NewHook = true;
-        pCore->m_HookPos = vvadd(pCore->m_pCollision->m_apTeleOuts[teleNr][pCore->m_Input.m_TeleOut % NumOuts],
-                                 vfmul(vfmul(TargetDirection, PHYSICALSIZE), 1.5f));
+        pCore->m_HookPos =
+            vvadd(pCore->m_pCollision->m_apTeleOuts[teleNr][pCore->m_Input.m_TeleOut % NumOuts], vfmul(vfmul(TargetDirection, PHYSICALSIZE), 1.5f));
         pCore->m_HookDir = TargetDirection;
         pCore->m_HookTeleBase = pCore->m_HookPos;
       } else {
