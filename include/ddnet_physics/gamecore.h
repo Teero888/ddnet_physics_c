@@ -170,8 +170,6 @@ static inline void set_flag_emote_index(SPlayerInput *p, uint8_t index) {
 
 enum { WORLD_ENTTYPE_PROJECTILE = 0, WORLD_ENTTYPE_LASER, NUM_WORLD_ENTTYPES };
 
-DDNET_PHYSICS_API bool is_switch_active_cb(int Number, void *pUser);
-
 // Entities {{{
 
 typedef struct Entity {

@@ -788,11 +788,6 @@ void cc_unfreeze(SCharacterCore *pCore) {
   pCore->m_FrozenLastTick = true;
 }
 
-bool is_switch_active_cb(int Number, void *pUser) {
-  SCharacterCore *pThis = (SCharacterCore *)pUser;
-  return pThis->m_pWorld->m_pSwitches && pThis->m_pWorld->m_pSwitches[Number].m_Status;
-}
-
 void cc_quantize(SCharacterCore *pCore) {
   // Common constants
   __m128 half = _mm_set1_ps(0.5f);
@@ -937,16 +932,6 @@ void cc_move(SCharacterCore *pCore) {
     pCore->m_Vel = vsetx(pCore->m_Vel, velX * (1.f / RampValue));
 
   pCore->m_Pos = NewPos;
-  // Indices and move restrictions are deferred to cc_world_tick_deferred, after
-  // cc_quantize. cc_calc_indices used to run twice per tick - once here on the
-  // raw position and again on the quantised one - and quantising moves the
-  // position by under half a unit, so the block index is the same either way.
-}
-
-void cc_world_tick_deferred(SCharacterCore *pCore) {
-  cc_move(pCore);
-  cc_quantize(pCore); // also refreshes m_BlockIdx / m_BlockInfo
-  pCore->m_MoveRestrictions = get_move_restrictions(pCore->m_pCollision, pCore, pCore->m_Pos, pCore->m_BlockIdx);
 }
 
 static inline float fast_rand(unsigned int *state) {
@@ -2740,8 +2725,11 @@ void wc_tick(SWorldCore *pCore) {
   // Do tick deferred
   // funny thing no other entities than the character actually have a deferred
   // tick function lol
-  for (int i = 0; i < NumCharacters; ++i)
-    cc_world_tick_deferred(&pCharacters[i]);
+  for (int i = 0; i < NumCharacters; ++i) {
+    cc_move(&pCharacters[i]);
+    cc_quantize(&pCharacters[i]); // also refreshes m_BlockIdx / m_BlockInfo
+    pCharacters[i].m_MoveRestrictions = get_move_restrictions(pCore, pCharacters[i].m_Pos, pCharacters[i].m_BlockIdx);
+  }
 
   // Remove all entities that are marked for destroy
   for (int i = 0; i < NUM_WORLD_ENTTYPES; ++i) {

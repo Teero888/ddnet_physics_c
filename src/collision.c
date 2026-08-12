@@ -1039,8 +1039,9 @@ unsigned char get_front_collision_at(SCollision *pCollision, mvec2 Pos) {
   return Idx * (Idx - 1 <= TILE_NOLASER - 1);
 }
 
-unsigned char get_move_restrictions(SCollision *__restrict__ pCollision, void *__restrict__ pUser, mvec2 Pos, int Idx) {
+unsigned char get_move_restrictions(SWorldCore *pWorld, mvec2 Pos, int Idx) {
 
+  SCollision *pCollision = pWorld->m_pCollision;
   if (!pCollision->m_MoveRestrictionsFound && !pCollision->m_MapData.door_layer.index)
     return 0;
   if (!(pCollision->m_pTileInfos[Idx] & INFO_CANHITSTOPPER))
@@ -1057,7 +1058,7 @@ unsigned char get_move_restrictions(SCollision *__restrict__ pCollision, void *_
     Restrictions |= pCollision->m_pMoveRestrictions[ModMapIndex][d];
 
     if (pCollision->m_MapData.door_layer.index && pCollision->m_MapData.door_layer.index[ModMapIndex]) {
-      if (is_switch_active_cb(pCollision->m_MapData.door_layer.number[ModMapIndex], pUser)) {
+      if (pWorld->m_pSwitches && pWorld->m_pSwitches[pCollision->m_MapData.door_layer.number[ModMapIndex]].m_Status) {
         Restrictions |=
             move_restrictions(d, pCollision->m_MapData.door_layer.index[ModMapIndex], pCollision->m_MapData.door_layer.flags[ModMapIndex]);
       }
@@ -1240,7 +1241,6 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec
   const float ddx = x1 - x0, ddy = y1 - y0;
 
   int tx = (int)x0 >> 5, ty = (int)y0 >> 5;
-  const int etx = (int)x1 >> 5, ety = (int)y1 >> 5;
   const int StepX = ddx > 0.f ? 1 : -1, StepY = ddy > 0.f ? 1 : -1;
   const float AbsDx = ddx > 0.f ? ddx : -ddx, AbsDy = ddy > 0.f ? ddy : -ddy;
   float tMaxX = AbsDx > 0.f ? (((ddx > 0.f ? (float)((tx + 1) << 5) : (float)(tx << 5)) - x0) / ddx) : FLT_MAX;

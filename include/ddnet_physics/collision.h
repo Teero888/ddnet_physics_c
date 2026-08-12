@@ -30,6 +30,8 @@ extern "C" {
 #include <ddnet_map_loader.h>
 #include <stdint.h>
 
+struct WorldCore;
+
 enum {
   CANTMOVE_LEFT = 1 << 0,
   CANTMOVE_RIGHT = 1 << 1,
@@ -150,7 +152,7 @@ DDNET_PHYSICS_API unsigned char is_check_evil_teleport(SCollision *pCollision, i
 DDNET_PHYSICS_API unsigned char is_tele_checkpoint(SCollision *pCollision, int Index);
 DDNET_PHYSICS_API unsigned char get_collision_at(SCollision *pCollision, mvec2 Pos);
 DDNET_PHYSICS_API unsigned char get_front_collision_at(SCollision *pCollision, mvec2 Pos);
-DDNET_PHYSICS_API unsigned char get_move_restrictions(SCollision *pCollision, void *pUser, mvec2 Pos, int Idx);
+DDNET_PHYSICS_API unsigned char get_move_restrictions(struct WorldCore *pWorld, mvec2 Pos, int Idx);
 DDNET_PHYSICS_API int get_map_index(SCollision *pCollision, mvec2 Pos);
 DDNET_PHYSICS_API bool check_point(SCollision *pCollision, mvec2 Pos);
 DDNET_PHYSICS_API bool is_hook_blocker(SCollision *pCollision, int Index, mvec2 Pos0, mvec2 Pos1);
