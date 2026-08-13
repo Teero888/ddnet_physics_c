@@ -1451,23 +1451,27 @@ bool intersect_line(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
   return false;
 }
 
-bool test_box_character(const SCollision *__restrict__ pCollision, int x, int y) {
-  // NOTE: doesn't work out of bounds
+static inline bool test_box_character_mask(const SCollision *__restrict__ pCollision, unsigned int x, unsigned int y, uint32_t BoundaryMaskX,
+                                           uint32_t BoundaryMaskY) {
+  // Character coordinates are always positive and inside the expanded map.
   const uint32_t frac_x = x & 31;
   const uint32_t frac_y = y & 31;
-  const uint32_t mask = (1U << 13) | (1U << 18);
-  uint32_t check = (1U << frac_x) | (1U << frac_y);
-  if ((mask & check) == 0)
+  if (((BoundaryMaskX >> frac_x) & 1U) == 0 && ((BoundaryMaskY >> frac_y) & 1U) == 0)
     return false;
 
   const unsigned char *__restrict__ pInfos = pCollision->m_pTileInfos;
-  const int Width = pCollision->m_MapData.width;
-  const int RowBottom = ((y + HALFPHYSICALSIZE) >> 5) * Width;
-  const int RowTop = ((y - HALFPHYSICALSIZE) >> 5) * Width;
-  const int ColLeft = (x - HALFPHYSICALSIZE) >> 5;
-  const int ColRight = (x + HALFPHYSICALSIZE) >> 5;
+  const unsigned int Width = pCollision->m_MapData.width;
+  const unsigned int RowBottom = ((y + HALFPHYSICALSIZE) >> 5) * Width;
+  const unsigned int RowTop = ((y - HALFPHYSICALSIZE) >> 5) * Width;
+  const unsigned int ColLeft = (x - HALFPHYSICALSIZE) >> 5;
+  const unsigned int ColRight = (x + HALFPHYSICALSIZE) >> 5;
 
   return ((pInfos[RowBottom + ColLeft] | pInfos[RowBottom + ColRight] | pInfos[RowTop + ColLeft] | pInfos[RowTop + ColRight]) & INFO_ISSOLID) != 0;
+}
+
+bool test_box_character(const SCollision *__restrict__ pCollision, int x, int y) {
+  const uint32_t BoundaryMask = (1U << 13) | (1U << 18);
+  return test_box_character_mask(pCollision, (unsigned int)x, (unsigned int)y, BoundaryMask, BoundaryMask);
 }
 
 static inline uivec2 round_pos_i(mvec2 v) {
@@ -1480,8 +1484,9 @@ static inline uivec2 round_pos_i(mvec2 v) {
 
 void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, mvec2 *__restrict__ pOutPos, mvec2 *__restrict__ pOutVel,
               bool *__restrict__ pGrounded) {
-  float Distance = vsqlength(Vel);
-  if (Distance <= 0.00001f * 0.00001f)
+  const mvec2 AbsVel = _mm_andnot_ps(_mm_set1_ps(-0.0f), Vel);
+  const float MaxComponent = _mm_cvtss_f32(_mm_max_ss(AbsVel, _mm_shuffle_ps(AbsVel, AbsVel, _MM_SHUFFLE(1, 1, 1, 1))));
+  if (MaxComponent <= 0.00001f)
     return;
 
   mvec2 NewPos = vvadd(Pos, Vel);
@@ -1491,51 +1496,56 @@ void move_box(const SCollision *__restrict__ pCollision, mvec2 Pos, mvec2 Vel, m
   const mvec2 offset = _mm_set1_ps(HALFPHYSICALSIZE + 1.0f);
   const mvec2 minAdj = _mm_sub_ps(minVec, offset);
   const mvec2 maxAdj = _mm_add_ps(maxVec, offset);
-  // Four truncating casts plus four arithmetic shifts, done as two vector
-  // converts and two vector shifts. _mm_srai_epi32 is the arithmetic shift the
-  // scalar >> compiles to, so negative coordinates behave the same.
-  const __m128i MinI = _mm_srai_epi32(_mm_cvttps_epi32(minAdj), 5);
-  const __m128i MaxI = _mm_srai_epi32(_mm_cvttps_epi32(maxAdj), 5);
+  // The expanded map keeps the entire swept box in positive coordinates, so
+  // logical shifts preserve the tile indices and address math stays unsigned.
+  const __m128i MinI = _mm_srli_epi32(_mm_cvttps_epi32(minAdj), 5);
+  const __m128i MaxI = _mm_srli_epi32(_mm_cvttps_epi32(maxAdj), 5);
   const __m128i DiffI = _mm_sub_epi32(MaxI, MinI);
-  const int MinX = _mm_cvtsi128_si32(MinI);
-  const int MinY = _mm_extract_epi32(MinI, 1);
+  const unsigned int MinX = _mm_cvtsi128_si32(MinI);
+  const unsigned int MinY = _mm_extract_epi32(MinI, 1);
   // bitshift by the index in the 8x8 block (max 63)
   const uint64_t Mask = (uint64_t)1 << ((_mm_extract_epi32(DiffI, 1) << 3) + _mm_cvtsi128_si32(DiffI));
-  const uint64_t IsSolid = pCollision->m_pBroadSolidBitField[(MinY * pCollision->m_MapData.width) + MinX] & Mask;
+  const unsigned int BroadIndex = MinY * (unsigned int)pCollision->m_MapData.width + MinX;
+  const uint64_t IsSolid = pCollision->m_pBroadSolidBitField[BroadIndex] & Mask;
   if (!IsSolid) {
     *pOutPos = NewPos;
     return;
   }
 
-  // Only the colliding path needs the substep count.
-  const unsigned short Max = s_aMaxTable[(int)Distance];
+  // Two-unit sampling cuts the loop count roughly in half. The widened mask
+  // below covers both possible rounded coordinates after crossing a tile edge.
+  const unsigned short Max = (unsigned short)(MaxComponent * 0.5f);
+  const uint32_t NegativeBoundaryMask = (1U << 12) | (1U << 13);
+  const uint32_t PositiveBoundaryMask = (1U << 18) | (1U << 19);
+  const uint32_t BoundaryMaskX = vgetx(Vel) > 0.0f ? PositiveBoundaryMask : NegativeBoundaryMask;
+  const uint32_t BoundaryMaskY = vgety(Vel) > 0.0f ? PositiveBoundaryMask : NegativeBoundaryMask;
+  mvec2 Step = vfmul(Vel, s_aFractionTable[Max]);
 
   uivec2 IPos = round_pos_i(Pos);
   uivec2 INewPos;
   for (int i = 0; i <= Max; i++) {
-    // Do NOT hoist the multiply out of this loop. -mfma + -ffast-math let clang
-    // contract this into a single vfmadd213ps (one rounding); splitting it into
-    // a hoisted mulps plus an addps gives two roundings and silently changes
-    // move_box's output. Verified in the generated assembly, not just on paper.
-    NewPos = vvadd(Pos, vfmul(Vel, s_aFractionTable[Max]));
+    NewPos = vvadd(Pos, Step);
     INewPos = round_pos_i(NewPos);
-    if (test_box_character(pCollision, INewPos.x, INewPos.y)) {
+    if (test_box_character_mask(pCollision, INewPos.x, INewPos.y, BoundaryMaskX, BoundaryMaskY)) {
       bool Hit = false;
-      if (test_box_character(pCollision, IPos.x, INewPos.y)) {
+      if (test_box_character_mask(pCollision, IPos.x, INewPos.y, BoundaryMaskX, BoundaryMaskY)) {
         if (vgety(Vel) > 0)
           *pGrounded = true;
         NewPos = vsety(NewPos, vgety(Pos));
         Vel = vsety(Vel, 0);
+        Step = vsety(Step, 0);
         Hit = true;
       }
-      if (test_box_character(pCollision, INewPos.x, IPos.y)) {
+      if (test_box_character_mask(pCollision, INewPos.x, IPos.y, BoundaryMaskX, BoundaryMaskY)) {
         NewPos = vsetx(NewPos, vgetx(Pos));
         Vel = vsetx(Vel, 0);
+        Step = vsetx(Step, 0);
         Hit = true;
       }
       if (!Hit) {
         NewPos = Pos;
         Vel = vec2_init(0, 0);
+        Step = vec2_init(0, 0);
       }
     }
     IPos = INewPos;
