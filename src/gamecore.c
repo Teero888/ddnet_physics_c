@@ -64,6 +64,11 @@ void init_config(SConfig *pConfig) {
 #undef MACRO_CONFIG_INT
 }
 
+static inline void emit_sound(SWorldCore *pWorld, mvec2 Pos, ESoundType Sound, int ClientId) {
+  if (pWorld->sound)
+    pWorld->sound(Pos, Sound, ClientId, pWorld->user_data);
+}
+
 // TODO: implement guns, doors, lasers, lights and draggers
 
 // Physics helper functions {{{
@@ -297,6 +302,7 @@ void lsr_bounce(SLaser *pLaser) {
       } else {
         pLaser->m_Bounces++;
         pLaser->m_WasTele = false;
+        emit_sound(pLaser->m_Base.m_pWorld, pLaser->m_Base.m_Pos, SOUND_TYPE_LASER_BOUNCE, pLaser->m_Owner);
       }
       if (pLaser->m_Bounces > pLaser->m_pTuning->m_LaserBounceNum)
         pLaser->m_Energy = -1;
@@ -855,6 +861,8 @@ void cc_die(SCharacterCore *pCore) {
       pCore->m_pWorld->particle(PrevPos, PARTICLE_TYPE_PLAYER_DEATH, Id, pCore->m_pWorld->user_data);
     if (pCore->m_pWorld->particle)
       pCore->m_pWorld->particle(SpawnPos, PARTICLE_TYPE_PLAYER_SPAWN, Id, pCore->m_pWorld->user_data);
+    emit_sound(pCore->m_pWorld, PrevPos, SOUND_TYPE_PLAYER_DIE, Id);
+    emit_sound(pCore->m_pWorld, SpawnPos, SOUND_TYPE_PLAYER_SPAWN, Id);
 
     pCore->m_Pos = SpawnPos;
     pCore->m_PrevPos = SpawnPos;
@@ -1586,6 +1594,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
     if (!(pCore->m_Jumped & 1)) {
       if (Grounded && (!(pCore->m_Jumped & 2) || pCore->m_Jumps != 0)) {
         pCore->m_Vel = vsety(pCore->m_Vel, -pCore->m_pTuning->m_GroundJumpImpulse);
+        emit_sound(pCore->m_pWorld, pCore->m_Pos, SOUND_TYPE_PLAYER_JUMP, pCore->m_Id);
         if (pCore->m_Jumps > 1) {
           pCore->m_Jumped |= 1;
         } else {
@@ -1595,6 +1604,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
       } else if (!(pCore->m_Jumped & 2)) {
         if (pCore->m_pWorld->particle)
           pCore->m_pWorld->particle(pCore->m_Pos, PARTICLE_TYPE_AIR_JUMP, pCore->m_Id, pCore->m_pWorld->user_data);
+        emit_sound(pCore->m_pWorld, pCore->m_Pos, SOUND_TYPE_PLAYER_AIRJUMP, pCore->m_Id);
 
         pCore->m_Vel = vsety(pCore->m_Vel, -pCore->m_pTuning->m_AirJumpImpulse);
         pCore->m_Jumped |= 3;
@@ -1656,6 +1666,7 @@ void cc_pre_tick(SCharacterCore *pCore) {
     if (vsqdistance(HookBase, NewPos) > pCore->m_pTuning->m_HookLength * pCore->m_pTuning->m_HookLength) {
       pCore->m_HookState = HOOK_RETRACT_START;
       NewPos = vvadd(HookBase, vfmul(vnormalize_nomask(vvsub(NewPos, HookBase)), pCore->m_pTuning->m_HookLength));
+      emit_sound(pCore->m_pWorld, pCore->m_Pos, SOUND_TYPE_HOOK_NOATTACH, pCore->m_Id);
     }
     // NOTE: this only really matters at the edge of the map but since we offset maps by 200 block idk if it actually matters. might remove this if it
     // ends up being a hot path. same for this logic in laser bounce
@@ -1820,14 +1831,17 @@ void cc_pre_tick(SCharacterCore *pCore) {
 
       if (pCore->m_HookedPlayer != -1) {
         pCore->m_HookState = HOOK_GRABBED;
+        emit_sound(pCore->m_pWorld, pCore->m_Pos, SOUND_TYPE_HOOK_ATTACH_PLAYER, pCore->m_Id);
       }
     }
 
     if (pCore->m_HookState == HOOK_FLYING) {
       if (GoingToHitGround) {
         pCore->m_HookState = HOOK_GRABBED;
+        emit_sound(pCore->m_pWorld, pCore->m_Pos, SOUND_TYPE_HOOK_ATTACH_GROUND, pCore->m_Id);
       } else if (GoingToRetract) {
         pCore->m_HookState = HOOK_RETRACT_START;
+        emit_sound(pCore->m_pWorld, pCore->m_Pos, SOUND_TYPE_HOOK_NOATTACH, pCore->m_Id);
       }
       int NumOuts = pCore->m_pCollision->m_aNumTeleOuts[teleNr];
       if (GoingThroughTele && NumOuts > 0) {
@@ -2024,7 +2038,10 @@ void cc_do_weapon_switch(SCharacterCore *pCore) {
   const uint8_t HasWantedWeapon = (WeaponGot >> (WantedWeapon * CHAR_BIT)) & 1;
   const uint8_t CanSwitch = (pCore->m_ReloadTimer == 0) & HasWantedWeapon & !pCore->m_aWeaponGot[WEAPON_NINJA];
   const uint8_t SwitchMask = (uint8_t)-CanSwitch;
+  const uint8_t PreviousWeapon = pCore->m_ActiveWeapon;
   pCore->m_ActiveWeapon ^= (pCore->m_ActiveWeapon ^ WantedWeapon) & SwitchMask;
+  if (pCore->m_ActiveWeapon != PreviousWeapon)
+    emit_sound(pCore->m_pWorld, pCore->m_Pos, SOUND_TYPE_WEAPON_SWITCH, pCore->m_Id);
 }
 
 void wc_remove_entity(SWorldCore *pWorld, SEntity *pEnt);
@@ -2060,6 +2077,10 @@ void cc_fire_weapon(SCharacterCore *pCore) {
   }
 
   pCore->m_AttackTick = pCore->m_pWorld->m_GameTick + 1; // cc_fire_weapon is called on on_input before the tick is increased
+
+  static const ESoundType s_aWeaponSounds[NUM_WEAPONS] = {SOUND_TYPE_HAMMER_FIRE,  SOUND_TYPE_GUN_FIRE,   SOUND_TYPE_SHOTGUN_FIRE,
+                                                          SOUND_TYPE_GRENADE_FIRE, SOUND_TYPE_LASER_FIRE, SOUND_TYPE_NINJA_FIRE};
+  emit_sound(pCore->m_pWorld, pCore->m_Pos, s_aWeaponSounds[pCore->m_ActiveWeapon], pCore->m_Id);
 
   switch (pCore->m_ActiveWeapon) {
   case WEAPON_HAMMER: {
@@ -2968,6 +2989,7 @@ void wc_create_explosion(SWorldCore *pWorld, mvec2 Pos, int Owner) {
 #define EXPLOSION_INNER_RADIUS 48.0f
   if (pWorld->particle)
     pWorld->particle(Pos, PARTICLE_TYPE_EXPLOSION, -1, pWorld->user_data);
+  emit_sound(pWorld, Pos, SOUND_TYPE_GRENADE_EXPLODE, -1);
 
   const bool OwnerValid = Owner >= 0 && Owner < pWorld->m_NumCharacters;
   bool Hit = !OwnerValid || !pWorld->m_pCharacters[Owner].m_GrenadeHitDisabled;

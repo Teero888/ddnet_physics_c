@@ -2,17 +2,16 @@
 #define LIB_GAMECORE_H
 
 #ifndef DDNET_PHYSICS_API
-  #if defined(_WIN32)
-    #if defined(FRAMETEE_EXPORTS)
-      #define DDNET_PHYSICS_API __declspec(dllexport)
-    #else
-      #define DDNET_PHYSICS_API __declspec(dllimport)
-    #endif
-  #else
-    #define DDNET_PHYSICS_API
-  #endif
+#if defined(_WIN32)
+#if defined(FRAMETEE_EXPORTS)
+#define DDNET_PHYSICS_API __declspec(dllexport)
+#else
+#define DDNET_PHYSICS_API __declspec(dllimport)
 #endif
-
+#else
+#define DDNET_PHYSICS_API
+#endif
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -398,6 +397,35 @@ typedef enum {
   PARTICLE_TYPE_CONFETTI,
 } EParticleType;
 
+// DDNet world sounds. Values match the network protocol so callers building a
+// demo can forward the physics result without reconstructing what happened.
+typedef enum {
+  SOUND_TYPE_GUN_FIRE = 0,
+  SOUND_TYPE_SHOTGUN_FIRE = 1,
+  SOUND_TYPE_GRENADE_FIRE = 2,
+  SOUND_TYPE_HAMMER_FIRE = 3,
+  SOUND_TYPE_HAMMER_HIT = 4,
+  SOUND_TYPE_NINJA_FIRE = 5,
+  SOUND_TYPE_GRENADE_EXPLODE = 6,
+  SOUND_TYPE_NINJA_HIT = 7,
+  SOUND_TYPE_LASER_FIRE = 8,
+  SOUND_TYPE_LASER_BOUNCE = 9,
+  SOUND_TYPE_WEAPON_SWITCH = 10,
+  SOUND_TYPE_PLAYER_PAIN_SHORT = 11,
+  SOUND_TYPE_PLAYER_PAIN_LONG = 12,
+  SOUND_TYPE_BODY_LAND = 13,
+  SOUND_TYPE_PLAYER_AIRJUMP = 14,
+  SOUND_TYPE_PLAYER_JUMP = 15,
+  SOUND_TYPE_PLAYER_DIE = 16,
+  SOUND_TYPE_PLAYER_SPAWN = 17,
+  SOUND_TYPE_PLAYER_SKID = 18,
+  SOUND_TYPE_TEE_CRY = 19,
+  SOUND_TYPE_HOOK_LOOP = 20,
+  SOUND_TYPE_HOOK_ATTACH_GROUND = 21,
+  SOUND_TYPE_HOOK_ATTACH_PLAYER = 22,
+  SOUND_TYPE_HOOK_NOATTACH = 23,
+} ESoundType;
+
 typedef struct WorldCore {
   SCollision *m_pCollision;
   STeeAccelerator m_Accelerator;
@@ -430,6 +458,7 @@ typedef struct WorldCore {
   void *user_data;
   void (*particle)(mvec2 pos, int type, int cid, void *user_data);
   void (*damage_indicator)(mvec2 pos, float angle, int amount, int cid, void *user_data);
+  void (*sound)(mvec2 pos, int sound_id, int cid, void *user_data);
 } SWorldCore;
 
 // }}}
@@ -453,8 +482,8 @@ DDNET_PHYSICS_API void wc_remove_character(SWorldCore *pWorld, int CharacterId);
 
 // utility functions you might need
 DDNET_PHYSICS_API mvec2 prj_get_pos(SProjectile *pProj, float Time);
-DDNET_PHYSICS_API SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius, mvec2 *pNewPos, const SCharacterCore *pNotThis,
-                                       const SCharacterCore *pThisOnly);
+DDNET_PHYSICS_API SCharacterCore *wc_intersect_character(SWorldCore *pWorld, mvec2 Pos0, mvec2 Pos1, float Radius, mvec2 *pNewPos,
+                                                         const SCharacterCore *pNotThis, const SCharacterCore *pThisOnly);
 DDNET_PHYSICS_API void wc_insert_entity(SWorldCore *pWorld, SEntity *pEnt);
 DDNET_PHYSICS_API bool cc_freeze(SCharacterCore *pCore, int Seconds);
 DDNET_PHYSICS_API void cc_unfreeze(SCharacterCore *pCore);
