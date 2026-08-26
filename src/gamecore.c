@@ -2244,7 +2244,7 @@ void cc_fire_weapon(SCharacterCore *pCore) {
 }
 
 void cc_handle_weapons(SCharacterCore *pCore) {
-  if (pCore->m_ActiveWeapon == WEAPON_NINJA)
+  if (pCore->m_aWeaponGot[WEAPON_NINJA])
     cc_handle_ninja(pCore);
   if (pCore->m_Jetpack && pCore->m_ActiveWeapon == WEAPON_GUN)
     cc_handle_jetpack(pCore);
