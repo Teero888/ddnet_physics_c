@@ -1295,85 +1295,128 @@ unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec
   return 0;
 }
 #endif
-
+static float fast_absf(float v) { return v < 0.0f ? -v : v; }
 unsigned char intersect_line_tele_weapon(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
                                          unsigned char *__restrict__ pTeleNr) {
-  // Plain locals rather than a two-element array: the array form made clang
-  // materialise a stack slot on the early-out path, which is the common one.
-  const bool SolidNear = broad_check(pCollision, Pos0, Pos1);
-  const bool TeleNear = pTeleNr ? broad_check_tele(pCollision, Pos0, Pos1) : false;
-  if (!SolidNear && !TeleNear) {
+#define NORMALIZE()                                                                                                                                  \
+  if (vgetx(Pos0) < vgetx(Pos1))                                                                                                                     \
+    *pOutCollision = vsetx(*pOutCollision, vgetx(*pOutCollision) - 1);                                                                               \
+  if (vgety(Pos0) < vgety(Pos1))                                                                                                                     \
+    *pOutCollision = vsety(*pOutCollision, vgety(*pOutCollision) - 1);
+
+  const int Width = pCollision->m_MapData.width;
+  const unsigned char *game = pCollision->m_MapData.game_layer.data;
+
+  const float x0 = vgetx(Pos0);
+  const float y0 = vgety(Pos0);
+  const float x1 = vgetx(Pos1);
+  const float y1 = vgety(Pos1);
+
+  const float dx = x1 - x0;
+  const float dy = y1 - y0;
+
+  if (dx == 0.0f && dy == 0.0f) {
+    int ix = ((int)(x0 + 0.5f)) >> TILE_SHIFT;
+    int iy = ((int)(y0 + 0.5f)) >> TILE_SHIFT;
+    int idx = iy * Width + ix;
+
+    if (pTeleNr) {
+      unsigned char tele = is_teleport_hook(pCollision, idx);
+      if (tele) {
+        *pTeleNr = tele;
+        *pOutCollision = Pos0;
+        return TILE_TELEINWEAPON;
+      }
+    }
+
+    if (check_point_idx(pCollision, idx)) {
+      *pOutCollision = Pos0;
+      return game[idx];
+    }
+
     *pOutCollision = Pos1;
     return 0;
   }
 
-  const int Width = pCollision->m_MapData.width;
-  const int MapSize = Width * pCollision->m_MapData.height;
-  // int Idx = (((int)vgety(Pos0)) * Width * DISTANCE_FIELD_RESOLUTION) + ((int)vgetx(Pos0));
-  unsigned char Start = 0; // Check[0] > 1 ? 0 : pCollision->m_pSolidTeleDistanceField[Idx];
+  int mapX = ((int)(x0 + 0.5f)) >> TILE_SHIFT;
+  int mapY = ((int)(y0 + 0.5f)) >> TILE_SHIFT;
+  const int endX = ((int)(x1 + 0.5f)) >> TILE_SHIFT;
+  const int endY = ((int)(y1 + 0.5f)) >> TILE_SHIFT;
 
-  int End = (int)vdistance(Pos0, Pos1) + 1;
-  Start = iclamp(Start, 0, End);
-  Start -= Start % 8;
-  const float fEnd = End;
-  // No through_offset() here: weapon rays never consult the "through" tile, so
-  // the offsets the original computed were dead.
-  int LastIndex = -1;
+  const int stepX = (dx > 0.0f) ? 1 : ((dx < 0.0f) ? -1 : 0);
+  const int stepY = (dy > 0.0f) ? 1 : ((dy < 0.0f) ? -1 : 0);
 
-  const float inv_fEnd = 1.f / fEnd;
-  const float Pos0_x = vgetx(Pos0);
-  const float Pos0_y = vgety(Pos0);
-  const float diff_x = vgetx(Pos1) - Pos0_x;
-  const float diff_y = vgety(Pos1) - Pos0_y;
+  float inv_dx = (dx != 0.0f) ? 1.0f / dx : 0.0f;
+  float inv_dy = (dy != 0.0f) ? 1.0f / dy : 0.0f;
+  const float absInvDX = fast_absf(inv_dx);
+  const float absInvDY = fast_absf(inv_dy);
 
-  const __m256 Pos0_x_vec = _mm256_set1_ps(Pos0_x);
-  const __m256 Pos0_y_vec = _mm256_set1_ps(Pos0_y);
-  const __m256 diff_x_vec = _mm256_set1_ps(diff_x);
-  const __m256 diff_y_vec = _mm256_set1_ps(diff_y);
-  const __m256 inv_fEnd_vec = _mm256_set1_ps(inv_fEnd);
-  const __m256 half_vec = _mm256_set1_ps(0.5f);
-  const __m256i width_vec = _mm256_set1_epi32(Width);
+  float tMaxX = 1e30f, tMaxY = 1e30f;
+  float tDeltaX = 1e30f, tDeltaY = 1e30f;
 
-  int aIndices[8];
-  for (int k = Start; k <= End; k += 8) {
-    __m256i i_vec = _mm256_set_epi32(k + 7, k + 6, k + 5, k + 4, k + 3, k + 2, k + 1, k);
-    __m256 a_vec = _mm256_mul_ps(_mm256_cvtepi32_ps(i_vec), inv_fEnd_vec);
-    __m256 Pos_x_vec = _mm256_add_ps(Pos0_x_vec, _mm256_mul_ps(a_vec, diff_x_vec));
-    __m256 Pos_y_vec = _mm256_add_ps(Pos0_y_vec, _mm256_mul_ps(a_vec, diff_y_vec));
-    __m256 Pos_x_plus_half = _mm256_add_ps(Pos_x_vec, half_vec);
-    __m256 Pos_y_plus_half = _mm256_add_ps(Pos_y_vec, half_vec);
-    __m256i ix_vec = _mm256_srai_epi32(_mm256_cvttps_epi32(Pos_x_plus_half), 5);
-    __m256i iy_vec = _mm256_srai_epi32(_mm256_cvttps_epi32(Pos_y_plus_half), 5);
-    __m256i index_vec = _mm256_add_epi32(_mm256_mullo_epi32(iy_vec, width_vec), ix_vec);
-    if (LastIndex >= 0 && _mm256_movemask_ps(_mm256_castsi256_ps(_mm256_cmpeq_epi32(index_vec, _mm256_set1_epi32(LastIndex)))) == 0xFF)
-      continue;
-    _mm256_storeu_si256((__m256i *)aIndices, index_vec);
+  if (stepX != 0) {
+    int nextBoundaryX = (stepX > 0) ? ((mapX + 1) << TILE_SHIFT) : (mapX << TILE_SHIFT);
+    tMaxX = (nextBoundaryX - x0) * inv_dx;
+    if (tMaxX < 0.0f)
+      tMaxX = 0.0f;
+    tDeltaX = (float)TILE_SIZE * absInvDX;
+  }
 
-    const int Last = imin(k + 7, End);
-    for (int i = k; i <= Last; i++) {
-      const int Index = aIndices[i - k];
-      if ((unsigned int)Index >= (unsigned int)MapSize)
-        goto NoHit;
-      if (Index == LastIndex)
-        continue;
-      LastIndex = Index;
-      if (pTeleNr) {
-        *pTeleNr = is_teleport_weapon(pCollision, Index);
-        if (*pTeleNr) {
-          *pOutCollision = vvfmix(Pos0, Pos1, i / fEnd);
-          return TILE_TELEINWEAPON;
-        }
-      }
+  if (stepY != 0) {
+    int nextBoundaryY = (stepY > 0) ? ((mapY + 1) << TILE_SHIFT) : (mapY << TILE_SHIFT);
+    tMaxY = (nextBoundaryY - y0) * inv_dy;
+    if (tMaxY < 0.0f)
+      tMaxY = 0.0f;
+    tDeltaY = (float)TILE_SIZE * absInvDY;
+  }
 
-      if (check_point_idx(pCollision, Index)) {
-        *pOutCollision = vvfmix(Pos0, Pos1, i / fEnd);
-        return pCollision->m_MapData.game_layer.data[Index];
+  float u = 0.0f;
+  int idx = mapY * Width + mapX;
+
+  for (;;) {
+    if (pTeleNr) {
+      unsigned char tele = is_teleport_weapon(pCollision, idx);
+      if (tele) {
+        *pTeleNr = tele;
+        *pOutCollision = vvfmix(Pos0, Pos1, u);
+        NORMALIZE()
+        return TILE_TELEINWEAPON;
       }
     }
+
+    if (check_point_idx(pCollision, idx)) {
+      *pOutCollision = vvfmix(Pos0, Pos1, u);
+      NORMALIZE()
+      return game[idx];
+    }
+
+    if (mapX == endX && mapY == endY)
+      break;
+
+    if (tMaxX < tMaxY) {
+      mapX += stepX;
+      idx += stepX;
+      u = tMaxX;
+      tMaxX += tDeltaX;
+    } else {
+      mapY += stepY;
+      idx += stepY * Width;
+      u = tMaxY;
+      tMaxY += tDeltaY;
+    }
+
+    if (u > 1.0f) {
+      u = 1.0f;
+      mapX = endX;
+      mapY = endY;
+      idx = endY * Width + endX;
+      break;
+    }
   }
-NoHit:
+
   *pOutCollision = Pos1;
   return 0;
+#undef NORMALIZE
 }
 
 bool test_box(SCollision *pCollision, mvec2 Pos, mvec2 Size) {
