@@ -190,7 +190,6 @@ typedef struct Projectile {
   STuningParams *m_pTuning;
   int m_LifeSpan;
   int m_Owner;
-  uint32_t m_OwnerSpawnGeneration;
   int m_Type;
   int m_StartTick;
   int m_Bouncing;
@@ -479,6 +478,7 @@ DDNET_PHYSICS_API SWorldCore wc_empty(void);
 DDNET_PHYSICS_API void cc_on_input(SCharacterCore *pCore, const SPlayerInput *pNewInput);
 DDNET_PHYSICS_API SCharacterCore *wc_add_character(SWorldCore *pWorld, int Num);
 DDNET_PHYSICS_API void wc_remove_character(SWorldCore *pWorld, int CharacterId);
+DDNET_PHYSICS_API void wc_remove_entities_from_player(SWorldCore *pWorld, int PlayerId);
 
 // utility functions you might need
 DDNET_PHYSICS_API mvec2 prj_get_pos(SProjectile *pProj, float Time);

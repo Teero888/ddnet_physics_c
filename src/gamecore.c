@@ -371,6 +371,8 @@ void lsr_bounce(SLaser *pLaser) {
 }
 
 void lsr_tick(SLaser *pLaser) {
+  if (pLaser->m_Base.m_MarkedForDestroy)
+    return;
   if ((pLaser->m_Base.m_pWorld->m_GameTick - pLaser->m_EvalTick) > (GAME_TICK_SPEED * pLaser->m_pTuning->m_LaserBounceDelay / 1000.0f))
     lsr_bounce(pLaser);
   pLaser->m_Base.m_Spawned = false;
@@ -384,8 +386,6 @@ void prj_init(SProjectile *pProj, SWorldCore *pGameWorld, int Type, int Owner, m
   pProj->m_Direction = Dir;
   pProj->m_LifeSpan = Span;
   pProj->m_Owner = Owner;
-  if (Owner >= 0 && Owner < pGameWorld->m_NumCharacters)
-    pProj->m_OwnerSpawnGeneration = pGameWorld->m_pCharacters[Owner].m_SpawnGeneration;
   pProj->m_StartTick = pGameWorld->m_GameTick;
   pProj->m_Explosive = Explosive;
   pProj->m_Base.m_Layer = Layer;
@@ -425,6 +425,10 @@ bool cc_freeze(SCharacterCore *pCore, int Seconds);
 void wc_create_explosion(SWorldCore *pWorld, mvec2 Pos, int Owner);
 
 void prj_tick(SProjectile *pProj) {
+  // Marked between ticks -- cc_on_input's kill trigger reaches cc_die outside
+  // wc_tick, and the sweep that frees this only runs at the end of the tick.
+  if (pProj->m_Base.m_MarkedForDestroy)
+    return;
   pProj->m_Base.m_Spawned = false;
   float Pt = (pProj->m_Base.m_pWorld->m_GameTick - pProj->m_StartTick - 1) / (float)GAME_TICK_SPEED;
   float Ct = (pProj->m_Base.m_pWorld->m_GameTick - pProj->m_StartTick) / (float)GAME_TICK_SPEED;
@@ -444,19 +448,11 @@ void prj_tick(SProjectile *pProj) {
   bool Collide = intersect_line(pProj->m_Base.m_pCollision, PrevPos, CurPos, &ColPos, &NewPos);
   SCharacterCore *pOwnerChar = NULL;
 
-  if (pProj->m_Owner >= 0) {
-    const bool OwnerAlive = (pProj->m_Owner < pProj->m_Base.m_pWorld->m_NumCharacters &&
-                             pProj->m_Base.m_pWorld->m_pCharacters[pProj->m_Owner].m_SpawnGeneration == pProj->m_OwnerSpawnGeneration) ||
-                            !pProj->m_Base.m_pWorld->m_pConfig->m_SvDestroyBulletsOnDeath;
-    if (!OwnerAlive) {
-      if (pProj->m_Type != WEAPON_GRENADE) {
-        pProj->m_Base.m_MarkedForDestroy = true;
-        return;
-      }
-    } else {
-      pOwnerChar = &pProj->m_Base.m_pWorld->m_pCharacters[pProj->m_Owner];
-    }
-  }
+  // A dying owner takes its shots with it (cc_die -> wc_remove_entities_from_player
+  // under sv_destroy_bullets_on_death), so anything still flying here belongs to a
+  // character that is still in the world.
+  if (pProj->m_Owner >= 0 && pProj->m_Owner < pProj->m_Base.m_pWorld->m_NumCharacters)
+    pOwnerChar = &pProj->m_Base.m_pWorld->m_pCharacters[pProj->m_Owner];
 
   SCharacterCore *pTargetChr = NULL;
 
@@ -466,8 +462,7 @@ void prj_tick(SProjectile *pProj) {
   if (pProj->m_LifeSpan > -1)
     pProj->m_LifeSpan--;
 
-  if (Collide || (pTargetChr && (pOwnerChar ? !pOwnerChar->m_GrenadeHitDisabled
-                                            : pProj->m_Base.m_pWorld->m_pConfig->m_SvHit || pProj->m_Owner == -1 || pTargetChr == pOwnerChar))) {
+  if (Collide || (pTargetChr && (pOwnerChar ? !pOwnerChar->m_GrenadeHitDisabled : pProj->m_Base.m_pWorld->m_pConfig->m_SvHit || pProj->m_Owner == -1 || pTargetChr == pOwnerChar))) {
     if (pProj->m_Explosive && (!pTargetChr || (pTargetChr && (!pProj->m_Freeze || (pProj->m_Type == WEAPON_SHOTGUN && Collide))))) {
       wc_create_explosion(pProj->m_Base.m_pWorld, ColPos, pProj->m_Owner);
     } else if (pProj->m_Freeze) {
@@ -869,8 +864,11 @@ void cc_die(SCharacterCore *pCore) {
     cc_calc_indices(pCore);
   }
   wc_release_hooked(pCore->m_pWorld, Id);
+  if (pCore->m_pWorld->m_pConfig->m_SvDestroyBulletsOnDeath)
+    wc_remove_entities_from_player(pCore->m_pWorld, Id);
 
   pCore->m_RespawnDelay = 25;
+  pCore->m_ReloadTimer = 10;
   pCore->m_Id = Id;
 }
 
@@ -2850,6 +2848,30 @@ SCharacterCore *wc_add_character(SWorldCore *pWorld, int Num) {
 
   // Return the very *first* of the new characters
   return &pWorld->m_pCharacters[OldSize];
+}
+
+// Everything a player still has in flight, dropped in one pass. Entities are
+// only marked here: the end-of-tick sweep in wc_tick is what unlinks and frees
+// them, so this is safe to call from inside a tick -- which is where it is
+// called from, cc_die under sv_destroy_bullets_on_death.
+void wc_remove_entities_from_player(SWorldCore *pWorld, int PlayerId) {
+  if (!pWorld || PlayerId < 0)
+    return;
+
+  for (int i = 0; i < NUM_WORLD_ENTTYPES; ++i) {
+    for (SEntity *pEnt = pWorld->m_apFirstEntityTypes[i]; pEnt; pEnt = pEnt->m_pNextTypeEntity) {
+      int Owner;
+      if (pEnt->m_ObjType == WORLD_ENTTYPE_PROJECTILE)
+        Owner = ((SProjectile *)pEnt)->m_Owner;
+      else if (pEnt->m_ObjType == WORLD_ENTTYPE_LASER)
+        Owner = ((SLaser *)pEnt)->m_Owner;
+      else
+        continue;
+
+      if (Owner == PlayerId)
+        pEnt->m_MarkedForDestroy = true;
+    }
+  }
 }
 
 // TODO: remove ourselves from the grid linked list tater potator structure
