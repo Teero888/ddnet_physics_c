@@ -94,6 +94,12 @@ enum {
   DISTANCE_FIELD_RESOLUTION = 32,
 };
 
+typedef struct Door {
+  mvec2 m_Pos;
+  mvec2 m_To;
+  int m_Number;
+} SDoor;
+
 typedef struct Collision {
   map_data_t m_MapData;
   uint32_t *m_pWidthLookup;
@@ -109,7 +115,10 @@ typedef struct Collision {
   mvec2 *m_apTeleOuts[256];
   mvec2 *m_apTeleCheckOuts[256];
   mvec2 *m_pSpawnPoints;
+  // purely for graphics, the doors are just stoppers but we need to track them to render them
+  SDoor *m_pDoors;
 
+  int m_NumDoors;
   int m_NumSpawnPoints;
   int m_aNumTeleOuts[256];
   int m_aNumTeleCheckOuts[256];
@@ -155,6 +164,10 @@ DDNET_PHYSICS_API unsigned char get_front_collision_at(SCollision *pCollision, m
 DDNET_PHYSICS_API unsigned char get_move_restrictions(struct WorldCore *pWorld, mvec2 Pos, int Idx);
 DDNET_PHYSICS_API int get_map_index(SCollision *pCollision, mvec2 Pos);
 DDNET_PHYSICS_API bool check_point(SCollision *pCollision, mvec2 Pos);
+// Only used to construct doors
+DDNET_PHYSICS_API bool intersect_no_laser(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
+                                          mvec2 *__restrict__ pOutBeforeCollision);
+DDNET_PHYSICS_API void set_door_collision_at(SCollision *pCollision, float x, float y, unsigned char Type, unsigned char Flags, int Number);
 DDNET_PHYSICS_API bool is_hook_blocker(SCollision *pCollision, int Index, mvec2 Pos0, mvec2 Pos1);
 DDNET_PHYSICS_API unsigned char intersect_line_tele_hook(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1,
                                                          mvec2 *__restrict__ pOutCollision, unsigned char *__restrict__ pTeleNr);

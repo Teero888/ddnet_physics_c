@@ -517,6 +517,161 @@ fail:
   return false;
 }
 
+static unsigned char door_layer_at(const map_data_t *__restrict__ pMap, const unsigned char *__restrict__ pLayer, float x, float y) {
+  if (!pLayer)
+    return 0;
+  const int Nx = iclamp((int)roundf(x) / 32, 0, pMap->width - 1);
+  const int Ny = iclamp((int)roundf(y) / 32, 0, pMap->height - 1);
+  return pLayer[Ny * pMap->width + Nx];
+}
+
+// CCollision::CheckPoint.
+static bool door_is_solid(const map_data_t *pMap, mvec2 Pos) {
+  const unsigned char Index = door_layer_at(pMap, pMap->game_layer.data, vgetx(Pos), vgety(Pos));
+  return Index == TILE_SOLID || Index == TILE_NOHOOK;
+}
+
+// CCollision::GetTile: the tile itself, but only when it is one of the four
+// blocking kinds. ResetCollision uses it to leave a buried door alone.
+static bool door_tile_blocks(const map_data_t *pMap, const unsigned char *pLayer, mvec2 Pos) {
+  const unsigned char Index = door_layer_at(pMap, pLayer, vgetx(Pos), vgety(Pos));
+  return Index >= TILE_SOLID && Index <= TILE_NOLASER;
+}
+
+void set_door_collision_at(SCollision *pCollision, float x, float y, unsigned char Type, unsigned char Flags, int Number) {
+  map_data_t *pMap = &pCollision->m_MapData;
+  if (!pMap->door_layer.index)
+    return;
+  const int Nx = iclamp((int)roundf(x) / 32, 0, pMap->width - 1);
+  const int Ny = iclamp((int)roundf(y) / 32, 0, pMap->height - 1);
+  const int Index = Ny * pMap->width + Nx;
+  pMap->door_layer.index[Index] = Type;
+  pMap->door_layer.flags[Index] = Flags;
+  pMap->door_layer.number[Index] = Number;
+}
+
+bool intersect_no_laser(SCollision *__restrict__ pCollision, mvec2 Pos0, mvec2 Pos1, mvec2 *__restrict__ pOutCollision,
+                        mvec2 *__restrict__ pOutBeforeCollision) {
+  const map_data_t *pMap = &pCollision->m_MapData;
+  const float Distance = vdistance(Pos0, Pos1);
+  const int End = (int)ceilf(Distance);
+  mvec2 Last = Pos0;
+
+  for (int i = 0; i < End; ++i) {
+    const mvec2 Pos = vvfmix(Pos0, Pos1, (float)i / Distance);
+    const unsigned char Index = door_layer_at(pMap, pMap->game_layer.data, vgetx(Pos), vgety(Pos));
+    const unsigned char Front = door_layer_at(pMap, pMap->front_layer.data, vgetx(Pos), vgety(Pos));
+    if (Index == TILE_SOLID || Index == TILE_NOHOOK || Index == TILE_NOLASER || Front == TILE_NOLASER) {
+      if (pOutCollision)
+        *pOutCollision = Pos;
+      if (pOutBeforeCollision)
+        *pOutBeforeCollision = Last;
+      return true;
+    }
+    Last = Pos;
+  }
+
+  if (pOutCollision)
+    *pOutCollision = Pos1;
+  if (pOutBeforeCollision)
+    *pOutBeforeCollision = Pos1;
+  return false;
+}
+
+static void door_reset_collision(SCollision *pCollision, mvec2 Pos, mvec2 Direction, int Length, int Number) {
+  const map_data_t *pMap = &pCollision->m_MapData;
+  if (door_tile_blocks(pMap, pMap->game_layer.data, Pos) || door_tile_blocks(pMap, pMap->front_layer.data, Pos))
+    return;
+
+  for (int i = 0; i < Length - 1; ++i) {
+    const mvec2 CurrentPos = vvadd(Pos, vfmul(Direction, (float)i));
+    if (door_is_solid(pMap, CurrentPos))
+      break;
+    set_door_collision_at(pCollision, vgetx(CurrentPos), vgety(CurrentPos), TILE_STOPA, 0, Number);
+  }
+}
+
+// The same layers, order and side table wc_create_all_entities walks, so a door
+// is found wherever DDNet's CGameContext::OnEntity would have found one.
+static int door_entity_at(const map_data_t *pMap, int x, int y, int Layer) {
+  if ((unsigned int)x >= (unsigned int)pMap->width || (unsigned int)y >= (unsigned int)pMap->height)
+    return 0;
+  const int Index = y * pMap->width + x;
+  switch (Layer) {
+  case LAYER_GAME:
+    return pMap->game_layer.data[Index] - ENTITY_OFFSET;
+  case LAYER_FRONT:
+    return pMap->front_layer.data ? pMap->front_layer.data[Index] - ENTITY_OFFSET : 0;
+  case LAYER_SWITCH:
+    return pMap->switch_layer.type ? pMap->switch_layer.type[Index] - ENTITY_OFFSET : 0;
+  default:
+    return 0;
+  }
+}
+
+static void build_doors(SCollision *pCollision) {
+  map_data_t *pMap = &pCollision->m_MapData;
+  static const int aSideX[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int aSideY[8] = {1, 1, 0, -1, -1, -1, 0, 1};
+  static const int aLayers[3] = {LAYER_GAME, LAYER_FRONT, LAYER_SWITCH};
+
+  int NumDoors = 0;
+  for (int Pass = 0; Pass < 2; ++Pass) {
+    if (Pass == 1) {
+      if (NumDoors == 0)
+        return;
+
+      const size_t MapSize = (size_t)pMap->width * (size_t)pMap->height;
+      pMap->door_layer.index = calloc(MapSize, sizeof(*pMap->door_layer.index));
+      pMap->door_layer.flags = calloc(MapSize, sizeof(*pMap->door_layer.flags));
+      pMap->door_layer.number = calloc(MapSize, sizeof(*pMap->door_layer.number));
+      pCollision->m_pDoors = malloc((size_t)NumDoors * sizeof(SDoor));
+      if (!pMap->door_layer.index || !pMap->door_layer.flags || !pMap->door_layer.number || !pCollision->m_pDoors) {
+        free(pMap->door_layer.index);
+        free(pMap->door_layer.flags);
+        free(pMap->door_layer.number);
+        free(pCollision->m_pDoors);
+        pMap->door_layer.index = NULL;
+        pMap->door_layer.flags = NULL;
+        pMap->door_layer.number = NULL;
+        pCollision->m_pDoors = NULL;
+        return;
+      }
+      NumDoors = 0;
+    }
+
+    for (int l = 0; l < 3; ++l) {
+      const int Layer = aLayers[l];
+      for (int y = 0; y < pMap->height; ++y) {
+        for (int x = 0; x < pMap->width; ++x) {
+          if (door_entity_at(pMap, x, y, Layer) != ENTITY_DOOR)
+            continue;
+          const int Number = Layer == LAYER_SWITCH && pMap->switch_layer.number ? pMap->switch_layer.number[y * pMap->width + x] : 0;
+          const mvec2 Pos = vec2_init((float)x * 32.0f + 16.0f, (float)y * 32.0f + 16.0f);
+
+          for (int i = 0; i < 8; ++i) {
+            const int Side = door_entity_at(pMap, x + aSideX[i], y + aSideY[i], Layer);
+            if (Side < ENTITY_LASER_SHORT || Side > ENTITY_LASER_LONG)
+              continue;
+            if (Pass == 0) {
+              ++NumDoors;
+              continue;
+            }
+
+            const int Length = 32 * 3 + 32 * (Side - ENTITY_LASER_SHORT) * 3;
+            const mvec2 Direction = vec2_init(sinf((float)i * (PI / 4.0f)), cosf((float)i * (PI / 4.0f)));
+            mvec2 To = vvadd(Pos, vfmul(vnormalize(Direction), (float)Length));
+            intersect_no_laser(pCollision, Pos, To, &To, NULL);
+            door_reset_collision(pCollision, Pos, Direction, Length, Number);
+            pCollision->m_pDoors[NumDoors++] = (SDoor){.m_Pos = Pos, .m_To = To, .m_Number = Number};
+          }
+        }
+      }
+    }
+  }
+  pCollision->m_NumDoors = NumDoors;
+}
+
 // SCollision now OWNS the pMap data, DO NOT FREE IT
 bool init_collision(SCollision *__restrict__ pCollision, map_data_t *__restrict__ pMap) {
   return init_collision_with_no_weapons(pCollision, pMap, false);
@@ -532,6 +687,9 @@ bool init_collision_with_no_weapons(SCollision *__restrict__ pCollision, map_dat
   const int Width = pMapData->width;
   const int Height = pMapData->height;
   const int MapSize = Width * Height;
+
+  // Before the tile info passes: they read the door layer this fills in.
+  build_doors(pCollision);
 
   pCollision->m_pTileInfos = _mm_malloc(MapSize * sizeof(char), 64);
   memset(pCollision->m_pTileInfos, 0, MapSize * sizeof(char));
@@ -933,6 +1091,9 @@ void free_collision(SCollision *pCollision) {
     _mm_free(pCollision->m_pBroadIndicesBitField);
   if (pCollision->m_pTileInfos)
     _mm_free(pCollision->m_pTileInfos);
+
+  // The door layer itself belongs to the map data free_map_data just released.
+  free(pCollision->m_pDoors);
 
   // Free spawn points
   if (pCollision->m_NumSpawnPoints)
