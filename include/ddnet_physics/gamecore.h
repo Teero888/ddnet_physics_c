@@ -200,18 +200,18 @@ typedef struct Projectile {
 
 typedef struct Laser {
   SEntity m_Base;
-  STuningParams *m_pTuning;
   mvec2 m_From;
   mvec2 m_Dir;
   mvec2 m_TelePos;
   mvec2 m_PrevPos;
-  bool m_WasTele;
+  STuningParams *m_pTuning;
   float m_Energy;
   int m_Bounces;
   int m_EvalTick;
   int m_Owner;
+  uint8_t m_Type; // WEAPON_SHOTGUN or WEAPON_LASER
+  bool m_WasTele;
   bool m_ZeroEnergyBounceInLastTick;
-  int m_Type;
   bool m_TeleportCancelled;
   bool m_IsBlueTeleport;
 } SLaser;
@@ -221,33 +221,16 @@ typedef struct Laser {
 // SCharacter {{{
 
 typedef struct CharacterCore {
+  // Group by alignment to keep cached worlds small without unaligned SIMD loads.
   struct WorldCore *m_pWorld;
   SCollision *m_pCollision;
-  int m_Id;
-  mvec2 m_PrevPos;
   mvec2 m_Pos;
   mvec2 m_Vel;
-
-  uivec2 m_BlockPos;
-  int m_BlockIdx;
-  // Cached copy of m_pCollision->m_pTileInfos[m_BlockIdx], refreshed by
-  // cc_calc_indices. The tile info array is immutable after map load, so this
-  // saves a three-deep pointer chase in every hot INFO_* test.
-  unsigned char m_BlockInfo;
-
+  mvec2 m_PrevPos;
   mvec2 m_HookPos;
   mvec2 m_HookDir;
   mvec2 m_HookTeleBase;
-  int m_HookTick;
-  int8_t m_HookState;
-
-  unsigned char m_LastWeapon; // only used for ninja, is only triggered when ninja is activated
-  unsigned char m_ActiveWeapon;
-  // Keep this at eight bytes so the hot weapon-selection path can load all
-  // ownership flags at a fixed address. NUM_WEAPONS remains the logical size.
-  bool m_aWeaponGot[8];
-
-  // ninja
+  mvec2 m_TeleGunPos;
   struct {
     mvec2 m_ActivationDir;
     int m_ActivationTick;
@@ -255,30 +238,65 @@ typedef struct CharacterCore {
     int m_OldVelAmount;
   } m_Ninja;
 
-  bool m_NewHook;
-
-  bool m_Grounded;
-  int m_Jumped;
-  // m_JumpedTotal counts the jumps performed in the air
-  int m_JumpedTotal;
-  int m_Jumps;
-
-  unsigned char m_PrevFire;
+  // Pointers, aligned input and grid coordinates.
+  STuningParams *m_pTuning;
   SPlayerInput m_Input;
+  uivec2 m_BlockPos;
 
-  // DDRace
+  // Player IDs, tick counters and configurable jump counts retain their full range.
+  int m_Id;
+  int m_BlockIdx;
+  int m_HookTick;
+  int m_JumpedTotal; // jumps performed in the air
+  int m_Jumps;
   int m_StartTime;
+  int m_FreezeTime;
+  int m_FreezeStart;
+  int m_TuningBlockIdx;
+  int m_HookedPlayer;
+  int m_ReloadTimer;
+  int m_aHitObjects[10];
+  int m_StartTick;
+  int m_FinishTick;
+  float m_StartTickOffset;
+  float m_FinishTickOffset;
+  float m_RaceTime; // finished time in seconds, -1 while unfinished
+  uint32_t m_TimeCpMask;
+  float m_TileFraction;
+  int m_DamageTick;
+  int m_DamageTaken;
+  int m_HitNum;
+  int m_AttackTick; // external animations
+  float m_VelMag;   // cached for external use to avoid repeated sqrts
+  float m_VelRamp;  // cached for external use to avoid repeated expfs
+  uint32_t m_SpawnGeneration;
 
+  // Byte-sized state. Keep weapon ownership at eight bytes for the hot 64-bit load.
+  unsigned char m_BlockInfo; // immutable tile info cached by cc_calc_indices
+  int8_t m_HookState;
+  unsigned char m_LastWeapon; // previous weapon when ninja was activated
+  unsigned char m_ActiveWeapon;
+  bool m_aWeaponGot[8];
+
+  // Jump flags use bits 0 and 1; checkpoint/team values also need the -1 sentinel.
+  uint8_t m_Jumped;
+  unsigned char m_PrevFire;
   unsigned char m_Colliding;
-  bool m_LeftWall;
   unsigned char m_TeleCheckpoint;
-
-  // Last refers to the last tick
+  unsigned char m_MoveRestrictions;
+  uint8_t m_NumObjectsHit;
+  int8_t m_LastTimeCp;       // -1 or 0..NUM_TIME_CHECKPOINTS-1
+  int8_t m_FastcapStartTeam; // -1 before starting, 0 for red, 1 for blue
+  uint8_t m_RespawnDelay;
+  int8_t m_aWeaponAmmo[NUM_WEAPONS];
+  int8_t m_Health;
+  int8_t m_Armor;
+  bool m_NewHook;
+  bool m_Grounded;
+  bool m_LeftWall;
   bool m_LastRefillJumps;
   bool m_LastPenalty;
   bool m_LastBonus;
-
-  // DDNet Character
   bool m_Solo;
   bool m_Jetpack;
   bool m_CollisionDisabled;
@@ -292,54 +310,16 @@ typedef struct CharacterCore {
   bool m_HasTelegunGun;
   bool m_HasTelegunGrenade;
   bool m_HasTelegunLaser;
-  int m_FreezeTime;
-  int m_FreezeStart;
   bool m_DeepFrozen;
   bool m_LiveFrozen;
   bool m_FrozenLastTick;
-  int m_TuningBlockIdx;
-  STuningParams *m_pTuning;
-  unsigned char m_MoveRestrictions;
-  // we might have more than 255 player ids
-  int m_HookedPlayer;
-
-  mvec2 m_TeleGunPos;
   bool m_TeleGunTeleport;
   bool m_IsBlueTeleGunTeleport;
-
-  int m_ReloadTimer;
-
-  int m_aHitObjects[10];
-  uint8_t m_NumObjectsHit;
-
-  int m_StartTick;
-  int m_FinishTick;
-  float m_StartTickOffset;
-  float m_FinishTickOffset;
-  float m_RaceTime; // finished time in seconds, -1 while unfinished
-  float m_aTimeCp[NUM_TIME_CHECKPOINTS];
-  uint32_t m_TimeCpMask;
-  int m_LastTimeCp;
-  float m_TileFraction;
   bool m_aGotFastcapFlag[2];
-  int m_FastcapStartTeam; // -1 before starting, 0 for red, 1 for blue
-  int m_DamageTick;
-  int m_DamageTaken;
+  bool m_IsInFreeze; // demo rendering and freezebars
 
-  uint8_t m_RespawnDelay;
-
-  // external use
-
-  int m_HitNum;
-  int m_AttackTick;  // for external animations
-  bool m_IsInFreeze; // for demo rendering, freezebars
-  float m_VelMag;    // for external use to avoid multiple sqrts
-  float m_VelRamp;   // for external use to avoid multiple expfs
-  int8_t m_aWeaponAmmo[NUM_WEAPONS];
-  int8_t m_Health;
-  int8_t m_Armor;
-  uint32_t m_SpawnGeneration;
-
+  // Checkpoint times are cold state; keep them after the per-tick fields.
+  float m_aTimeCp[NUM_TIME_CHECKPOINTS];
 } SCharacterCore;
 // }}}
 
@@ -366,11 +346,11 @@ typedef struct {
 
 // We don't want teams for the physics, that makes switches easier
 typedef struct {
+  int m_EndTick;
+  int m_LastUpdateTick;
+  uint8_t m_Type; // TILE_SWITCH* values from the map's byte-sized tile IDs
   bool m_Status;
   bool m_Initial;
-  int m_EndTick;
-  int m_Type;
-  int m_LastUpdateTick;
 } SSwitch;
 
 typedef struct {
@@ -434,22 +414,20 @@ typedef struct WorldCore {
   SConfig *m_pConfig;
   STuningParams *m_pTunings;
 
-  SEntity *m_pNextTraverseEntity;
   SEntity *m_apFirstEntityTypes[NUM_WORLD_ENTTYPES];
 
   // Store and tick characters seperately from other entities since
   // the amount of players mostly only gets set once for simulations
   // NOTE: i could do this on the stack and just set a max but keep
   // the num characters var for a speedup probably
-  int m_NumCharacters;
   SCharacterCore *m_pCharacters;
-
-  int m_NumSwitches;
   SSwitch *m_pSwitches;
+  SPickupCooldownList *m_pPickupCooldowns;
 
+  int m_NumCharacters;
+  int m_NumSwitches;
   int m_GameTick;
   bool m_UniqueRace; // detected from Unique Race map settings, may also be enabled by the caller
-  SPickupCooldownList *m_pPickupCooldowns;
 
   // external use
 

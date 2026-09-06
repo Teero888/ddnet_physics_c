@@ -3100,9 +3100,6 @@ void wc_remove_entity(SWorldCore *pWorld, SEntity *pEnt) {
   if (pEnt->m_pNextTypeEntity)
     pEnt->m_pNextTypeEntity->m_pPrevTypeEntity = pEnt->m_pPrevTypeEntity;
 
-  if (pWorld->m_pNextTraverseEntity == pEnt)
-    pWorld->m_pNextTraverseEntity = pEnt->m_pNextTypeEntity;
-
   pEnt->m_pNextTypeEntity = NULL;
   pEnt->m_pPrevTypeEntity = NULL;
 }
